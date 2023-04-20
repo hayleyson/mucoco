@@ -5,7 +5,8 @@ OUTDIR=$2
 mkdir -p $OUTDIR
 
 OUTFILE=$OUTDIR/outputs.txt
-EVALFILE=$OUTDIR/results${15}.txt
+# EVALFILE=$OUTDIR/results${15}.txt
+EVALFILE=results${15}.txt
 
 DATA_DIR=data/
 
@@ -23,7 +24,8 @@ SENTIMENTGENERATIVEMODELYELP=models/sst2-classifier-gedi
 SENTIMENTGENERATIVEMODEL2LMSST2=models/finetuned-lm-negative-sst2#models/finetuned-lm-positive-sst2
 SENTIMENTGENERATIVEMODEL2LMYELP=models/finetuned-lm-negative-yelp#models/finetuned-lm-positive-yelp
 
-TOXICITYCLASSIFIER=models/toxicity-classifier ## make sure to train the classifier and place it here
+TOXICITYCLASSIFIER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best ## make sure to train the classifier and place it here
+TOXICITYTOKENIZER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best
 
 #many of these hyperparams were used while experimentation and debugging and do not need to be changed
 gold_loss_epsilons="none"
@@ -722,7 +724,7 @@ fi
 #     noise_variance=1.0
 #     embedgd_do_sample="false"
 #     LAMBDALR=1.0
-x
+
 
 
 debug=$4
@@ -740,6 +742,7 @@ fi
 
 # echo $TARGETTOPIC
 # echo "noise-variance=${noise_variance}"
+pwd;
 
 if [[ "$debug" == "debug" ]]
 then

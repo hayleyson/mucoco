@@ -1,0 +1,15 @@
+transformers>=4.5.1 # copied from github
+torch==1.11.0 # copied from environment.yml # installed using conda install pytorch==1.11.0 torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+sacrebleu==1.5.1 # copied from environment.yml
+sacremoses==0.0.47 # copied from environment.yml
+sacrerouge==0.2.3 # copied from environment.yml
+sentence-transformers # <- added on 17/03/23 after running decoding script
+POT # <- added on 17/03/23 after running decoding script
+google-api-python-client # <- added on 17/03/23 after running decoding script
+nltk
+perspective
+click
+pandas
+pytreebank
+chardet # <- added on 31/03/23 after running into an error
+wandb # <- added on 31/03/23 to log

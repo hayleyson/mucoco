@@ -22,7 +22,7 @@ import random
 
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 
-from perspective_api import PerspectiveWorker, unpack_scores
+# from perspective_api import PerspectiveWorker, unpack_scores
 
 from transformers import GPT2PreTrainedModel, GPT2Model
 from transformers.modeling_outputs import SequenceClassifierOutputWithPast, SequenceClassifierOutput
@@ -750,7 +750,7 @@ def toxicity_score(generations_df, perspective_file, perspective_rate_limit=5):
     from googleapiclient.errors import HttpError
     import time
 
-    API_KEY="none"
+    API_KEY="AIzaSyDjyaS-Iyw0nOjDjgTi645taUlp13EAs2k" ## hayley - 23/03/23
     assert API_KEY != "none", "Please set the API_KEY before proceeding"
 
     client = discovery.build(
@@ -1162,9 +1162,15 @@ def main(generations_file, output_file, metrics, extra):
     if generations_file.endswith(".jsonl"):
         generations_df = pd.read_json(generations_file, lines=True)
     else:
-        with open(generations_file) as fin:
-            generations_df = [{'prompt':{'text':''}, 'generations':[{'text':l.strip()}]} for l in fin.readlines()]
-            generations_df = pd.DataFrame(generations_df)
+        # with open(generations_file) as fin:
+        #     generations_df = [{'prompt':{'text':''}, 'generations':[{'text':l.strip()}]} for l in fin.readlines()]
+        #     generations_df = pd.DataFrame(generations_df)
+        
+        # (23-03-24: hyeryung) ^ above code results in empty prompt column. it results in the following error: 
+        # RuntimeError: cannot reshape tensor of 0 elements into shape [-1, 0] because the unspecified dimension size -1 can be any value and is ambiguous
+        generations_df = pd.read_json(generations_file, lines=True) 
+        print(generations_df.head())
+            
     
     metricset = set(metrics.strip().lower().split(","))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

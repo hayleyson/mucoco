@@ -127,3 +127,15 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Custom
+slurm_output/
+*.csv
+models/
+hf_cache
+_jigsaw-data
+wandb/
+wandb_bak/
+data/
+models_bak_contd/
+notebooks/results

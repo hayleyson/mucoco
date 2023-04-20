@@ -76,6 +76,7 @@ def main(args):
     betas = []
     model_paths = args.model.split(":")
     tokenizer_paths = args.tokenizer.split(":")
+    print('tokenizer_paths', tokenizer_paths)
     cur_lr = args.lr
     args.jsonl_tokenized = args.jsonl_tokenized == "true"
 
@@ -125,7 +126,10 @@ def main(args):
         if model_path not in name2model: #making sure we are not loading the model twice in case some constraints use the same model. 
             name2tokenizer[model_path] = AutoTokenizer.from_pretrained(tokenizer_paths[i], cache_dir=args.cache_dir,  use_fast=True)
             name2config[model_path] = AutoConfig.from_pretrained(model_path, cache_dir=args.cache_dir)
-
+            print(model_path)
+            print(args.cache_dir)
+            print(os.getcwd())
+            print(name2config[model_path])
             if model_types[i] == "sentence-transformer":
                 name2model[model_path] = lossbuilder.ModelWrapper(SentenceTransformer(model_path))
             elif "Custom" in model_types[i]:
