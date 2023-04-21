@@ -20,6 +20,7 @@
 #     models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds\
 #     gpt2-roberta full gpt2-large freeze-vecmap dontbinarize jsonl
 
+# define arguments
 params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
  '0,1',
  'train',
@@ -34,12 +35,32 @@ params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
  'dontbinarize',
  'jsonl']
 
-ckpt_dir='/home/hyeryungson/mucoco/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/results/checkpoint-18000'
+ckpt_dir_par='/home/hyeryungson/mucoco/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds'
+###############################################################################################################
+pjt_id = 'gvho0s98'
+###############################################################################################################
 
 import wandb
 import torch
 import os
 import json
+###############################################################################################################
+from glob import glob 
+import yaml
+num_gpu = torch.cuda.device_count()
+
+# for resume in wandb
+wandb.init(project="huggingface", resume="must", id=pjt_id)
+wandb_path=sorted(glob(f'/home/hyeryungson/mucoco/wandb/run-*{pjt_id}'), reverse=True)[0]
+config_path=os.path.join(wandb_path, 'files/config.yaml')
+print('path to yaml file', config_path)
+with open(config_path, 'r') as stream:
+    past_run_config = yaml.safe_load(stream)
+    
+# set the ckpt with highest step number as ckpt path
+ckpt_dir=sorted(glob(f'{ckpt_dir_par}/results/*/'), reverse=True)[0]
+print(ckpt_dir)
+###############################################################################################################
 
 import transformers
 from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, AddedToken
@@ -186,10 +207,6 @@ test_texts, test_labels = create_dataset(test_paths, labels)
 
 
 # tokenizer.save_pretrained(f"{params[7]}/checkpoint_best")
-###############################################################################################################
-
-###############################################################################################################
-wandb.init(project="huggingface", resume="must", id="gvho0s98")
 ###############################################################################################################
 
 ###############################################################################################################
@@ -359,13 +376,16 @@ os.makedirs(params[7], exist_ok=True)
 # code source: https://discuss.huggingface.co/t/adamw-pytorch-vs-huggingface/30562
 # why?: weight decay = for overfitting https://forums.fast.ai/t/is-weight-decay-applied-to-the-bias-term/73212
 
+# update: 23/04/21 (due to version change from transformers 4.7.1 -> 4.27.4)
+# now when defining param_groups, only trainable parameters are to be included.
+
 no_decay = ["bias", "LayerNorm.weight", "LayerNorm.bias"]
 optimizer_grouped_parameters = [
             {
                 "params": [
                     p
                     for n, p in model.named_parameters()
-                    if not any(nd in n for nd in no_decay)
+                    if (not any(nd in n for nd in no_decay)) and (p.requires_grad)
                 ],
                 "weight_decay": 0.01,
             },
@@ -373,7 +393,7 @@ optimizer_grouped_parameters = [
                 "params": [
                     p
                     for n, p in model.named_parameters()
-                    if any(nd in n for nd in no_decay)
+                    if (any(nd in n for nd in no_decay)) and (p.requires_grad)
                 ],
                 "weight_decay": 0.0,
             },
@@ -387,20 +407,18 @@ optimizer = optim.AdamW(
 
 # optim state_dict
 opt = torch.load(os.path.join(ckpt_dir, "optimizer.pt"))
-
 optimizer.load_state_dict(opt)
 
 
-
-lr_sch = transformers.get_linear_schedule_with_warmup(optimizer, num_warmup_steps=600, num_training_steps=194720, last_epoch=3)
-
-## learning rate scheduler
-# "linear"
+# load learning rate schedule
 sch = torch.load(os.path.join(ckpt_dir, "scheduler.pt"))
-
+num_training_steps = (len(train_dataset)*past_run_config['num_train_epochs']['value'])/(past_run_config['per_device_train_batch_size']['value']*(4*num_gpu))
+num_warmup_steps = past_run_config['warmup_steps']['value']
+last_epoch = sch['last_epoch']
+print('last_epoch: ', last_epoch)
+print('num_training_steps: ', num_training_steps)
+lr_sch = transformers.get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, last_epoch=last_epoch)
 lr_sch.load_state_dict(sch)
-
-lr_sch
 
 # for i in opt['state']:
 #     print(i, opt['state'][i]['exp_avg'].size())
@@ -417,9 +435,9 @@ training_args = TrainingArguments(
     num_train_epochs=10,              # total number of training epochs
     per_device_train_batch_size=4,  # batch size per device during training
     per_device_eval_batch_size=4,   # batch size for evaluation
-#     warmup_steps=600,
-#     weight_decay=0.01,               # strength of weight decay
-#     learning_rate=1e-5,
+#     warmup_steps=600, # commented out for resume
+#     weight_decay=0.01,               # strength of weight decay # commented out for resume
+#     learning_rate=1e-5, # commented out for resume
     logging_dir=f'{params[7]}/logs',            # directory for storing logs
     logging_steps=100,
     evaluation_strategy="steps",
