@@ -25,7 +25,7 @@ params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
 
 # config 
 
-def define_model(mod_path=None, load_weights=True, is_regression=True):
+def define_model(mod_path=None, load_weights=True):
     
     base_path = params[1]
     binarize_labels = False
@@ -50,10 +50,10 @@ def define_model(mod_path=None, load_weights=True, is_regression=True):
     config2 = None
     if params[10] != "none":  
         config2 = AutoConfig.from_pretrained(params[10], cache_dur="hf_cache", num_labels=len(labels))
-        print(config2.pad_token_id)
+        # print(config2.pad_token_id)
         config2.pad_token_id = tokenizer.pad_token_id
-        print(config2.pad_token_id)
-        print("look above for padding")
+        # print(config2.pad_token_id)
+        # print("look above for padding")
 
         tokenizer_ = AutoTokenizer.from_pretrained(params[6], config=config)
         tokenizer.model_max_length = min(tokenizer_.model_max_length, tokenizer.model_max_length)
@@ -61,7 +61,7 @@ def define_model(mod_path=None, load_weights=True, is_regression=True):
     if params[8] == "gpt2-roberta":
         SPECIAL_TOKENS = {"pad_token": tokenizer.eos_token}
         # config.pad_token_id = tokenizer.eos_token_id
-        print("Adding special tokens")
+        # print("Adding special tokens")
         tokenizer.add_special_tokens(SPECIAL_TOKENS)
 
     # if params[10] != "none":
@@ -69,10 +69,10 @@ def define_model(mod_path=None, load_weights=True, is_regression=True):
     # model.resize_token_embeddings(len(tokenizer))
 
     def learn_vecmap(X, y):
-        print("computing vecmap")
+        # print("computing vecmap")
         w = torch.inverse(X.t().matmul(X)).matmul(X.t()).matmul(y)
         vecmap = torch.nn.Linear(w.size(0), w.size(1), bias=False)
-        print(w.size(), vecmap.weight.size())
+        # print(w.size(), vecmap.weight.size())
         vecmap.weight.data.copy_(w.data.t())
         return vecmap
 
@@ -90,7 +90,7 @@ def define_model(mod_path=None, load_weights=True, is_regression=True):
             else:
                 unincluded.append(word)
 
-        print(unincluded)
+        # print(unincluded)
         return perm1, perm2
 
     embeds = model.get_input_embeddings()
@@ -101,9 +101,6 @@ def define_model(mod_path=None, load_weights=True, is_regression=True):
     new_embeds.weight.data.copy_(embeds.weight)
     config.new_n_embd = new_embeds.embedding_dim
     config.new_vocab_size = new_embeds.num_embeddings
-    
-    if is_regression:
-        config.num_labels = 1
 
     model_ = AutoModelForSequenceClassification.from_pretrained(params[6], config=config)
     tokenizer_ = AutoTokenizer.from_pretrained(params[6], config=config)

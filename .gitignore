@@ -131,7 +131,7 @@ dmypy.json
 # Custom
 slurm_output/
 *.csv
-models/
+models*/
 hf_cache
 _jigsaw-data
 wandb/
@@ -139,3 +139,4 @@ wandb_bak/
 data/
 models_bak_contd/
 notebooks/results
+OREOß

@@ -13,3 +13,4 @@ pandas
 pytreebank
 chardet # <- added on 31/03/23 after running into an error
 wandb # <- added on 31/03/23 to log
+evaluate # 05/05/23 for evaluation

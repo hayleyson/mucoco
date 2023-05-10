@@ -1,0 +1,198 @@
+# -*- coding: utf-8 -*-
+from torch import nn
+import torch
+import scipy
+# from scipy.special import softmax
+
+from datetime import datetime
+import wandb
+import torch
+import os
+import json
+###############################################################################################################
+import click
+from glob import glob 
+import yaml
+import transformers
+from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, AddedToken
+from torch import optim
+
+import numpy as np
+import pandas as pd
+
+from evaluate import load 
+###############################################################################################################
+
+import os
+# os.chdir('/home/hyeryungson/mucoco/notebooks/energy-model-retrain')
+from notebooks.energy_model_retrain.load_ckpt import define_model
+from notebooks.energy_model_retrain.customTrainer import CustomTrainer
+# os.chdir('/home/hyeryungson/mucoco')
+
+@click.command()
+@click.option('--resume', default=False, help='Whether to resume previously stopped run.')
+def main(resume):
+    def compute_metrics(eval_pred):
+        logits, labels = eval_pred
+        # logits = eval_pred.predictions
+        # labels = eval_pred.label_ids
+        predictions = scipy.special.softmax(logits, axis=-1)
+        # log_predictions = np.log(predictions)
+        # all_losses = np.sum(labels * log_predictions, axis=-1)
+        # cross_entropy = -np.mean(all_losses, axis=0)
+        
+        # mse
+        mse_metric = load("mse")
+        
+        # mae
+        mae_metric = load("mae")
+        
+        return {"mse": mse_metric.compute(predictions=predictions[:, 1], references=labels[:, 1]),
+                "mae": mae_metric.compute(predictions=predictions[:, 1], references=labels[:, 1])}
+
+    # define arguments
+    params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
+    '0,1',
+    'train',
+    'dev',
+    'test',
+    'roberta-base',
+    'models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds',
+    'gpt2-roberta',
+    'full',
+    'gpt2-large',
+    'freeze-vecmap',
+    'dontbinarize',
+    'jsonl']
+
+    time_limit = 1
+    # resume_yn=True
+    resume_yn=resume
+    print("Is CUDA Available:", torch.cuda.is_available())
+    print("GPU count:", torch.cuda.device_count())
+    os.makedirs(params[7], exist_ok=True)
+
+    if resume_yn:
+        # get the latest pjt_id for now
+        pjt_id=sorted(glob(f'wandb/run-*'), reverse=True)[0].split('-')[-1]
+        print(f'pjt_id: {pjt_id}')
+        
+        # for resume in wandb
+        wandb.init(project="huggingface", resume="must", id=pjt_id)
+        wandb_path=sorted(glob(f'wandb/run-*{pjt_id}'), reverse=True)[0]
+        config_path=os.path.join(wandb_path, 'files/config.yaml')
+        # print('path to yaml file', config_path)
+        with open(config_path, 'r') as stream:
+            past_run_config = yaml.safe_load(stream)
+            
+        # set the ckpt with highest step number as ckpt path
+        ckpt_dir=sorted(glob(f'{params[7]}/results/*/'), key=lambda x: int(x.split('-')[-1].strip('/')), reverse=True)[0]
+        print('Resuming from...', ckpt_dir)
+        # load model from ckpt
+        model, config, tokenizer = define_model(mod_path=os.path.join(ckpt_dir, "pytorch_model.bin"), load_weights=True)
+    else:
+        model, config, tokenizer = define_model(mod_path=None, load_weights=False)
+        tokenizer.save_pretrained(f"{params[7]}/checkpoint_best")
+        
+    train_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/train.jsonl', lines=True)
+    dev_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/dev.jsonl', lines=True)
+    test_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/test.jsonl', lines=True)
+    train_data = train_data[:10]
+    dev_data = dev_data[:10]
+    test_data = test_data[:10]
+
+    # print('train_data shape', train_data.shape)
+    # print('dev_data shape', dev_data.shape)
+    # print('test_data shape', test_data.shape)
+    train_texts, train_labels = train_data['text'].tolist(), train_data['toxicity'].tolist()
+    val_texts, val_labels = dev_data['text'].tolist(), dev_data['toxicity'].tolist()
+    test_texts, test_labels = test_data['text'].tolist(), test_data['toxicity'].tolist()
+
+    train_encodings = tokenizer(train_texts, truncation=True, padding=True)
+    val_encodings = tokenizer(val_texts, truncation=True, padding=True)
+    test_encodings = tokenizer(test_texts, truncation=True, padding=True)
+
+    class Dataset(torch.utils.data.Dataset):
+        def __init__(self, encodings, labels):
+            self.encodings = encodings
+            self.labels = labels
+
+        def __getitem__(self, idx):
+            item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+            item['labels'] = torch.tensor([1 - self.labels[idx], self.labels[idx]])
+            return item
+
+        def __len__(self):
+            return len(self.labels)
+
+    train_dataset = Dataset(train_encodings, train_labels)
+    val_dataset = Dataset(val_encodings, val_labels)
+    test_dataset = Dataset(test_encodings, test_labels)
+
+    training_args = TrainingArguments(
+        output_dir=f'{params[7]}/results',          # output directory
+        num_train_epochs=10,              # total number of training epochs
+        per_device_train_batch_size=4,  # batch size per device during training
+        per_device_eval_batch_size=4,   # batch size for evaluation
+        warmup_steps=600, # commented out for resume
+        weight_decay=0.01,               # strength of weight decay # commented out for resume
+        learning_rate=1e-5, # commented out for resume
+        logging_dir=f'{params[7]}/logs',            # directory for storing logs
+        logging_steps=100,
+        evaluation_strategy="steps",
+        save_total_limit=5,
+        eval_steps=500,
+        # metric_for_best_model="accuracy",
+        # greater_is_better=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        gradient_accumulation_steps=4,
+        load_best_model_at_end=True,
+        report_to="wandb"
+    )
+
+    # print(training_args.n_gpu)
+
+    trainer = CustomTrainer(
+        model=model,                         # the instantiated 🤗 Transformers model to be trained
+        args=training_args,                  # training arguments, defined above
+        train_dataset=train_dataset,         # training dataset
+        eval_dataset=val_dataset,             # evaluation dataset
+        compute_metrics=compute_metrics,
+        # optimizers=(optimizer, lr_sch)
+    )
+
+    if resume_yn:
+        # resume_from_checkpoint = sorted(glob(os.path.join(params[7] + '/results/*')), key=lambda x: int(x.split('-')[-1]), reverse=True)
+        resume_from_checkpoint = ckpt_dir
+    else:
+        resume_from_checkpoint = None 
+    print('resume_from_checkpoint', resume_from_checkpoint)
+
+
+    try: 
+        print("start training")
+        train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint, time_limit=time_limit)
+        print("training finished")
+
+
+        os.makedirs(f"{params[7]}/checkpoint_best", exist_ok=True)
+
+        trainer.save_model(output_dir=f"{params[7]}/checkpoint_best") 
+        print("model saved")
+
+        print("running evaluation now")
+
+        metrics = trainer.evaluate(val_dataset)
+        print("validation", metrics)
+        metrics = trainer.evaluate(test_dataset)
+        print("test", metrics)
+
+    except Exception as e:
+        print(e)
+    #     # if e.args[0] == "TIMEOUT":
+    #     #     print(e.args[1])
+    
+if __name__ == "__main__":
+    
+    main()
