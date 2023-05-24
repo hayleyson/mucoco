@@ -308,19 +308,12 @@ class CustomTrainer(Trainer):
             args=args,
             resume_from_checkpoint=resume_from_checkpoint,
             trial=trial,
-            ignore_keys_for_eval=ignore_keys_for_eval,
-            time_limit=time_limit
+            ignore_keys_for_eval=ignore_keys_for_eval
         )
 
     def _inner_training_loop(
         self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None,
-        ############ added by Hayley ############## 
-        time_limit=11.75*60 # in minutes
-        ########################################### 
     ):
-        ############ added by Hayley ############## 
-        start_time = time.time()
-        ########################################### 
         self._train_batch_size = batch_size
         # Data loader and number of training steps
         train_dataloader = self.get_train_dataloader()
@@ -517,6 +510,7 @@ class CustomTrainer(Trainer):
         ############ Where training happens! comment added by Hayley ############## 
         total_batched_samples = 0
         for epoch in range(epochs_trained, num_train_epochs):
+            print("epoch: ", epoch)
             if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
                 train_dataloader.sampler.set_epoch(epoch)
             elif hasattr(train_dataloader, "dataset") and isinstance(train_dataloader.dataset, IterableDatasetShard):
@@ -677,19 +671,19 @@ class CustomTrainer(Trainer):
             # execution_time = (time.time() - start_time) / 60 # in minutes
             # print("execution time:", execution_time)
             # if execution_time > time_limit: #time_limit ~11hrs 45min...
-            if (epoch+1) % 3 == 0: # about 3.xx epochs can fit into one 
-                # if execution time exceeded time limit, log, evaluate and save trainer state.
-                self.control.should_save=True
-                self.control.should_evaluate=True
-                self.control.should_log=True
-                self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
-                # return -1
-                raise Exception(f"TIMEOUT {wandb.run.id}") # exit the training)
-            else: 
-            ########################################### 
-                # indentation added
-                self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
-                self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
+            # if (epoch+1) % 7 == 0: # about 3.xx epochs can fit into one 
+            #     # if execution time exceeded time limit, log, evaluate and save trainer state.
+            #     self.control.should_save=True
+            #     self.control.should_evaluate=True
+            #     self.control.should_log=True
+            #     self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
+            #     # return -1
+            #     raise Exception(f"TIMEOUT {wandb.run.id}") # exit the training)
+            # else: 
+            # ########################################### 
+            #     # indentation added
+            self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
+            self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
             
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:

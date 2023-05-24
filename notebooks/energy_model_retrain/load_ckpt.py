@@ -25,7 +25,7 @@ params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
 
 # config 
 
-def define_model(mod_path=None, load_weights=True):
+def define_model(mod_path=None, load_weights=True, output_attentions=False, output_hidden_states=False):
     
     base_path = params[1]
     binarize_labels = False
@@ -101,6 +101,8 @@ def define_model(mod_path=None, load_weights=True):
     new_embeds.weight.data.copy_(embeds.weight)
     config.new_n_embd = new_embeds.embedding_dim
     config.new_vocab_size = new_embeds.num_embeddings
+    config.output_attentions=output_attentions
+    config.output_hidden_states=output_hidden_states
 
     model_ = AutoModelForSequenceClassification.from_pretrained(params[6], config=config)
     tokenizer_ = AutoTokenizer.from_pretrained(params[6], config=config)
@@ -112,13 +114,14 @@ def define_model(mod_path=None, load_weights=True):
     model_.set_input_embeddings(new_embeds)
     model = model_
 
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print("DEVICE: ", device)
 
     # state_dict
     if load_weights and (mod_path is not None):
-        mod = torch.load(mod_path)
+        mod = torch.load(mod_path, map_location=device)
         model.load_state_dict(mod)
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model.to(device)
 
     return model, config, tokenizer

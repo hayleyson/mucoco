@@ -79,7 +79,7 @@ def main(resume, epochs, warmup_steps, learning_rate, weight_decay, logging_step
     'dev',
     'test',
     'roberta-base',
-    'models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds',
+    'models_binarize/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds',
     'gpt2-roberta',
     'full',
     'gpt2-large',
@@ -117,16 +117,23 @@ def main(resume, epochs, warmup_steps, learning_rate, weight_decay, logging_step
         model, config, tokenizer = define_model(mod_path=None, load_weights=False)
         tokenizer.save_pretrained(f"{params[7]}/checkpoint_best")
         
-    train_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/train_mucoco+add.jsonl', lines=True)
-    dev_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/dev_mucoco+add.jsonl', lines=True)
-    test_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/test_mucoco+add.jsonl', lines=True)
+    train_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/train.jsonl', lines=True)
+    dev_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/dev.jsonl', lines=True)
+    test_data = pd.read_json('/home/hyeryungson/mucoco/data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/fine-grained/test.jsonl', lines=True)
 
     # logger.debug('train_data shape %s', train_data.shape)
     # logger.debug('dev_data shape %s', dev_data.shape)
     # logger.debug('test_data shape %s', test_data.shape)
+    
     train_texts, train_labels = train_data['text'].tolist(), train_data['toxicity'].tolist()
     val_texts, val_labels = dev_data['text'].tolist(), dev_data['toxicity'].tolist()
     test_texts, test_labels = test_data['text'].tolist(), test_data['toxicity'].tolist()
+
+    # binarize labels
+    cutoff = 0.5
+    train_labels = [1 if x >= cutoff else 0 for x in train_labels]
+    val_labels = [1 if x >= cutoff else 0 for x in val_labels]
+    test_labels = [1 if x >= cutoff else 0 for x in test_labels]
 
     train_encodings = tokenizer(train_texts, truncation=True, padding=True)
     val_encodings = tokenizer(val_texts, truncation=True, padding=True)

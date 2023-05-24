@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --mem=80gb
+#SBATCH --mem=400gb
 #SBATCH --cpus-per-task=8
 #SBATCH --output='/home/hyeryungson/mucoco/slurm_output/%j.out'
 
@@ -17,11 +17,14 @@ source ~/anaconda/etc/profile.d/conda.sh
 conda activate mucoco
 
 export LOG_LEVEL=DEBUG
-srun python -m notebooks.energy_model_retrain.allow_infinite_run \
+srun python -m notebooks.energy_model_retrain.allow_infinite_run_addall \
 --resume $1 \
---epochs 10 \
---wandb_name 'label-finegrained-data-mucoco-add' \
---run_id 'sa094i7f'
+--wandb_name 'label-finegrained-data-mucoco-addall-bs16' \
+--per_device_train_batch_size 16 \
+--per_device_eval_batch_size 16 \
+--gradient_accumulation_steps 1 \
+--learning_rate 4e-5 \
+--run_id 'beuuivvi'
 # @click.option('--resume', default=False, help='Whether to resume previously stopped run')
 # @click.option('--epochs', default=10, help='Total number of training epochs')
 # @click.option('--warmup_steps', default=600, help='Number of steps for learning rate warm up')
