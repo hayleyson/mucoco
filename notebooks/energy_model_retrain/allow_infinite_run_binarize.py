@@ -131,9 +131,9 @@ def main(resume, epochs, warmup_steps, learning_rate, weight_decay, logging_step
 
     # binarize labels
     cutoff = 0.5
-    train_labels = [1 if x >= cutoff else 0 for x in train_labels]
-    val_labels = [1 if x >= cutoff else 0 for x in val_labels]
-    test_labels = [1 if x >= cutoff else 0 for x in test_labels]
+    train_labels = [1.0 if x >= cutoff else 0.0 for x in train_labels]
+    val_labels = [1.0 if x >= cutoff else 0.0 for x in val_labels]
+    test_labels = [1.0 if x >= cutoff else 0.0 for x in test_labels]
 
     train_encodings = tokenizer(train_texts, truncation=True, padding=True)
     val_encodings = tokenizer(val_texts, truncation=True, padding=True)
