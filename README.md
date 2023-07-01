@@ -45,3 +45,18 @@ See `examples/prompt/constrained_sampling_mucola.sh`, `examples/summarization/co
 
 The source code is licensed under the MIT license, which you can find in the LICENSE.md file
 
+# Setting up environment
+[GPU Spec: A100]
+- Use pipenv. 
+- First install using requirements.txt
+- Then manually install pytorch using this command. 
+`pipenv run pip install  torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu
+113`
+
+
+# Move data across servers
+Data and models are not in the github.
+Do this
+- ```scp -r username@<ip>:/home/username/mucoco/data/ ./```
+- ```scp -r username@<ip>:/home/username/mucoco/notebooks/results ./notebooks/```
+- ```scp -r username@<ip>:/home/username/mucoco/models_bak_contd/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best ./models_bak_contd/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best```

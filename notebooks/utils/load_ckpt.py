@@ -38,18 +38,18 @@ def define_model(mod_path=None, load_weights=True, output_attentions=False, outp
 
     labels = [int(label) for label in params[2].split(",")]
 
-    tokenizer_ = AutoTokenizer.from_pretrained(params[6], cache_dir="hf_cache")
+    tokenizer_ = AutoTokenizer.from_pretrained(params[6])
     if params[10] != "none":
-        tokenizer = AutoTokenizer.from_pretrained(params[10], cache_dir="hf_cache")
+        tokenizer = AutoTokenizer.from_pretrained(params[10])
         tokenizer.model_max_length = min(tokenizer_.model_max_length, tokenizer.model_max_length)
     else:
         tokenizer = tokenizer_
-        # tokenizer = AutoTokenizer.from_pretrained(params[6], cache_dir="hf_cache")
+        # tokenizer = AutoTokenizer.from_pretrained(params[6])
         
-    config = AutoConfig.from_pretrained(params[6], cache_dur="hf_cache", num_labels=len(labels))
+    config = AutoConfig.from_pretrained(params[6], num_labels=len(labels))
     config2 = None
     if params[10] != "none":  
-        config2 = AutoConfig.from_pretrained(params[10], cache_dur="hf_cache", num_labels=len(labels))
+        config2 = AutoConfig.from_pretrained(params[10], num_labels=len(labels))
         # print(config2.pad_token_id)
         config2.pad_token_id = tokenizer.pad_token_id
         # print(config2.pad_token_id)
