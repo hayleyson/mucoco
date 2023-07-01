@@ -46,6 +46,7 @@ selection_criterion="primary_allsat" #primary allsat: select the sample satisfyi
 NUM_SAMPLES=1
 length_diff=0
 linear_scale="false"
+# linear_scale="true"
 OPTIMSTEPS=500
 OUTPUTSTYLE="jsonl"
 embedgd_do_sample="true"

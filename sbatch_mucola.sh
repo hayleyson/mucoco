@@ -17,7 +17,8 @@ source ~/anaconda/etc/profile.d/conda.sh
 conda activate mucoco
 
 # srun bash examples/training_constraint_models/train_toxicity_classifier.sh  || echo "!!! error occurred"
-srun python -m notebooks.resume_run  || echo "!!! error occurred"
+# srun python -m notebooks.resume_run  || echo "!!! error occurred"
+srun bash examples/prompt/toxicity-all/mucola-disc.sh
 
 end=$(date +%s)
 

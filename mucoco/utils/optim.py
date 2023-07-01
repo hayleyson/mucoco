@@ -1497,7 +1497,7 @@ class EmbedGD(torch.optim.Optimizer):
                     continue
 
                 state = self.state[parameter]
-                gradient = parameter.grad.data
+                gradient = parameter.grad.data # delta_embed^t-1{energy}
 
                 if len(state) == 0:
                     state['step'] = 0
@@ -1544,11 +1544,11 @@ class EmbedGD(torch.optim.Optimizer):
                 # nu = momentum * nu + lrs * (gradient/torch.sqrt(s+sepsilon))
                 # print(torch.norm(gradient, p=2, dim=-1))
 
-                nu = momentum * nu + lrs * gradient
+                nu = momentum * nu + lrs * gradient ## gradient ## grad_distance is used in order to ProjE.
                 # print("hola", nu, parameter.data, noise)
                 if self.grad_distance == "dot":
-                    temp = nu - parameter.data - noise
-                    objective = temp.matmul(embed_lut.t())
+                    temp = nu - parameter.data - noise 
+                    objective = temp.matmul(embed_lut.t()) # (bs, seqlen, embed_size) * (embed_size, vocab_size)
                     # print(objective)
                 elif self.grad_distance == "cosine":
                     dist = 1 - F.normalize(parameter.data, p=2, dim=-1).matmul(embed_lut.t())
