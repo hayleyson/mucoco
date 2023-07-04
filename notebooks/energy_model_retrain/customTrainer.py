@@ -216,12 +216,20 @@ SCALER_NAME = "scaler.pt"
 
 
 class CustomTrainer(Trainer):
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False): # 인자로 뭘 받을 수 있는지 몰라서.. 인자에 추가하지 않고 하드코딩
         labels = inputs.get("labels")
         outputs = model(**inputs)
         logits = outputs.get('logits')
-        loss_fct = nn.CrossEntropyLoss()
-        loss = loss_fct(logits.squeeze(), labels.squeeze())
+        weighted="ones_only"; weight=2.0 # 인자로 뭘 받을 수 있는지 몰라서.. 인자에 추가하지 않고 하드코딩
+        if weighted=="none":
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits.squeeze(), labels.squeeze())
+        elif weighted=="ones_only":
+            loss_fct = nn.CrossEntropyLoss(reduction="none")
+            loss = loss_fct(logits.squeeze(), labels.squeeze())
+            weights=torch.ones_like(loss)
+            weights[labels[:,1]==1.0]=weight
+            loss = torch.sum(loss * weights)/torch.sum(weights)
         return (loss, outputs) if return_outputs else loss
     
     def train(
