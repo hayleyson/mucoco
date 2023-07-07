@@ -124,7 +124,7 @@ def define_model(mod_path=None, load_weights=True, output_attentions=False, outp
 
     model.to(device)
 
-    return model, config, tokenizer
+    return model, tokenizer
     
 
 if __name__ == "__main__":
