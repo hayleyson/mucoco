@@ -365,7 +365,7 @@ class Optimizer(object):
         else:
             loss.backward(retain_graph=retain_graph)
 
-    def step(self, no_improvement=False, scaler=None, entropy=None):
+    def step(self, no_improvement=False, scaler=None, entropy=None, indices=None):
         """Update the model parameters based on current gradients.
 
         Optionally, will employ gradient modification or update learning
@@ -389,7 +389,7 @@ class Optimizer(object):
                 clip_grad_norm_(group["params"], self._max_grad_norm)
             elif self._fp16 is None and self._max_grad_norm > 0 and not self.ascent:
                 # clip_grad_norm_(group["params"], self._max_grad_norm)
-                for p in group['params']:
+                for p in group['params']: ######### note: can modify here.
                     param_norm = p.grad.data.norm(2, -1).sum(dim=0)
                     # print(p.size())
                     coeff = torch.clamp(self._max_grad_norm / param_norm, max=1.0)
@@ -398,6 +398,11 @@ class Optimizer(object):
                     # print(param_norm)
                     # param_norm = p.grad.data.norm(2, -1).sum(dim=0)
                     # print(param_norm)
+                    mask = torch.zeros_like(p.grad)
+                    print("mask.shape: ", mask.shape)
+                    mask[:, indices] = 1
+                    print("mask: ", mask)
+                    p.grad.detach().mul_(mask)
                 # input()
         
         # for group in self._optimizer.param_groups:

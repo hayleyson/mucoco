@@ -173,7 +173,8 @@ if [[ "$option" == "nontoxic" ]]
 then
     echo "nontoxicity"
     DATASTYLE="jsonl"
-    DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-10k.jsonl
+    # DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-10k.jsonl
+    DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-1.jsonl
     JSON_PKEY="prompt"
     JSON_SKEY="text"
     NUM_SAMPLES=25
