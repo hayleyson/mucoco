@@ -534,6 +534,7 @@ def main(args):
                         else:
                             AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
                         AR_prediction_all.append(AR_prediction)
+                        print(AR_prediction)
                         
                         # predicted_batch.append(AR_predicted_indices)
                         predicted_batches.append(AR_predicted_indices.to(device))
@@ -549,8 +550,8 @@ def main(args):
             ##################################################################################################################################################################
             # for each prompt loop over 25 samples
             ##################################################################################################################################################################
-            # for sample_idx in range(2): # just save 2 samples per prompt
-            for sample_idx in range(args.num_samples): # 25 for nontoxic
+            for sample_idx in range(2): # just save 2 samples per prompt
+            # for sample_idx in range(args.num_samples): # 25 for nontoxic
                 for restart_idx in range(args.restarts + 1): # 0 for nontoxic. restart the optimization if the constraints are not satisfied
 
                     predicted_batch = predicted_batches[sample_idx * (args.restarts + 1) + restart_idx]
@@ -573,9 +574,12 @@ def main(args):
                     total_predicted_loss = 0.0
                     predicted_allsat=True
                     predictedlosses = []
+                    print("predicted_batch",predicted_batch)
+                    print("source_batch",source_batch)
+                    print("target_batch",target_batch)
                     for lossid in range(len(losses)):
                         lossname = losses[lossid]
-                        # print("helllllllo",predicted_batch)
+
                         predicted_loss, predicted_lo =\
                             lossfns[lossid].compute_gold_loss(
                                 (source_batch, target_batch), 
@@ -795,6 +799,7 @@ def main(args):
                                 old_lr = args.lr
                                 args.lr = args.lambda_lr
                                 optimizer_lambda = Optimizer.from_opt(lambda_, args)
+                                print(lambda_)
                                 args.optim = old_optim
                                 args.lr = old_lr
 
@@ -960,11 +965,23 @@ def main(args):
                                                 print("for lambda", p.grad)
                                             
                                             # input()
-                                    
+                                            
+                                    # text (어떤 변수? source_batch)를 태워서 locate 하기 (근데, 궁금한것은 source_batch와 target_prefix 는 다른건가?)
+                                    # index가 여기에서 뽑히는 거라고 생각하자.
+                                    indices = [[0,1]] * len(source_batch)
+                                    for group in optimizer._optimizer.param_groups:
+                                        for p in group['params']: ######### note: can modify here.
+                                            print("p.shape", p.shape)
+                                            print("p.grad.shape", p.grad.shape)
+                                            # mask = torch.zeros_like(p.grad)
+                                            # print("mask.shape: ", mask.shape)
+                                            # mask[:, indices] = 1
+                                            # print("mask: ", mask)
+                                            # p.grad.detach().mul_(mask)
                                     if logging_outputs[0].get('entropy', None) is not None:
-                                        optimizer.step(scaler=scaler, entropy=logging_outputs[0].get('entropy', None)) ### backpropagate
+                                        optimizer.step(scaler=scaler, entropy=logging_outputs[0].get('entropy', None), indices=indices) ### backpropagate
                                     else:
-                                        optimizer.step(scaler=scaler) ### backpropagate
+                                        optimizer.step(scaler=scaler, indices=indices) ### backpropagate
                                     
                                     update_lr_condition = "none"
                                     if args.linear_scale != "true" and  len(losses) > 1:
@@ -1010,12 +1027,12 @@ def main(args):
                                         cur_lr = optimizer._optimizer.update_lr(min(cur_lr + args.lr_update_size, args.max_lr))
 
                                     if args.linear_scale != "true" and len(losses) > 1:
-                                        # print(lambda_mask, repeat_counts)
-                                        # print([p.grad for p in lambda_.parameters()])
-                                        # print(step, lambda_().tolist(), lambda_mask, )
+                                        print(lambda_mask, repeat_counts)
+                                        print([p.grad for p in lambda_.parameters()])
+                                        print(step, lambda_().tolist(), lambda_mask, )
                                         optimizer_lambda._optimizer.set_mask(lambda_mask.clamp(max=1.0, min=0.0))
                                         optimizer_lambda.step()
-                                        # print(step, lambda_().tolist())
+                                        print(step, lambda_().tolist())
                                         # input()
                                         lambda_.make_positive()
                                     

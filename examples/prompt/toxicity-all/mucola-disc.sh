@@ -3,7 +3,8 @@
 LENGTH=20
 # datevar=$(date +%d-%m-%Y)
 MODELNAME=gpt2-large
-OUTPUTDIR=outputs/toxicity/mucola-disc
+# OUTPUTDIR=outputs/toxicity/mucola-disc
+OUTPUTDIR=outputs/toxicity/edit-test
 mkdir -p $OUTPUTDIR
 
 BEGINNOISE=5.0

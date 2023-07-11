@@ -370,6 +370,7 @@ class TargetEmbeddings(nn.Module):
         eos_token_id=None
     ):
         super(TargetEmbeddings, self).__init__()
+        ### self.indices = ...
         self._pred_embeds = nn.Parameter(torch.Tensor(batch_size, sent_length, embed_dim).to(device))
         self.device = device
         self.st = st #straight-through or not
