@@ -15,7 +15,7 @@ import os
 from transformers import AutoTokenizer, AutoConfig
 from sentence_transformers import SentenceTransformer, util
 
-from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, get_epsilon
+from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon
 import mucoco.losses as lossbuilder
 import mucoco.options as options
 import mucoco.utils as utils
@@ -550,7 +550,7 @@ def main(args):
             ##################################################################################################################################################################
             # for each prompt loop over 25 samples
             ##################################################################################################################################################################
-            for sample_idx in range(2): # just save 2 samples per prompt
+            for sample_idx in range(10): # just save 2 samples per prompt
             # for sample_idx in range(args.num_samples): # 25 for nontoxic
                 for restart_idx in range(args.restarts + 1): # 0 for nontoxic. restart the optimization if the constraints are not satisfied
 
@@ -574,9 +574,7 @@ def main(args):
                     total_predicted_loss = 0.0
                     predicted_allsat=True
                     predictedlosses = []
-                    print("predicted_batch",predicted_batch)
-                    print("source_batch",source_batch)
-                    print("target_batch",target_batch)
+
                     for lossid in range(len(losses)):
                         lossname = losses[lossid]
 
@@ -788,8 +786,10 @@ def main(args):
                                 lambda_ = Lambda(count=len(epsilons))
                                 if use_cuda:
                                     lambda_.cuda()
-
-                            optimizer = Optimizer.from_opt(outputs, args)
+                                    
+                            args.optim= "embedgd_le" # change option
+                            optimizer = OptimizerLE.from_opt(outputs, args)
+                            optimizer.set_init_pred(predicted_batch)
                             cur_lr = args.lr
                             # print(optimizer._optimizer.param_groups)
                             # input()
@@ -830,7 +830,7 @@ def main(args):
                             repeat_counts = [0] * batch_size
 
                             ##################################################################################################################################################################
-                            # gradient ascent the embeddings
+                            # gradient inference the embeddings
                             ##################################################################################################################################################################
                             for step in range(args.optim_steps):
                                 try:
@@ -968,20 +968,11 @@ def main(args):
                                             
                                     # text (어떤 변수? source_batch)를 태워서 locate 하기 (근데, 궁금한것은 source_batch와 target_prefix 는 다른건가?)
                                     # index가 여기에서 뽑히는 거라고 생각하자.
-                                    indices = [[0,1]] * len(source_batch)
-                                    for group in optimizer._optimizer.param_groups:
-                                        for p in group['params']: ######### note: can modify here.
-                                            print("p.shape", p.shape)
-                                            print("p.grad.shape", p.grad.shape)
-                                            # mask = torch.zeros_like(p.grad)
-                                            # print("mask.shape: ", mask.shape)
-                                            # mask[:, indices] = 1
-                                            # print("mask: ", mask)
-                                            # p.grad.detach().mul_(mask)
+                                    indices = [15,16]
                                     if logging_outputs[0].get('entropy', None) is not None:
-                                        optimizer.step(scaler=scaler, entropy=logging_outputs[0].get('entropy', None), indices=indices) ### backpropagate
+                                        optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None)) ### backpropagate
                                     else:
-                                        optimizer.step(scaler=scaler, indices=indices) ### backpropagate
+                                        optimizer.step(indices, scaler=scaler) ### backpropagate
                                     
                                     update_lr_condition = "none"
                                     if args.linear_scale != "true" and  len(losses) > 1:
@@ -1027,12 +1018,12 @@ def main(args):
                                         cur_lr = optimizer._optimizer.update_lr(min(cur_lr + args.lr_update_size, args.max_lr))
 
                                     if args.linear_scale != "true" and len(losses) > 1:
-                                        print(lambda_mask, repeat_counts)
-                                        print([p.grad for p in lambda_.parameters()])
-                                        print(step, lambda_().tolist(), lambda_mask, )
+                                        # print(lambda_mask, repeat_counts)
+                                        # print([p.grad for p in lambda_.parameters()])
+                                        # print(step, lambda_().tolist(), lambda_mask, )
                                         optimizer_lambda._optimizer.set_mask(lambda_mask.clamp(max=1.0, min=0.0))
                                         optimizer_lambda.step()
-                                        print(step, lambda_().tolist())
+                                        # print(step, lambda_().tolist())
                                         # input()
                                         lambda_.make_positive()
                                     
@@ -1454,4 +1445,6 @@ def clean_output(tokens, eos_token_id, return_tensors=False, allow_first_eos=Fal
 def cli_main():
     parser = options.get_parser()
     args = parser.parse_args()
+    import joblib
+    joblib.dump(args, './args_decoding.pkl')
     main(args)

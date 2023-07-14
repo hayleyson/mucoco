@@ -1,11 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=mucola
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --mem=400gb
+#SBATCH --mem=80gb
 #SBATCH --cpus-per-task=8
-#SBATCH --output='/home/hyeryungson/mucoco/slurm_output/%j.out'
+#SBATCH --output='./slurm_output/%j.out'
 
 start=$(date +%s)
 echo "[start date] $(date)"
@@ -14,7 +13,7 @@ echo
 
 source /home/${USER}/.bashrc
 source ~/anaconda/etc/profile.d/conda.sh
-conda activate mucoco
+conda activate hson-mucola
 
 # srun bash examples/training_constraint_models/train_toxicity_classifier.sh  || echo "!!! error occurred"
 # srun python -m notebooks.resume_run  || echo "!!! error occurred"
