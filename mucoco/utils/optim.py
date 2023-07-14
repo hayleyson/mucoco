@@ -37,6 +37,8 @@ def build_torch_optimizer(model, opt):
         optimizer = ExpGD(list(params), lr=opt.lr, mw=opt.expgd_mw, momentum=opt.expgd_momentum)
     elif opt.optim == "embedgd":
         optimizer = EmbedGD(list(params), lr=opt.lr, momentum=opt.embedgd_momentum, embed_lut=model.tgt_emb, max_steps=opt.optim_steps, lr_pattern=opt.embedgd_lr_pattern, final_bias=model.final_bias, do_sample=opt.embedgd_do_sample == "true", top_p=opt.embedgd_top_p, top_k=opt.embedgd_top_k, noise_variance=opt.embedgd_noise_variance, gumbel_noise_max=opt.embedgd_gumbel_noise_max, repetition_penalty=opt.repetition_penalty, begintemp=opt.embedgd_begin_temperature, finaltemp=opt.embedgd_final_temperature, temp_reduction_steps=opt.embedgd_temperature_reduction_steps, grad_distance=opt.embedgd_grad_distance, time_decay_method=opt.embedgd_decay_method, step_decay_method=opt.embedgd_lr_pattern)
+    elif opt.optim == "embedgd_le":
+        optimizer = EmbedGD_LE(list(params), lr=opt.lr, momentum=opt.embedgd_momentum, embed_lut=model.tgt_emb, max_steps=opt.optim_steps, lr_pattern=opt.embedgd_lr_pattern, final_bias=model.final_bias, do_sample=opt.embedgd_do_sample == "true", top_p=opt.embedgd_top_p, top_k=opt.embedgd_top_k, noise_variance=opt.embedgd_noise_variance, gumbel_noise_max=opt.embedgd_gumbel_noise_max, repetition_penalty=opt.repetition_penalty, begintemp=opt.embedgd_begin_temperature, finaltemp=opt.embedgd_final_temperature, temp_reduction_steps=opt.embedgd_temperature_reduction_steps, grad_distance=opt.embedgd_grad_distance, time_decay_method=opt.embedgd_decay_method, step_decay_method=opt.embedgd_lr_pattern)
     elif opt.optim == "sgld":
         optimizer = SGLD(list(params), lr=opt.lr, num_burn_in_steps=50)
     elif opt.optim == "lbfgs":
@@ -365,7 +367,7 @@ class Optimizer(object):
         else:
             loss.backward(retain_graph=retain_graph)
 
-    def step(self, no_improvement=False, scaler=None, entropy=None, indices=None):
+    def step(self, no_improvement=False, scaler=None, entropy=None):
         """Update the model parameters based on current gradients.
 
         Optionally, will employ gradient modification or update learning
@@ -389,7 +391,7 @@ class Optimizer(object):
                 clip_grad_norm_(group["params"], self._max_grad_norm)
             elif self._fp16 is None and self._max_grad_norm > 0 and not self.ascent:
                 # clip_grad_norm_(group["params"], self._max_grad_norm)
-                for p in group['params']: ######### note: can modify here.
+                for p in group['params']: 
                     param_norm = p.grad.data.norm(2, -1).sum(dim=0)
                     # print(p.size())
                     coeff = torch.clamp(self._max_grad_norm / param_norm, max=1.0)
@@ -398,11 +400,6 @@ class Optimizer(object):
                     # print(param_norm)
                     # param_norm = p.grad.data.norm(2, -1).sum(dim=0)
                     # print(param_norm)
-                    mask = torch.zeros_like(p.grad)
-                    print("mask.shape: ", mask.shape)
-                    mask[:, indices] = 1
-                    print("mask: ", mask)
-                    p.grad.detach().mul_(mask)
                 # input()
         
         # for group in self._optimizer.param_groups:
@@ -418,7 +415,68 @@ class Optimizer(object):
 
         self._decay_step += 1
         self._training_step += 1
+        
+class OptimizerLE(Optimizer):
+    def set_init_pred(self, init_prediction) -> None:
+        
+        self._optimizer.set_init_pred(init_prediction)
+        
+    def step(self, indices, no_improvement=False, scaler=None, entropy=None): # overloading
+        """Update the model parameters based on current gradients.
 
+        Optionally, will employ gradient modification or update learning
+        rate.
+        """
+        print("=========================================================")
+        print("indices to edit: ", indices)
+        print("Optimizer type: ", type(self))
+        print("Self._optimizer type: ", type(self._optimizer))
+        print("=========================================================")
+        learning_rate = self.learning_rate(no_improvement)
+
+        if self._fp16 == "legacy":
+            if hasattr(self._optimizer, "update_master_grads"):
+                self._optimizer.update_master_grads()
+            if (
+                hasattr(self._optimizer, "clip_master_grads")
+                and self._max_grad_norm > 0
+            ):
+                self._optimizer.clip_master_grads(self._max_grad_norm)
+
+        for group in self._optimizer.param_groups:
+            group["lr"] = learning_rate
+            if scaler is not None and self._max_grad_norm > 0 and not self.ascent:
+                scaler.unscale_(self._optimizer)
+                clip_grad_norm_(group["params"], self._max_grad_norm)
+            elif self._fp16 is None and self._max_grad_norm > 0 and not self.ascent:
+                # clip_grad_norm_(group["params"], self._max_grad_norm)
+                for p in group['params']: 
+                    param_norm = p.grad.data.norm(2, -1).sum(dim=0)
+                    # print(p.size())
+                    coeff = torch.clamp(self._max_grad_norm / param_norm, max=1.0)
+                    # print(coeff)
+                    p.grad.detach().mul_(coeff.to(p.grad.device).unsqueeze(0).unsqueeze(2))
+                    # print(param_norm)
+                    # param_norm = p.grad.data.norm(2, -1).sum(dim=0)
+                    # print(param_norm)
+                # input()
+        
+        # for group in self._optimizer.param_groups:
+        #     print(group["lr"])
+        if scaler is None:
+            if entropy is not None:
+                print("calling self._optimizer.step(indices, entropy=entropy)")
+                self._optimizer.step(indices, entropy=entropy)
+            else:
+                print("calling self._optimizer.step(indices)")
+                self._optimizer.step(indices)
+        else:
+            print("calling scaler.step(self._optimizer, indices)")
+            scaler.step(self._optimizer, indices)
+            scaler.update()
+
+        self._decay_step += 1
+        self._training_step += 1
 
 # Code below is an implementation of https://arxiv.org/pdf/1804.04235.pdf
 # inspired but modified from https://github.com/DeadAt0m/adafactor-pytorch
@@ -1743,3 +1801,167 @@ def top_k_top_p_filtering(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')
 
     return logits
 
+class EmbedGD_LE(EmbedGD):
+    
+    def set_init_pred(self, init_prediction) -> None:
+        
+        self.init_pred = init_prediction
+    
+    def step(self, indices, entropy=None):
+        print("EmbedGD_LE step called!")
+        loss = None
+
+        for group in self.param_groups:
+            for parameter in group["params"]:
+                
+                if parameter.grad is None:
+                    continue
+
+                state = self.state[parameter]
+                gradient = parameter.grad.data # delta_embed^t-1{energy}
+
+                if len(state) == 0:
+                    state['step'] = 0
+                    state['nu'] = 0
+                    state['s'] = 0
+
+                lr = group["lr"]
+                embed_lut = group["embed_lut"]
+                final_bias = group["final_bias"]
+                momentum = group['momentum']
+                freq = group['freq']
+                seqlen = group['seqlen']
+                timestep = state['step']
+                nu = state['nu']
+                s = state['s']
+
+                lrs = torch.Tensor(self.lrs[-seqlen-timestep//freq:len(self.lrs)-min(timestep, freq*seqlen-1)//freq]).to(gradient.device).unsqueeze(0).unsqueeze(2)
+                # print(lrs[0, :, 0])
+                # input()
+                # lrs = self.get_learning_rates(timestep, seqlen).to(gradient.device).unsqueeze(0).unsqueeze(2)
+                # print(lrs)
+                # print(lrs)
+                # print(entropy.size(), lrs.size())
+                # lrs = (lrs / entropy.unsqueeze(2))).clamp(min=0.5, max=1.0)
+                # print(lrs)
+                # if timestep > self.warmup_steps:
+                #     self.finaltemp = 0.9
+                #     self.r = pow(self.finaltemp/self.begintemp, 1/(self.temp_reduction_steps-1))
+                #     scale = max(self.finaltemp, self.begintemp * pow(self.r, timestep))
+                #     lrs = scale * lrs
+                    # d = (self.min_lr - lrs)/(self.max_updates - self.warmup_steps)
+                    # lrs = (lrs + (timestep - self.warmup_steps) * d).clamp(min=0.5)
+                    # # print(lrs)
+                noise = 0.0
+                if self.noise_variance >= 1e-6:
+                    noise = torch.empty_like(gradient).normal_(mean=0,std=1)  #TODO schedule
+                    noise_std = min(self.begintemp, max(self.finaltemp, self.begintemp * pow(self.r, timestep)))
+                    noise = torch.sqrt(2*lrs) * noise * noise_std
+                
+                # s = s + torch.square(gradient.detach())
+                # sepsilon = 1e-8
+                # print(s.size(), gradient.size())
+
+                # nu = momentum * nu + lrs * (gradient/torch.sqrt(s+sepsilon))
+                # print(torch.norm(gradient, p=2, dim=-1))
+
+                nu = momentum * nu + lrs * gradient ## gradient ## grad_distance is used in order to ProjE.
+                # print("hola", nu, parameter.data, noise)
+                if self.grad_distance == "dot":
+                    temp = nu - parameter.data - noise 
+                    objective = temp.matmul(embed_lut.t()) # (bs, seqlen, embed_size) * (embed_size, vocab_size)
+                    # print(objective)
+                elif self.grad_distance == "cosine":
+                    dist = 1 - F.normalize(parameter.data, p=2, dim=-1).matmul(embed_lut.t())
+                    objective = (nu - noise).matmul(embed_lut.t()) + dist
+                elif self.grad_distance == "l1":
+                    # temp = nu - parameter.data - noise
+                    # objective_old = temp.matmul(embed_lut.t())
+                    dist = torch.cdist(parameter.data, embed_lut.unsqueeze(0), p=1)
+                    objective = (nu - noise).matmul(embed_lut.t()) + 0.5 * dist
+                else:
+                    # temp = nu - parameter.data - noise
+                    # objective_old = temp.matmul(embed_lut.t())
+                    dist = torch.cdist(parameter.data, embed_lut.unsqueeze(0))
+                    objective = (nu - noise).matmul(embed_lut.t()) + 0.5 * torch.square(dist)
+                # input()
+                # print(objective)
+                    
+                if final_bias is not None:
+                    objective = objective - final_bias
+
+                gumbelnoise = 0.0
+                if self.gumbel_noise_max >= 1e-6:
+                    gumbelnoise = torch.empty_like(objective).uniform_(0, 1) #TODO schedule
+                    noise_min = 1e-6
+                    noise_cap = max(noise_min, self.gumbel_noise_max - (step-1)*(self.gumbel_noise_max - noise_min)/self.temp_reduction_steps)
+                    gumbelnoise = -torch.sqrt(2*lrs) * torch.log(-torch.log(gumbelnoise)) * noise_cap
+                    # print(gumbelnoise.size())
+                    # print(gumbelnoise)
+
+                    logsoftobjective = F.log_softmax(objective, dim=-1)
+                    logsoftobjective += gumbelnoise
+
+                    objective =  logsoftobjective
+
+                if not self.do_sample: #argmin
+                    min_value, min_index = objective.min(dim=-1)
+                    next_token = min_index
+                    # print(next_token)
+                    # input()
+                else:
+                    print("whatthehola")
+                    input()
+                    # print(objective)
+                    # max_value, max_index = (-objective).max(dim=-1, keepdim=True)
+                    # objective = -objective-max_value 
+                    
+                    # input()
+                    
+                    # temperature = max(finaltemp, begintemp - (step-1)*(begintemp-finaltemp)/self.temp_reduction_steps)
+                    temperature = max(self.finaltemp, self.begintemp * pow(self.r, step))
+                    temperature_vector = torch.ones((objective.size(-1),)).to(parameter.device)
+                    # temperatures = []
+                    next_token = torch.empty((objective.size(0), objective.size(1))).long().to(parameter.device)
+                    
+                    for i in range(objective.size(1)):
+                        # temperature = max(self.finaltemp, self.begintemp * pow(self.rlist[i], step))
+                        # print(self.rlist[i], step, pow(self.rlist[i], step), self.begintemp)
+                        # temperatures.append(temperature)
+                        # print(temperature_vector)
+                        # if self.top_k > 0 or self.top_p < 1.0:
+                        filtered_logits = top_k_top_p_filtering(objective[:, i, :]/(temperature*temperature_vector), self.top_k, self.top_p)
+                        # else:
+                        #     filtered_logits = objective[:, i, :]/(temperature*temperature_vector)
+                        #     filtered_logits = filtered_logits-filtered_logits.max(dim=-1)[0]
+                            
+                        
+                        next_token[:, i] = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
+                        temperature_vector[next_token[:, i]] = 1.0 + self.repetition_penalty
+                        # input()
+                    
+                    # print(temperatures)
+                    # input()
+
+                final_prediction = self.init_pred.clone().detach()
+                # print("final_prediction before editing:", final_prediction)
+                final_prediction[:, indices] = next_token[:, indices]
+                # print("final_prediction after editing:", final_prediction)
+                # self.new_predictions = next_token
+                self.new_predictions = final_prediction
+                new_embeddings = F.embedding(next_token, embed_lut)
+                
+                # ## indices에 대해서만 new_embeddings로 update를 하고, 나머지 indices에 대해서는 기존 embedding값 유지
+                # final_embeddings = parameter.data.clone().detach()
+                # # print(f"final_embeddings indexed before editing: {final_embeddings[:, indices, :]}")
+                # final_embeddings[:, indices, :] = new_embeddings[:, indices, :]
+                # # print(f"new_embeddings indexed: {new_embeddings[:, indices, :]}")
+                # # print(f"final_embeddings indexed: {final_embeddings[:, indices, :]}")
+                
+                parameter.data.copy_(new_embeddings)
+
+                state['step'] += 1
+                state['nu'] = nu
+                state['s'] = s
+                    
+        return loss
