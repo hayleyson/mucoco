@@ -35,6 +35,7 @@ chardet = "*"
 wandb = "*"
 evaluate = "*"
 seaborn = "*"
+openpyxl = "*"
 
 [dev-packages]
 jupyter = "*"
