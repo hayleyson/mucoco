@@ -502,44 +502,44 @@ def main(args):
             if args.use_context:
                 context_batch = torch.cat(context_batch, dim=0).to(device)
                 print(context_batch)
-            #
-            # ##################################################################################################################################################################
-            # # generating AR samples
-            # ##################################################################################################################################################################
-            # predicted_batches = [] #each sample x restart becomes a tensor
-            # for batchidx in range(source_batch.size(0)): #batch size is 1
-            #     with torch.no_grad():
-            #         starttime = time.time()
-            #         AR_predicted_all =\
-            #             lossfns[0].generate(
-            #                 input_ids=source_batch[batchidx].unsqueeze(0),
-            #                 additional_ids=additional_batch[batchidx].unsqueeze(0),
-            #                 num_return_sequences=(args.restarts + 1)*args.num_samples) # 25 for nontoxic
-            #         #some bug about length
+                
+            ##################################################################################################################################################################
+            # generating AR samples
+            ##################################################################################################################################################################
+            predicted_batches = [] #each sample x restart becomes a tensor
+            for batchidx in range(source_batch.size(0)): #batch size is 1
+                with torch.no_grad():
+                    starttime = time.time()
+                    AR_predicted_all =\
+                        lossfns[0].generate(
+                            input_ids=source_batch[batchidx].unsqueeze(0),
+                            additional_ids=additional_batch[batchidx].unsqueeze(0),
+                            num_return_sequences=(args.restarts + 1)*args.num_samples) # 25 for nontoxic
+                    #some bug about length
 
-            #         # AR_predicted_indices_all = []
-            #         AR_prediction_all = []
-            #         # clean output for predicted token ids
-            #         for sample_idx in range(len(AR_predicted_all)):
-            #             AR_predicted_indices =\
-            #                 clean_output(AR_predicted_all[sample_idx].tolist(), # remove eos token, etc.
-            #                     eos_token_id=eos_token_id,
-            #                     return_tensors=True, allow_first_eos=losses[0] == "bart",
-            #                     skip_special_tokens=[bos_token_id, eos_token_id])
-            #             # AR_predicted_indices_all.append(AR_predicted_indices)
+                    # AR_predicted_indices_all = []
+                    AR_prediction_all = []
+                    # clean output for predicted token ids
+                    for sample_idx in range(len(AR_predicted_all)):
+                        AR_predicted_indices =\
+                            clean_output(AR_predicted_all[sample_idx].tolist(), # remove eos token, etc.
+                                eos_token_id=eos_token_id,
+                                return_tensors=True, allow_first_eos=losses[0] == "bart",
+                                skip_special_tokens=[bos_token_id, eos_token_id])
+                        # AR_predicted_indices_all.append(AR_predicted_indices)
 
-            #             if args.target_tokenize_different:
-            #                 with primary_tokenizer.as_target_tokenizer():
-            #                     AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
-            #             else:
-            #                 AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
-            #             AR_prediction_all.append(AR_prediction)
-            #             print(AR_prediction)
+                        if args.target_tokenize_different:
+                            with primary_tokenizer.as_target_tokenizer():
+                                AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
+                        else:
+                            AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
+                        AR_prediction_all.append(AR_prediction)
+                        print(AR_prediction)
                         
-            #             # predicted_batch.append(AR_predicted_indices)
-            #             predicted_batches.append(AR_predicted_indices.to(device))
-            #         if args.time:
-            #             print(time.time()-starttime)
+                        # predicted_batch.append(AR_predicted_indices)
+                        predicted_batches.append(AR_predicted_indices.to(device))
+                    if args.time:
+                        print(time.time()-starttime)
             ##################################################################################################################################################################
             # 25 initial outputs per prompt
             # intermediate_result={"prompt": source_text}
