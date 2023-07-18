@@ -1948,7 +1948,7 @@ class EmbedGD_LE(EmbedGD):
                 else:
                     final_prediction = self.new_predictions.clone().detach()
                 print("final_prediction before editing:", final_prediction)
-                final_prediction[:, indices] = next_token[:, indices]f
+                final_prediction[:, indices] = next_token[:, indices]
                 print("final_prediction after editing:", final_prediction)
                 # self.new_predictions = next_token
                 self.new_predictions = final_prediction

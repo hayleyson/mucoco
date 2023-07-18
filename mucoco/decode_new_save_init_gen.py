@@ -11,6 +11,10 @@ import gc
 import time
 import json
 import os
+## 23/7/17 - Hayley
+import joblib
+from tqdm import tqdm
+##
 
 from transformers import AutoTokenizer, AutoConfig
 from sentence_transformers import SentenceTransformer, util
@@ -54,6 +58,9 @@ def main(args):
         outf = open(args.outfile, "w")
         outallsatf = open(args.outfile + ".allsat", "w")
         outf2 = open(args.outfile + ".intermediate", "w")
+    ## 23/7/17 - Hayley
+    outf_init = open(args.outfile + ".init", "w")
+    ## 
 
     # Fix seed
     if args.seed is not None:
@@ -130,10 +137,10 @@ def main(args):
         if model_path not in name2model: #making sure we are not loading the model twice in case some constraints use the same model. 
             name2tokenizer[model_path] = AutoTokenizer.from_pretrained(tokenizer_paths[i], cache_dir=args.cache_dir,  use_fast=True)
             name2config[model_path] = AutoConfig.from_pretrained(model_path, cache_dir=args.cache_dir)
-            print(model_path)
-            print(args.cache_dir)
-            print(os.getcwd())
-            print(name2config[model_path])
+            # print(model_path)
+            # print(args.cache_dir)
+            # print(os.getcwd())
+            # print(name2config[model_path])
             if model_types[i] == "sentence-transformer":
                 name2model[model_path] = lossbuilder.ModelWrapper(SentenceTransformer(model_path))
             elif "Custom" in model_types[i]:
@@ -232,9 +239,9 @@ def main(args):
     source_dataset = None
     target_dataset = None
     additional_dataset = None
-    print("yass queen", args.use_context)
+    # print("yass queen", args.use_context)
     args.use_context = args.use_context == "true"
-    print(args.use_context)
+    # print(args.use_context)
     if args.data is not None:
         data_paths = args.data.split(":")
         if len(data_paths) == 1:
@@ -332,6 +339,11 @@ def main(args):
     # for source_text, target_text, additional_text in zip(source_dataset, target_dataset, additional_dataset):
     example_p = 1.0
     args.random_example = args.random_example == "true"
+    
+    ## 23/7/17 - Hayley
+    args.num_examples = len(source_dataset)
+    ##
+    
     if args.num_examples > 0 and target_dataset is not None:
         example_p = args.num_examples*1.0/len(source_dataset)
     print(example_p, args.random_example)
@@ -343,6 +355,12 @@ def main(args):
     ##################################################################################################################################################################
     ##################################################################################################################################################################
     ##################################################################################################################################################################
+    
+    ## 23/7/17 Hayley
+    init_gen_ids = dict()
+    args.n_samples = 5
+    ##
+    
     for text_id, source_text in enumerate(source_dataset):
         
         # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
@@ -357,7 +375,7 @@ def main(args):
         if not do_this_example:
             continue
         
-        print(text_id, "doing it! do_this_example")
+        #print(text_id, "doing it! do_this_example")
 
         c += 1
 
@@ -534,12 +552,35 @@ def main(args):
                         else:
                             AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
                         AR_prediction_all.append(AR_prediction)
-                        print(AR_prediction)
+                        # print(AR_prediction)
                         
                         # predicted_batch.append(AR_predicted_indices)
                         predicted_batches.append(AR_predicted_indices.to(device))
                     if args.time:
                         print(time.time()-starttime)
+                        
+            ### 23/7/17 Hayley
+            init_gen_ids[source_text] = predicted_batches
+            for i in range(len(AR_predicted_all)):
+                init_gen_texts={"prompt": source_text, 
+                                "generation": AR_prediction_all[i]}
+                json.dump(init_gen_texts, outf_init)
+                outf_init.write("\n")
+                outf_init.flush()
+                
+            del source_batch
+            del target_batch
+            del additional_batch
+            del for_predicted_source_batch
+            # del predicted_batch
+            source_batch = []
+            target_batch = []
+            for_predicted_source_batch = []
+            additional_batch = []
+            # predicted_batch = []
+            context_batch = []
+            continue
+            ##
             ##################################################################################################################################################################
             # 25 initial outputs per prompt
             # intermediate_result={"prompt": source_text}
@@ -1411,6 +1452,11 @@ def main(args):
         outf.close()
         outallsatf.close()
         outf2.close()
+        
+    ## 23/7/17 Hayley
+    joblib.dump(init_gen_ids, f"{args.outfile}.init_ids.pkl")
+    outf_init.close()
+    ##
     print("average numbers of steps to converge =", np.mean(all_stepcounts))
     print("average time = ", avg_time/c)
 
