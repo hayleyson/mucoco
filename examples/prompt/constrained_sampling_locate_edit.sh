@@ -67,12 +67,14 @@ MAXLR=${28}
 LRUPDATESIZE=${29}
 RESTARTS=${30}
 OUTPUTLEN=${31}
-RANDOMEXAMPLE=${32}
-STARTIDX=${33}
-ENDIDX=${34}
-SENTIMENTMODELID=${35}
+BASELM_GEN_ONLINE=${32} # true if generate base lm generations on the fly, false otherwise.
+LOCATE_EDIT=${33} # true if apply locate_edit, false otherwise
+# RANDOMEXAMPLE=${32}
+# STARTIDX=${33}
+# ENDIDX=${34}
+# SENTIMENTMODELID=${35}
 USECONTEXT="false"
-DAMPNESS=${36}
+# DAMPNESS=${36}
 custom_epsilons="none"
 if [[ -z "$KEYWORDTAU" ]]
 then
@@ -174,6 +176,7 @@ then
     echo "nontoxicity"
     DATASTYLE="jsonl"
     DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-10k.jsonl
+    BASELM_GEN_FILE=$DATA_DIR/control-prompts/generations.jsonl
     # DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-1.jsonl
     JSON_PKEY="prompt"
     JSON_SKEY="text"
@@ -833,7 +836,9 @@ then
         --use_context $USECONTEXT\
         --show-all-outputs\
         --allow-diff-vocab\
-        --debug
+        --debug\
+        --baselm-gen-online $BASELM_GEN_ONLINE\
+        --locate-edit $LOCATE_EDIT
     echo "--epsilons $epsilons"
 elif [[ "$debug" == "interactive" ]]
 then
@@ -917,7 +922,9 @@ then
         --early-stop-steps 50\
         --restarts $RESTARTS\
         --use_context $USECONTEXT\
-        --debug
+        --debug\
+        --baselm-gen-online $BASELM_GEN_ONLINE\
+        --locate-edit $LOCATE_EDIT
 elif [[ "$debug" == "run_and_evaluate" ]]
 then
     python -W ignore -u decode_new.py\
@@ -1006,7 +1013,9 @@ then
         --restarts $RESTARTS\
         --outfile $OUTFILE\
         --output-style $OUTPUTSTYLE\
-        --allow-diff-vocab
+        --allow-diff-vocab\
+        --baselm-gen-online $BASELM_GEN_ONLINE\
+        --locate-edit $LOCATE_EDIT
     bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
     done="true"
 else

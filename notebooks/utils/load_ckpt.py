@@ -25,7 +25,8 @@ params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
 
 # config 
 
-def define_model(mod_path=None, load_weights=True, output_attentions=False, output_hidden_states=False):
+def define_model(mod_path=None, load_weights=True, output_attentions=False, output_hidden_states=False,
+                 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")):
     
     base_path = params[1]
     binarize_labels = False
@@ -114,7 +115,6 @@ def define_model(mod_path=None, load_weights=True, output_attentions=False, outp
     model_.set_input_embeddings(new_embeds)
     model = model_
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print("DEVICE: ", device)
 
     # state_dict

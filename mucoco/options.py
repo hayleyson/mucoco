@@ -431,5 +431,19 @@ def get_parser():
         type=int,
         help="MW=1|2 for exponentiated GD, mw=1 means exponential update, 2 means 1-eta * grad",
     )
+    
+    parser.add_argument(
+        "--baselm-gen-online",
+        default=True,
+        type=bool,
+        help="Whether to generate Base LM generations when running decoding script (True), or to read generations from a file (False).",
+    )
+    
+    parser.add_argument(
+        "--locate-edit",
+        default=True,
+        type=bool,
+        help="Whether to first locate tokens to edit and edit only the tokens.",
+    )
 
     return parser

@@ -3,7 +3,7 @@
 LENGTH=20
 # datevar=$(date +%d-%m-%Y)
 MODELNAME=gpt2-large
-OUTPUTDIR=outputs/toxicity/locate-edit
+OUTPUTDIR=outputs/toxicity/locate-edit3
 mkdir -p $OUTPUTDIR
 
 BEGINNOISE=5.0
@@ -18,7 +18,40 @@ EPSILONS=(-5) # the constraint is  log(negative_prob) - log (positive_prob) < ep
 
 for EPSILON in "${EPSILONS[@]}"
 do
-    bash examples/prompt/constrained_sampling_mucola.sh nontoxic $OUTPUTDIR $MODELNAME run_and_evaluate 0.25 dotplusplus l2 0.0 constant legal 0 1 0.0 false 1 0.5 0.05 50 target 100 1.0 constant 2 50 $EPSILON false false 0.45 0.01 0 true
+    bash examples/prompt/constrained_sampling_locate_edit.sh \
+    nontoxic \
+    $OUTPUTDIR \
+    $MODELNAME \
+    run_and_evaluate \
+    0.25 \
+    dotplusplus \
+    l2 \
+    0.0 \
+    constant \
+    legal \
+    0 \
+    1 \
+    0.0 \
+    false \
+    1 \
+    0.5 \
+    0.05 \
+    50 \
+    target \
+    100 \
+    1.0 \
+    constant \
+    2 \
+    50 \
+    $EPSILON \
+    false \
+    false \
+    0.45 \
+    0.01 \
+    0 \
+    true \
+    false \
+    true
     #note: most arguments passed to constrained_sampling_mucola.sh are not used anymore
 done
 

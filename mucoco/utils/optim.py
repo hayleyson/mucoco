@@ -427,11 +427,11 @@ class OptimizerLE(Optimizer):
         Optionally, will employ gradient modification or update learning
         rate.
         """
-        print("=========================================================")
-        print("indices to edit: ", indices)
-        print("Optimizer type: ", type(self))
-        print("Self._optimizer type: ", type(self._optimizer))
-        print("=========================================================")
+        # print("=========================================================")
+        # print("indices to edit: ", indices)
+        # print("Optimizer type: ", type(self))
+        # print("Self._optimizer type: ", type(self._optimizer))
+        # print("=========================================================")
         learning_rate = self.learning_rate(no_improvement)
 
         if self._fp16 == "legacy":
@@ -465,13 +465,13 @@ class OptimizerLE(Optimizer):
         #     print(group["lr"])
         if scaler is None:
             if entropy is not None:
-                print("calling self._optimizer.step(indices, entropy=entropy)")
+                # print("calling self._optimizer.step(indices, entropy=entropy)")
                 self._optimizer.step(indices, entropy=entropy)
             else:
-                print("calling self._optimizer.step(indices)")
+                # print("calling self._optimizer.step(indices)")
                 self._optimizer.step(indices)
         else:
-            print("calling scaler.step(self._optimizer, indices)")
+            # print("calling scaler.step(self._optimizer, indices)")
             scaler.step(self._optimizer, indices)
             scaler.update()
 
@@ -1808,7 +1808,7 @@ class EmbedGD_LE(EmbedGD):
         self.init_pred = init_prediction
     
     def step(self, indices, entropy=None):
-        print("EmbedGD_LE step called!")
+        # print("EmbedGD_LE step called!")
         loss = None
 
         for group in self.param_groups:
@@ -1947,9 +1947,9 @@ class EmbedGD_LE(EmbedGD):
                     final_prediction = self.init_pred.clone().detach()
                 else:
                     final_prediction = self.new_predictions.clone().detach()
-                print("final_prediction before editing:", final_prediction)
+                # print("final_prediction before editing:", final_prediction)
                 final_prediction[:, indices] = next_token[:, indices]
-                print("final_prediction after editing:", final_prediction)
+                # print("final_prediction after editing:", final_prediction)
                 # self.new_predictions = next_token
                 self.new_predictions = final_prediction
                 new_embeddings = F.embedding(next_token, embed_lut)
