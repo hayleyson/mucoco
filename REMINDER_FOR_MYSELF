@@ -1,0 +1,8 @@
+## Toxicity Avoidance
+### training energy model
+- `examples/training_constraint_models/train_toxicity_classifier.sh` --> training classifier.
+
+### inference
+- `examples/prompt/toxicity-all/mucola-disc.sh <output_dir>` -->  to do constrained sampling.
+- `examples/prompt/constrained_sampling_mucola.sh` --> what mucola-disc.sh calls.
+- `mucoco/decode_new.py` -->  what constrained_sampling_mucola.sh calls.

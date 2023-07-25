@@ -4,3 +4,4 @@ from mucoco.utils.optim import Optimizer, OptimizerLE
 from mucoco.utils.misc import get_epsilon
 from mucoco.utils.gpt2custom import GPT2CustomForSequenceClassification
 from mucoco.utils.robertacustom import RobertaCustomForSequenceClassification
+from mucoco.utils.locate import locate

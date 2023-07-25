@@ -11,11 +11,14 @@ import gc
 import time
 import json
 import os
+## 23/7/18 - Hayley
+import joblib
+##
 
 from transformers import AutoTokenizer, AutoConfig
 from sentence_transformers import SentenceTransformer, util
 
-from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon
+from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon, locate
 import mucoco.losses as lossbuilder
 import mucoco.options as options
 import mucoco.utils as utils
@@ -60,6 +63,7 @@ def main(args):
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
 
+    ## 23/7/18 - Hayley 
     use_cuda = torch.cuda.is_available() and not args.cpu
     logger.info(
         "loading model(s) from {} and tokenizer(s) from {}".format(
@@ -124,16 +128,16 @@ def main(args):
     primary_vocab_size = None
 
     ##################################################################################################################################################################
-    #Load the models and tokenizers
+    #😃 Load the models and tokenizers
     ##################################################################################################################################################################
     for i, model_path in enumerate(model_paths):
         if model_path not in name2model: #making sure we are not loading the model twice in case some constraints use the same model. 
             name2tokenizer[model_path] = AutoTokenizer.from_pretrained(tokenizer_paths[i], cache_dir=args.cache_dir,  use_fast=True)
             name2config[model_path] = AutoConfig.from_pretrained(model_path, cache_dir=args.cache_dir)
-            print(model_path)
-            print(args.cache_dir)
-            print(os.getcwd())
-            print(name2config[model_path])
+            # print(model_path)
+            # print(args.cache_dir)
+            # print(os.getcwd())
+            # print(name2config[model_path])
             if model_types[i] == "sentence-transformer":
                 name2model[model_path] = lossbuilder.ModelWrapper(SentenceTransformer(model_path))
             elif "Custom" in model_types[i]:
@@ -302,6 +306,12 @@ def main(args):
         start_idx = args.start_idx
         end_idx = (len(source_dataset) + args.end_idx) % len(source_dataset) # also works with negative end_idx
 
+        ## 23/07/18 - Hayley - load already generated data.
+        init_gen_ids = joblib.load("/data/hyeryung/mucoco/outputs/toxicity/save-init-gen/bak_outputs.txt.init_ids.pkl")
+        outf_init = pd.read_json("/data/hyeryung/mucoco/outputs/toxicity/save-init-gen/bak_outputs.txt.init.widx", lines=True)
+        source_dataset = outf_init["prompt"].unique().tolist()
+        ##
+
         logger.info("Data loaded")
     ##################################################################################################################################################################
     
@@ -345,17 +355,19 @@ def main(args):
     ##################################################################################################################################################################
     for text_id, source_text in enumerate(source_dataset):
         
-        # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
-        if text_id < start_idx or text_id > end_idx:
-            continue
+        ## 23/7/18 - Hayley - commented it out.
+        # # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
+        # if text_id < start_idx or text_id > end_idx:
+        #     continue
 
-        if args.num_examples > 0 and c > 0 and c == args.num_examples: #stop after processing num_examples if it is set 
-            print(f"done {c}")
-            break
+        # if args.num_examples > 0 and c > 0 and c == args.num_examples: #stop after processing num_examples if it is set 
+        #     print(f"done {c}")
+        #     break
         
-        do_this_example = np.random.rand() <= example_p
-        if not do_this_example:
-            continue
+        # do_this_example = np.random.rand() <= example_p
+        # if not do_this_example:
+        #     continue
+        ##
         
         print(text_id, "doing it! do_this_example")
 
@@ -502,6 +514,8 @@ def main(args):
             if args.use_context:
                 context_batch = torch.cat(context_batch, dim=0).to(device)
                 print(context_batch)
+            
+            ## 23/07/18 - Hayley
             #
             # ##################################################################################################################################################################
             # # generating AR samples
@@ -540,6 +554,14 @@ def main(args):
             #             predicted_batches.append(AR_predicted_indices.to(device))
             #         if args.time:
             #             print(time.time()-starttime)
+            
+            ## change to read from testset file.
+            predicted_batches = init_gen_ids[source_text]
+            AR_prediction_all = outf_init.loc[outf_init["prompt"]==source_text, "generation"].tolist()
+            locate_indices_all = outf_init.loc[outf_init["prompt"]==source_text, "indices"].tolist()
+            AR_predicted_indices = predicted_batches[-1].cpu() ### 이부분이 좀 이상한 것 같다! 원래 코드가 이렇게 되어 있긴 했는데... 이게 맞나? ㅠㅠ 확인하려면,,, 많은걸 뜯어봐야 한다.
+            # print("locate_indices_all: ", locate_indices_all)
+            ##
             ##################################################################################################################################################################
             # 25 initial outputs per prompt
             # intermediate_result={"prompt": source_text}
@@ -550,7 +572,7 @@ def main(args):
             ##################################################################################################################################################################
             # for each prompt loop over 25 samples
             ##################################################################################################################################################################
-            for sample_idx in range(10): # just save 2 samples per prompt
+            for sample_idx in range(len(AR_prediction_all)):
             # for sample_idx in range(args.num_samples): # 25 for nontoxic
                 for restart_idx in range(args.restarts + 1): # 0 for nontoxic. restart the optimization if the constraints are not satisfied
 
@@ -558,7 +580,7 @@ def main(args):
                     AR_prediction = AR_prediction_all[sample_idx * (args.restarts + 1) + restart_idx]
                     intermediate_result={"prompt": source_text}
                     intermediate_result.update({"sample_id": sample_idx, "original_text": AR_prediction})
-
+                    
                     ##TODO: in case of always_mucoco=false and num_restarts > 0, comb through the restarts and skip if constraints are satisfied
 
                     skip=False
@@ -787,9 +809,11 @@ def main(args):
                                 if use_cuda:
                                     lambda_.cuda()
                                     
+                            ## 23/7/.. - Hayley - updated to allow locate & edit
                             args.optim= "embedgd_le" # change option
                             optimizer = OptimizerLE.from_opt(outputs, args)
                             optimizer.set_init_pred(predicted_batch)
+                            ##
                             cur_lr = args.lr
                             # print(optimizer._optimizer.param_groups)
                             # input()
@@ -829,6 +853,13 @@ def main(args):
                             starttime = time.time()
                             repeat_counts = [0] * batch_size
 
+                            ## 23/7/21 - add locate code
+                            batch = {"input_ids": predicted_batch}
+                            indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch)
+                            intermediate_result.update({f"indices": indices}) # save indices along with update results
+                            print("indices", indices)
+                            ##
+                            
                             ##################################################################################################################################################################
                             # gradient inference the embeddings
                             ##################################################################################################################################################################
@@ -968,7 +999,11 @@ def main(args):
                                             
                                     # text (어떤 변수? source_batch)를 태워서 locate 하기 (근데, 궁금한것은 source_batch와 target_prefix 는 다른건가?)
                                     # index가 여기에서 뽑히는 거라고 생각하자.
-                                    indices = [15,16]
+                                    # indices = [15,16]
+                                    # indices = locate_indices_all[sample_idx]
+                                    # indices가 optim 바깥에서 뽑히도록 일단 구현
+                                    
+                                    ## HERE: locate code or read locate indices.
                                     if logging_outputs[0].get('entropy', None) is not None:
                                         optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None)) ### backpropagate
                                     else:

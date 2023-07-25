@@ -6,6 +6,7 @@ sacrerouge==0.2.3 # copied from environment.yml
 sentence-transformers # <- added on 17/03/23 after running decoding script
 POT # <- added on 17/03/23 after running decoding script
 google-api-python-client # <- added on 17/03/23 after running decoding script
+google-api-core
 nltk
 perspective
 click
