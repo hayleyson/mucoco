@@ -177,15 +177,16 @@ then
     # DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-1.jsonl
     JSON_PKEY="prompt"
     JSON_SKEY="text"
-    NUM_SAMPLES=25
-    OUTPUTLEN=20
+    NUM_SAMPLES=10
+    # OUTPUTLEN=20
     MAXLEN=20
     OPTIMSTEPS=200
     model=$PRIMARYMODEL:$TOXICITYCLASSIFIER
     tokenizer=$PRIMARYMODEL:$TOXICITYTOKENIZER
     model_types=AutoModelForCausalLM:RobertaCustomForSequenceClassification
     betas=0.8:0.2
-    loss=gpt2:classification_no_prefix
+    # loss=gpt2:classification_no_prefix
+    loss=gpt2-var-length:classification_no_prefix
     label_id=0:0
     lossabbr="pyx:toxicity"
     epsilons=$CLASSLOGPROB
@@ -920,6 +921,7 @@ then
         --debug
 elif [[ "$debug" == "run_and_evaluate" ]]
 then
+    echo "$OUTPUTLEN"
     python -W ignore -u decode_new_save_init_gen.py\
         --datastyle $DATASTYLE\
         --data $DATAFILE\
