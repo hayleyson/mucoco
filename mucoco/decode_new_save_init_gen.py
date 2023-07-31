@@ -337,7 +337,7 @@ def main(args):
         args.gold_loss_epsilons = ["false" for _ in range(len(losses)-1)]
 
     # for source_text, target_text, additional_text in zip(source_dataset, target_dataset, additional_dataset):
-    example_p = 1.0
+    example_p = 0.1
     args.random_example = args.random_example == "true"
     
     ## 23/7/17 - Hayley
@@ -361,7 +361,7 @@ def main(args):
     args.n_samples = 5
     ##
     
-    for text_id, source_text in enumerate(source_dataset):
+    for text_id, source_text in enumerate(source_dataset[2420:]):
         
         # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
         if text_id < start_idx or text_id > end_idx:
@@ -373,9 +373,10 @@ def main(args):
         
         do_this_example = np.random.rand() <= example_p
         if not do_this_example:
+            print(text_id, "NOT do_this_example")
             continue
         
-        #print(text_id, "doing it! do_this_example")
+        print(text_id, "doing it! do_this_example")
 
         c += 1
 
@@ -528,23 +529,30 @@ def main(args):
             for batchidx in range(source_batch.size(0)): #batch size is 1
                 with torch.no_grad():
                     starttime = time.time()
-                    AR_predicted_all =\
+                    AR_predicted_all, seq_length =\
                         lossfns[0].generate(
                             input_ids=source_batch[batchidx].unsqueeze(0),
                             additional_ids=additional_batch[batchidx].unsqueeze(0),
                             num_return_sequences=(args.restarts + 1)*args.num_samples) # 25 for nontoxic
+                    print("AR_predicted_all", AR_predicted_all)
+                    print("len(AR_predicted_all)", len(AR_predicted_all))
+                    print("seq_length", seq_length)
+                    print("len(seq_length)", len(seq_length))
                     #some bug about length
 
                     # AR_predicted_indices_all = []
                     AR_prediction_all = []
                     # clean output for predicted token ids
                     for sample_idx in range(len(AR_predicted_all)):
+                        print("AR_predicted_all[sample_idx].tolist()", AR_predicted_all[sample_idx].tolist())
                         AR_predicted_indices =\
                             clean_output(AR_predicted_all[sample_idx].tolist(), # remove eos token, etc.
                                 eos_token_id=eos_token_id,
                                 return_tensors=True, allow_first_eos=losses[0] == "bart",
-                                skip_special_tokens=[bos_token_id, eos_token_id])
+                                skip_special_tokens=[bos_token_id, eos_token_id])[0]
                         # AR_predicted_indices_all.append(AR_predicted_indices)
+                        print("AR_predicted_indices", AR_predicted_indices)
+                        print("AR_predicted_indices[0].tolist()", AR_predicted_indices[0].tolist())
 
                         if args.target_tokenize_different:
                             with primary_tokenizer.as_target_tokenizer():
@@ -563,7 +571,8 @@ def main(args):
             init_gen_ids[source_text] = predicted_batches
             for i in range(len(AR_predicted_all)):
                 init_gen_texts={"prompt": source_text, 
-                                "generation": AR_prediction_all[i]}
+                                "generation": AR_prediction_all[i],
+                                "seq_length": seq_length[i]}
                 json.dump(init_gen_texts, outf_init)
                 outf_init.write("\n")
                 outf_init.flush()

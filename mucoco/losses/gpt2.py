@@ -673,3 +673,43 @@ def top_k_top_p_filtering(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')
     
     if len(filter_indices) > 0:
         pass
+    
+@register_loss("gpt2-var-length")
+class GPT2VarLengthLoss(GPT2Loss):
+    def _prepare_input_for_generation(self, input_ids, **kwargs):
+        max_output_length_mean = getattr(self.args, "max_output_length", 10)
+        max_output_length = np.random.normal(loc=max_output_length_mean, scale=10, size=None)
+        max_output_length = int(min(max(max_output_length, max_output_length_mean-10), max_output_length_mean+10))
+        print(max_output_length)
+        
+        batch_size = input_ids.size(0)
+        #batch size is 1, padding and stuff needs to be modified for this to work for larger batches
+
+        return_object = {'input_ids': input_ids,
+                'max_length': input_ids.size(1) + max_output_length,
+                'do_sample': True,
+                'temperature': self.args.AR_temperature,
+                'top_k': self.args.AR_top_k,
+                'top_p': self.args.AR_top_p,
+                'num_return_sequences': 1}
+                # 'pad_token_id':self.eos_token_id} 
+        # print(return_object)
+
+        return return_object
+    
+    def generate(self, input_ids, **kwargs):
+        num_sequences = kwargs.get('num_return_sequences', 1)
+        outputs = []
+        seq_lengths = []
+        
+        for i in range(num_sequences):
+            
+            prepared_input = self._prepare_input_for_generation(input_ids, **kwargs)
+            output = self.model.generate(**prepared_input)
+            outputs.append(self._postprocess_output(prepared_input, output))
+            seq_lengths.append(prepared_input['max_length'])
+            # print(self.model.get_input_embeddings().weight)
+            # print(str(**prepared_input))
+            # print("gen", output)
+            
+        return outputs, seq_lengths
