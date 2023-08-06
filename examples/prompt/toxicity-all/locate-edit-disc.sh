@@ -3,7 +3,7 @@
 LENGTH=20
 # datevar=$(date +%d-%m-%Y)
 MODELNAME=gpt2-large
-OUTPUTDIR=outputs/toxicity/locate-edit3
+OUTPUTDIR=outputs/toxicity/locate-edit-using-nb-testset
 mkdir -p $OUTPUTDIR
 
 BEGINNOISE=5.0
