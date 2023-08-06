@@ -4,7 +4,7 @@ LENGTH=30
 # datevar=$(date +%d-%m-%Y)
 MODELNAME=gpt2-large
 # OUTPUTDIR=outputs/toxicity/mucola-disc
-OUTPUTDIR=outputs/toxicity/save-init-gen
+OUTPUTDIR=outputs/toxicity/save-init-gen-all-uniform
 mkdir -p $OUTPUTDIR
 
 BEGINNOISE=5.0

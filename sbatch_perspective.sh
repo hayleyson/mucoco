@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:0
 #SBATCH --time=12:00:00
-#SBATCH --mem=400gb
+#SBATCH --mem=10gb
 #SBATCH --cpus-per-task=8
 #SBATCH --output='/home/hyeryungson/mucoco/slurm_output/%j.out'
 
@@ -16,7 +16,7 @@ source /home/${USER}/.bashrc
 
 # srun python perspective_api_call.py --dpath 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/toxicity_gte0.5.jsonl' --nsamples 10000 --outpath perspective_result_1_v3.csv
 # srun python perspective_api_call.py --dpath 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/toxicity_eq0_subsample.jsonl' --nsamples 10000 --outpath perspective_result_0_v3.csv\
-srun python perspective_api_call.py --dpath 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification/test_0.jsonl' --nsamples 2000 --outpath perspective_result_test_0.csv\
+srun python perspective_api_call.py --dpath '/home/hyeryungson/mucoco/outputs/toxicity/save-init-gen-all-uniform/outputs.txt.init' --text-col 'generation' --outpath /home/hyeryungson/mucoco/outputs/toxicity/save-init-gen-all-uniform/outputs_perspective_score.csv\
 || echo 'error occurred at'; date;
 
 end=$(date +%s)

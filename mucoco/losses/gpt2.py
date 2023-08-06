@@ -678,8 +678,9 @@ def top_k_top_p_filtering(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')
 class GPT2VarLengthLoss(GPT2Loss):
     def _prepare_input_for_generation(self, input_ids, **kwargs):
         max_output_length_mean = getattr(self.args, "max_output_length", 10)
-        max_output_length = np.random.normal(loc=max_output_length_mean, scale=10, size=None)
-        max_output_length = int(min(max(max_output_length, max_output_length_mean-10), max_output_length_mean+10))
+        # max_output_length = np.random.normal(loc=max_output_length_mean, scale=10, size=None)
+        # max_output_length = int(min(max(max_output_length, max_output_length_mean-10), max_output_length_mean+10))
+        max_output_length = int(np.random.uniform(low = max_output_length_mean-10, high=max_output_length_mean+10, size=None))
         print(max_output_length)
         
         batch_size = input_ids.size(0)
@@ -707,7 +708,7 @@ class GPT2VarLengthLoss(GPT2Loss):
             prepared_input = self._prepare_input_for_generation(input_ids, **kwargs)
             output = self.model.generate(**prepared_input)
             outputs.append(self._postprocess_output(prepared_input, output))
-            seq_lengths.append(prepared_input['max_length'])
+            seq_lengths.append(prepared_input['max_length'] - prepared_input['input_ids'].size(1)) # subtract prompt length
             # print(self.model.get_input_embeddings().weight)
             # print(str(**prepared_input))
             # print("gen", output)

@@ -307,8 +307,8 @@ def main(args):
         end_idx = (len(source_dataset) + args.end_idx) % len(source_dataset) # also works with negative end_idx
 
         ## 23/07/18 - Hayley - load already generated data.
-        init_gen_ids = joblib.load("/data/hyeryung/mucoco/outputs/toxicity/save-init-gen/bak_outputs.txt.init_ids.pkl")
-        outf_init = pd.read_json("/data/hyeryung/mucoco/outputs/toxicity/save-init-gen/bak_outputs.txt.init.widx", lines=True)
+        init_gen_ids = joblib.load('/home/hyeryungson/mucoco/outputs/toxicity/save-init-gen-all-uniform/testset_input_ids')
+        outf_init = pd.read_json('/home/hyeryungson/mucoco/outputs/toxicity/save-init-gen-all-uniform/testset.w.locidx', lines=True)
         source_dataset = outf_init["prompt"].unique().tolist()
         ##
 
@@ -556,9 +556,10 @@ def main(args):
             #             print(time.time()-starttime)
             
             ## change to read from testset file.
-            predicted_batches = init_gen_ids[source_text]
+            # predicted_batches = init_gen_ids[source_text]
+            predicted_batches = init_gen_ids.loc[init_gen_ids["prompt"]==source_text, "generation_ids"].tolist()
             AR_prediction_all = outf_init.loc[outf_init["prompt"]==source_text, "generation"].tolist()
-            locate_indices_all = outf_init.loc[outf_init["prompt"]==source_text, "indices"].tolist()
+            locate_indices_all = outf_init.loc[outf_init["prompt"]==source_text, "loc_indices"].tolist()
             AR_predicted_indices = predicted_batches[-1].cpu() ### 이부분이 좀 이상한 것 같다! 원래 코드가 이렇게 되어 있긴 했는데... 이게 맞나? ㅠㅠ 확인하려면,,, 많은걸 뜯어봐야 한다.
             # print("locate_indices_all: ", locate_indices_all)
             ##
@@ -576,7 +577,7 @@ def main(args):
             # for sample_idx in range(args.num_samples): # 25 for nontoxic
                 for restart_idx in range(args.restarts + 1): # 0 for nontoxic. restart the optimization if the constraints are not satisfied
 
-                    predicted_batch = predicted_batches[sample_idx * (args.restarts + 1) + restart_idx]
+                    predicted_batch = predicted_batches[sample_idx * (args.restarts + 1) + restart_idx].cuda()
                     AR_prediction = AR_prediction_all[sample_idx * (args.restarts + 1) + restart_idx]
                     intermediate_result={"prompt": source_text}
                     intermediate_result.update({"sample_id": sample_idx, "original_text": AR_prediction})
@@ -854,8 +855,9 @@ def main(args):
                             repeat_counts = [0] * batch_size
 
                             ## 23/7/21 - add locate code
-                            batch = {"input_ids": predicted_batch}
-                            indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch)
+                            # batch = {"input_ids": predicted_batch}
+                            # indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch)
+                            indices = locate_indices_all[sample_idx]
                             intermediate_result.update({f"indices": indices}) # save indices along with update results
                             print("indices", indices)
                             ##
@@ -1000,7 +1002,6 @@ def main(args):
                                     # text (어떤 변수? source_batch)를 태워서 locate 하기 (근데, 궁금한것은 source_batch와 target_prefix 는 다른건가?)
                                     # index가 여기에서 뽑히는 거라고 생각하자.
                                     # indices = [15,16]
-                                    # indices = locate_indices_all[sample_idx]
                                     # indices가 optim 바깥에서 뽑히도록 일단 구현
                                     
                                     ## HERE: locate code or read locate indices.

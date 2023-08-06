@@ -69,6 +69,7 @@ RESTARTS=${30}
 OUTPUTLEN=${31}
 BASELM_GEN_ONLINE=${32} # true if generate base lm generations on the fly, false otherwise.
 LOCATE_EDIT=${33} # true if apply locate_edit, false otherwise
+EARLY_STOP_PATIENCE=10
 # RANDOMEXAMPLE=${32}
 # STARTIDX=${33}
 # ENDIDX=${34}
@@ -183,7 +184,8 @@ then
     NUM_SAMPLES=25
     OUTPUTLEN=20
     MAXLEN=20
-    OPTIMSTEPS=200
+    # OPTIMSTEPS=200
+    OPTIMSTEPS=50
     model=$PRIMARYMODEL:$TOXICITYCLASSIFIER
     tokenizer=$PRIMARYMODEL:$TOXICITYTOKENIZER
     model_types=AutoModelForCausalLM:RobertaCustomForSequenceClassification
@@ -831,7 +833,7 @@ then
         --max-lr $MAXLR\
         --lr-update-size $LRUPDATESIZE\
         --num-examples $NUMEXAMPLES\
-        --early-stop-steps 40\
+        --early-stop-steps $EARLY_STOP_PATIENCE\
         --restarts $RESTARTS\
         --use_context $USECONTEXT\
         --show-all-outputs\
@@ -919,7 +921,7 @@ then
         --max-lr 0.45\
         --lr-update-size 0.01\
         --num-examples $NUMEXAMPLES\
-        --early-stop-steps 50\
+        --early-stop-steps $EARLY_STOP_PATIENCE\
         --restarts $RESTARTS\
         --use_context $USECONTEXT\
         --debug\
@@ -1009,7 +1011,7 @@ then
         --random-example $RANDOMEXAMPLE\
         --start-idx $STARTIDX\
         --end-idx $ENDIDX\
-        --early-stop-steps 40\
+        --early-stop-steps $EARLY_STOP_PATIENCE\
         --restarts $RESTARTS\
         --outfile $OUTFILE\
         --output-style $OUTPUTSTYLE\
