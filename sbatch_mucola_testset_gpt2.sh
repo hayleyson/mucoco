@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mucola-jigsaw
+#SBATCH --job-name=mucola-gpt2
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
@@ -25,7 +25,7 @@ source activate mucola
 # srun python -m notebooks.resume_run  || echo "!!! error occurred"
 # srun bash examples/prompt/toxicity-all/mucola-disc.sh
 # srun bash examples/prompt/toxicity-all/locate-edit-disc.sh
-srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset.sh
+srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset-gpt2.sh
 # srun bash examples/prompt/toxicity-all/mucola-disc-save-init-gen.sh
 
 end=$(date +%s)

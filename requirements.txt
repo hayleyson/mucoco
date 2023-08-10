@@ -1,5 +1,5 @@
 transformers>=4.5.1 # copied from github
-torch==1.11.0 # copied from environment.yml # installed using conda install pytorch==1.11.0 torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+#torch==1.11.0 # copied from environment.yml # installed using conda install pytorch==1.11.0 torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 sacrebleu==1.5.1 # copied from environment.yml
 sacremoses==0.0.47 # copied from environment.yml
 sacrerouge==0.2.3 # copied from environment.yml
@@ -16,3 +16,4 @@ chardet # <- added on 31/03/23 after running into an error
 wandb # <- added on 31/03/23 to log
 evaluate # 05/05/23 for evaluation
 seaborn
+jupyter # 8/8/23 for dev 

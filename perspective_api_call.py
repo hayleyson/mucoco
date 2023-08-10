@@ -26,6 +26,8 @@ def toxicity_score(generations_df, text_col, response_file, proba_file, perspect
     # fout = open(response_file, "w")
     fout_prob = open(proba_file, "w")
 
+    generations_df = generations_df.iloc[::-1]
+    
     last_request_time = -1
     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating toxicity via perspective API'):
         
