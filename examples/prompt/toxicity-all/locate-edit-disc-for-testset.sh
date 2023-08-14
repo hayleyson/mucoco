@@ -13,12 +13,13 @@ NOISESTEPS=150
 POSITIVELABEL=1
 NEGATIVELABEL=0
 
-EPSILONS=(-5 -4 -3 -2 -1 0)
+EPSILONS=(-5 -2.2 -1.4)
 # EPSILONS=(-5) # the constraint is  log(negative_prob) - log (positive_prob) < epsilon, where positive_prob is the desired label
 
 for EPSILON in "${EPSILONS[@]}"
 do
-    bash examples/prompt/constrained_sampling_locate_edit.sh \
+    echo $EPSILON
+    bash examples/prompt/constrained_sampling_locate_edit_for_testset.sh \
     nontoxic \
     $OUTPUTDIR \
     $MODELNAME \
