@@ -1,7 +1,13 @@
 import torch
+import string
 
-# model 의 forward 함수에서 정의를 output_attentions=True ßßß를 넘길 수 있게 되어 있다.
-def locate(model, tokenizer, batch, num_layer=10):
+punctuations = string.punctuation + '\n '
+punctuations = list(punctuations)
+punctuations.remove('-')
+
+
+# model 의 forward 함수에서 정의를 output_attentions=True를 넘길 수 있게 되어 있다.
+def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10):
     # torch.cuda.empty_cache()
     # forward
     model.eval()
@@ -35,14 +41,16 @@ def locate(model, tokenizer, batch, num_layer=10):
         if len(current_attn)==1:
             print(current_attn, top_masks, lengths[i])
         
+        # ToDo: stopwords 제거를 먼저하고, 그 다음에 topk를 뽑는다.
+        
         # attention 값이 평균보다 큰 토큰의 수가 6 또는 문장 전체 토큰 수의 1/3 보다 크면  
     #     if len(top_masks) > min((lengths[i] - 2) // 3, 6):
-        if len(top_masks) > min((lengths[i]) // 3, 6):
+        if len(top_masks) > min((lengths[i]) // 3, max_num_tokens):
             # 그냥 attention 값 기준 top k 개 (k = 6 또는 토큰 수/3)를 뽑는다.
             top_masks = (
                 # current_attn.topk(min((lengths[i] - 2) // 3, 6))[1] + 1
     #             current_attn.topk(min((lengths[i] - 2) // 3, 6))[1]
-                current_attn.topk(max(min((lengths[i]) // 3, 6), 1))[1]
+                current_attn.topk(max(min((lengths[i]) // 3, max_num_tokens), 1))[1]
             )
             top_masks = top_masks.cpu().tolist()
             if len(current_attn) == 1:
@@ -59,7 +67,7 @@ def locate(model, tokenizer, batch, num_layer=10):
                 " of",
                 " or",
                 " so",
-            ]:
+            ] + punctuations : # added punctuations
                 # token을 mask 한다.
                 # current_sent[index] = mask_token
                 top_masks_final.append(index)

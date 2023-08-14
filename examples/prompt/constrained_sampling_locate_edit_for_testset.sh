@@ -1024,12 +1024,12 @@ then
         --allow-diff-vocab\
         --baselm-gen-online $BASELM_GEN_ONLINE\
         --locate-edit $LOCATE_EDIT
-    bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
+    #bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
     done="true"
 else
     if [[ "$done" != "true" ]]
     then
         echo $EXTRAS
-        bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
+        #bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
     fi
 fi
