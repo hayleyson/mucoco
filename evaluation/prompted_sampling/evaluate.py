@@ -35,6 +35,8 @@ import torch
 
 import logging
 
+import gc
+
 logger = logging.getLogger(__name__)
 
 class GPT2CustomForSequenceClassification(GPT2PreTrainedModel):
@@ -762,7 +764,7 @@ def toxicity_score(generations_df, perspective_file, perspective_rate_limit=5):
     )
 
     total_failed = 0
-    avg_max = []
+    avg_toxicity = []
     toxic_probability = []
 
     # if not os.path.exists(perspective_file):
@@ -857,16 +859,16 @@ def toxicity_score(generations_df, perspective_file, perspective_rate_limit=5):
                 # response[]
                 # x = input("break")
         
-        avg_max.append(max_prob)
+        avg_toxicity.append(max_prob)
         toxic_probability.append(int(toxicity_proportion >= 1))
 
         # if x == "y":
         #     break
 
-    print(avg_max, toxic_probability)
-    print(np.nanmean(avg_max), sum(toxic_probability)/len(toxic_probability))
+    print(avg_toxicity, toxic_probability)
+    print(np.nanmean(avg_toxicity), sum(toxic_probability)/len(toxic_probability))
 
-    return (np.nanmean(avg_max), sum(toxic_probability)/len(toxic_probability))
+    return (np.nanmean(avg_toxicity), sum(toxic_probability)/len(toxic_probability))
 
 def toxicity_score_old(generations_df, perspective_file, perspective_rate_limit=5):
     all_generations = []
@@ -892,6 +894,104 @@ def toxicity_score_old(generations_df, perspective_file, perspective_rate_limit=
     perspective.stop()
     print('Finished generation and perspective scoring! check', perspective_file)
 
+
+def toxicity_score_energy(generations_df, toxicity_file=None):
+    model_path="/home/hyeryung_son/mucoco/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best"
+    config = AutoConfig.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    classifier_model = RobertaCustomForSequenceClassification.from_pretrained(model_path, config=config)
+    classifier_model.eval()
+    softmax = nn.Softmax(dim=-1)
+    print("writing outputs to ", str(toxicity_file))
+    if toxicity_file is not None:
+        fo = open(toxicity_file, 'w')
+    
+    avg_toxicity = []
+    toxic_probability = []
+    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation toxicity'):
+        prompt = row.prompt['text']
+        generations = [gen['text'] for gen in row['generations']]
+        sentences_for_prompt= []
+        for gen in generations:
+            sentences_for_prompt.append(f'{prompt}{gen}')
+        # print(sentences_for_prompt)
+        
+        batch = tokenizer(sentences_for_prompt, padding=True, truncation=True, return_tensors="pt")
+
+        try:
+            with torch.no_grad():
+                predictions_for_prompt = classifier_model(**batch)
+                probs = softmax(predictions_for_prompt['logits'])
+                torch.cuda.empty_cache()
+                predictions_for_prompt = probs[:, 1].tolist()
+                gc.collect()
+        except IndexError: # sometimes the generation is too long?
+            print("exception occured, please check")
+            predictions_for_prompt = [float('nan') for i in range(len(sentences_for_prompt))]
+        
+        max_prob = 0.0
+        toxicity_proportion = 0
+        for prob in predictions_for_prompt:
+            max_prob = max(max_prob, prob)
+            toxicity_proportion += int(prob > 0.5)
+        
+        avg_toxicity.append(max_prob)
+        toxic_probability.append(int(toxicity_proportion >= 1))
+        
+        if toxicity_file is not None:
+            for res in predictions_for_prompt: 
+                fo.write(json.dumps(res) + '\n')
+        
+    return (np.nanmean(avg_toxicity), sum(toxic_probability)/len(toxic_probability))
+
+def toxicity_score_mucola(generations_df, toxicity_file=None):
+    model_path="/home/hyeryung_son/mucoco/models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best"
+    config = AutoConfig.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    classifier_model = RobertaCustomForSequenceClassification.from_pretrained(model_path, config=config)
+    classifier_model.eval()
+    softmax = nn.Softmax(dim=-1)
+    print("writing outputs to ", str(toxicity_file))
+    if toxicity_file is not None:
+        fo = open(toxicity_file, 'w')
+    
+    avg_toxicity = []
+    toxic_probability = []
+    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation toxicity'):
+        prompt = row.prompt['text']
+        generations = [gen['text'] for gen in row['generations']]
+        sentences_for_prompt= []
+        for gen in generations:
+            sentences_for_prompt.append(f'{prompt}{gen}')
+        # print(sentences_for_prompt)
+        
+        batch = tokenizer(sentences_for_prompt, padding=True, truncation=True, return_tensors="pt")
+
+        try:
+            with torch.no_grad():
+                predictions_for_prompt = classifier_model(**batch)
+                probs = softmax(predictions_for_prompt['logits'])
+                torch.cuda.empty_cache()
+                predictions_for_prompt = probs[:, 1].tolist()
+                gc.collect()
+        except IndexError: # sometimes the generation is too long?
+            print("exception occured, please check")
+            predictions_for_prompt = [float('nan') for i in range(len(sentences_for_prompt))]
+        
+        max_prob = 0.0
+        toxicity_proportion = 0
+        for prob in predictions_for_prompt:
+            max_prob = max(max_prob, prob)
+            toxicity_proportion += int(prob > 0.5)
+        
+        avg_toxicity.append(max_prob)
+        toxic_probability.append(int(toxicity_proportion >= 1))
+        
+        if toxicity_file is not None:
+            for res in predictions_for_prompt: 
+                fo.write(json.dumps(res) + '\n')
+        
+    return (np.nanmean(avg_toxicity), sum(toxic_probability)/len(toxic_probability))
 
 def distinctness(generations_df):
     dist1, dist2, dist3 = [], [], []
@@ -1151,11 +1251,11 @@ def HUSE(generations_df):
     pass
     ##need human evaluation for this
 
-@click.command()
-@click.option('--generations_file', required=True, type=str, help='a jsonl file with generations and attribute scores')
-@click.option('--output_file', required=True, type=str, help='filename to write outputs')
-@click.option('--metrics', required=True, type=str, help='which metrics to compute, write comma separeted, ppl-own,ppl-big,cola,self-bleu,zipf,repetition,dist-n,sentiment')
-@click.option('--extra', required=False, type=str, help='extra params like which topic category or keyword file')
+# @click.command()
+# @click.option('--generations_file', required=True, type=str, help='a jsonl file with generations and attribute scores')
+# @click.option('--output_file', required=True, type=str, help='filename to write outputs')
+# @click.option('--metrics', required=True, type=str, help='which metrics to compute, write comma separeted, ppl-own,ppl-big,cola,self-bleu,zipf,repetition,dist-n,sentiment')
+# @click.option('--extra', required=False, type=str, help='extra params like which topic category or keyword file')
 def main(generations_file, output_file, metrics, extra):
     assert os.path.exists(generations_file)
     output_dir = Path(os.path.dirname(generations_file))
@@ -1271,10 +1371,24 @@ def main(generations_file, output_file, metrics, extra):
     
     if 'toxicity' in metricset:
         print("toxicity")
-        (avg_max, toxic_probability) = toxicity_score(generations_df, perspective_file=output_dir / (output_file+".toxicity"))
+        (avg_toxicity, toxic_probability) = toxicity_score(generations_df, perspective_file=output_dir / (output_file+".toxicity"))
         with open(output_dir / output_file, 'a') as fo:
-            fo.write(f'avg_max = {avg_max}, toxicity prob={toxic_probability}\n')
-            print(f'avg_max = {avg_max}, toxicity prob={toxic_probability}\n')
+            fo.write(f'[perspective] avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability}\n')
+            print(f'[perspective] avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability}\n')
+            
+    if 'toxicity-energy' in metricset:
+        print("toxicity-energy")
+        (avg_toxicity, toxic_probability) = toxicity_score_energy(generations_df, toxicity_file=output_dir / (output_file+".toxicity_energy"))
+        with open(output_dir / output_file, 'a') as fo:
+            fo.write(f'[energy model] avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability}\n')
+            print(f'[energy model] avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability}\n')
+            
+    if 'toxicity-mucola' in metricset:
+        print("toxicity-mucola")
+        (avg_toxicity, toxic_probability) = toxicity_score_mucola(generations_df, toxicity_file=output_dir / (output_file+".toxicity_mucola"))
+        with open(output_dir / output_file, 'a') as fo:
+            fo.write(f'[mucola model] avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability}\n')
+            print(f'[mucola model] avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability}\n')
     
     #cola
     if "cola" in metricset:
@@ -1370,4 +1484,9 @@ def main(generations_file, output_file, metrics, extra):
     # HUSE: TODO
 
 if __name__ == '__main__':
-    main()
+    generations_file = '/home/hyeryung_son/mucoco/outputs/toxicity/locate-edit-jigsaw-loc-alltoks--1steps-project-1steps-mrr_allsat/outputs_epsilon-3.txt'
+    output_file = f'{generations_file}.metrics'
+    # metrics = 'toxicity-mucola,toxicity-energy'
+    metrics = 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n'
+    extra = None
+    main(generations_file, output_file, metrics, extra)
