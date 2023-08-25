@@ -4,6 +4,17 @@
 # EARLY_STOP_PATIENCE
 ###
 
+LOCATE_EDIT=${33} # true if apply locate_edit, false otherwise
+data_source=${34}
+NUM_LOCATE_STEPS=${35}
+NUM_EDIT_TOKEN_PER_STEP=${36}
+NUM_PROJECT_STEPS=${37}
+NUM_LOG_STEPS=${38}
+echo $NUM_PROJECT_STEPS
+
+INPUT_IDS_PATH=outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_${data_source}_input_ids.pkl
+TEXTS_PATH=outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_${data_source}_prompts.pkl
+
 graddistance=${7}
 option=$1
 OUTDIR=$2
@@ -12,7 +23,8 @@ mkdir -p $OUTDIR
 
 OUTFILE=$OUTDIR/outputs_epsilon${25}.txt
 # EVALFILE=$OUTDIR/results${15}.txt
-EVALFILE=results${15}.txt
+EVALFILE=results_epsilon${25}.txt
+LOGFILE=$OUTDIR/outputs_epsilon${25}.log
 
 DATA_DIR=data/
 
@@ -74,8 +86,7 @@ LRUPDATESIZE=${29}
 RESTARTS=${30}
 OUTPUTLEN=${31}
 BASELM_GEN_ONLINE=${32} # true if generate base lm generations on the fly, false otherwise.
-LOCATE_EDIT=${33} # true if apply locate_edit, false otherwise
-EARLY_STOP_PATIENCE=5 # 
+EARLY_STOP_PATIENCE=40 # 
 # RANDOMEXAMPLE=${32}
 # STARTIDX=${33}
 # ENDIDX=${34}
@@ -187,7 +198,8 @@ then
     # DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-1.jsonl
     JSON_PKEY="prompt"
     JSON_SKEY="text"
-    NUM_SAMPLES=25
+    # NUM_SAMPLES=25
+    NUM_SAMPLES=1
     OUTPUTLEN=20
     MAXLEN=20
     # OPTIMSTEPS=200
@@ -208,6 +220,8 @@ then
     embedgd_do_sample="false"
     LAMBDALR=1.0
     selection_criterion="mrr_allsat"
+    # selection_criterion="weighted_sum"
+    # selection_criterion="primary_allsat"
 elif [[ "$option" == "sentiment-disc" ]]
 then
     echo "sentiment-disc (label ${LABELID})"
@@ -756,6 +770,7 @@ fi
 # echo $TARGETTOPIC
 # echo "noise-variance=${noise_variance}"
 pwd;
+echo $debug
 
 if [[ "$debug" == "debug" ]]
 then
@@ -846,7 +861,14 @@ then
         --allow-diff-vocab\
         --debug\
         --baselm-gen-online $BASELM_GEN_ONLINE\
-        --locate-edit $LOCATE_EDIT
+        --locate-edit $LOCATE_EDIT\
+        --num_log_steps $NUM_LOG_STEPS\
+        --num_locate_steps $NUM_LOCATE_STEPS\
+        --num_project_steps $NUM_PROJECT_STEPS\
+        --num_edit_token_per_step $NUM_EDIT_TOKEN_PER_STEP\
+        --input_ids_path $INPUT_IDS_PATH\
+        --texts_path $TEXTS_PATH\
+    > $LOGFILE
     echo "--epsilons $epsilons"
 elif [[ "$debug" == "interactive" ]]
 then
@@ -932,7 +954,14 @@ then
         --use_context $USECONTEXT\
         --debug\
         --baselm-gen-online $BASELM_GEN_ONLINE\
-        --locate-edit $LOCATE_EDIT
+        --locate-edit $LOCATE_EDIT\
+        --num_log_steps $NUM_LOG_STEPS\
+        --num_locate_steps $NUM_LOCATE_STEPS\
+        --num_project_steps $NUM_PROJECT_STEPS\
+        --num_edit_token_per_step $NUM_EDIT_TOKEN_PER_STEP\
+        --input_ids_path $INPUT_IDS_PATH\
+        --texts_path $TEXTS_PATH\
+    > $LOGFILE
 elif [[ "$debug" == "run_and_evaluate" ]]
 then
     python -W ignore -u decode_new_for_testset.py\
@@ -1023,8 +1052,15 @@ then
         --output-style $OUTPUTSTYLE\
         --allow-diff-vocab\
         --baselm-gen-online $BASELM_GEN_ONLINE\
-        --locate-edit $LOCATE_EDIT
-    #bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
+        --locate-edit $LOCATE_EDIT\
+        --num_log_steps $NUM_LOG_STEPS\
+        --num_locate_steps $NUM_LOCATE_STEPS\
+        --num_edit_token_per_step $NUM_EDIT_TOKEN_PER_STEP\
+        --num_project_steps $NUM_PROJECT_STEPS\
+        --input_ids_path $INPUT_IDS_PATH\
+        --texts_path $TEXTS_PATH\
+    > $LOGFILE
+    bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
     done="true"
 else
     if [[ "$done" != "true" ]]

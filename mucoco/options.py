@@ -445,5 +445,47 @@ def get_parser():
         type=bool,
         help="Whether to first locate tokens to edit and edit only the tokens.",
     )
+    
+    parser.add_argument(
+        "--num_edit_token_per_step",
+        default=1,
+        type=int,
+        help="Number of tokens to locate and edit for each step.",
+    )
+    
+    parser.add_argument(
+        "--num_locate_steps",
+        default=1,
+        type=int,
+        help="Number of steps for which once in the number to locate tokens to edit.",
+    )
+    
+    parser.add_argument(
+        "--num_log_steps",
+        default=1,
+        type=int,
+        help="Number of steps for which once in the number to log intermediate steps.",
+    )
+        
+    parser.add_argument(
+        "--num_project_steps",
+        default=1,
+        type=int,
+        help="Number of steps for which once in the number to project updated embeddings to nearest embeddings defined in the vocabulary.",
+    )
+    
+    parser.add_argument(
+        "--input_ids_path",
+        default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
+        type=str,
+        help="Path to load input ids for test data.",
+    )
+    
+    parser.add_argument(
+        "--texts_path",
+        default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
+        type=str,
+        help="Path to load texts for test data.",
+    )
 
     return parser

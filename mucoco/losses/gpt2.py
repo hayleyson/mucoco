@@ -90,6 +90,15 @@ class GPT2Loss(BaseLoss):
         input_embeds = torch.cat([embed_lut(self.extra_prefix), embed_lut(prompt), embed_lut(prefix), pred_embeds, embed_lut(context)], dim=1)
         # print(input_embeds.dtype)
         # input()
+        
+        # print("!!!!!!!!!!!!!!!!!!!!!!!!! inside compute_loss for GPT2Loss !!!!!!!!!!!!!!!!!!!!!!")
+        # print("source: ", prompt)
+        # print("prefix: ", prefix)
+        # print("pred_tokens: ", pred_tokens)
+        # print("pred_embeds: ", pred_embeds)
+        # print("pred_embeds.shape ", pred_embeds.shape)
+        # print("input_embeds.shape ", input_embeds.shape)
+        
         preflen = prompt.size(1) + prefix.size(1) 
         predlen = pred_embeds.size(1)
         suflen = context.size(1) + 1
@@ -256,17 +265,20 @@ class GPT2Loss(BaseLoss):
                 hidden_states = hidden_states[:, preflen-1:-1, :].contiguous()
                 # hidden_states = 0.1 * hidden_states + (0.9 * hidden_states).detach()
                 pred_embs = input_embeds[:, preflen:, :].contiguous()
-                logits = hidden_states.matmul(embed_lut.weight.t()) 
+                logits = hidden_states.matmul(embed_lut.weight.t()) # softmax 취하기 직전 값, (L, d) 와 (d, V) => (L, V)
 
                 # temperature = logits.norm(dim=-1).detach()/1000
                 # print(temperature)
-                loss = -(hidden_states * pred_embs).sum(dim=-1) / temperature
+                loss = -(hidden_states * pred_embs).sum(dim=-1) / temperature # hidden states (L, d)와 pred_embs (L, d) 간의 elem-wise product. => (L,) 크기.
                 # logits = logits / temperature.unsqueeze(2)
                 
-                maxlogit = logits.max(dim=-1, keepdim=True)[0]
+                maxlogit = logits.max(dim=-1, keepdim=True)[0] #L 중에서 가장 logit 값이 큰 경우
                 # print("ok", maxlogit)
-                logits = logits - maxlogit
+                logits = logits - maxlogit #max logit이 0이 되고 나머지는 -의 값을 가진다.
                 # print("what", (hidden_states * pred_embs).sum(dim=-1))
+                
+                ####    범인을 찾았다! 여기에서 nan이 생긴다..
+                ### hidden_states * pred_embeds 를 하면 (1,24,1280)이 return 되고 sum 하면 (1,24)가 된다.
                 additive = torch.exp((hidden_states * pred_embs).sum(dim=-1) / temperature - maxlogit.squeeze(-1)) - torch.exp((hidden_states * pred_embs.detach()).sum(dim=-1) / temperature - maxlogit.squeeze(-1))
                 # print(additive)
                 lognorm = (logits.exp().sum(dim=-1) + additive).log()

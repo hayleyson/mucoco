@@ -15,6 +15,7 @@ import os
 import joblib
 import time 
 from tqdm import tqdm
+import pdb
 ##
 
 from transformers import AutoTokenizer, AutoConfig
@@ -25,6 +26,8 @@ import mucoco.losses as lossbuilder
 import mucoco.options as options
 import mucoco.utils as utils
 import torch.nn.functional as F
+
+torch.autograd.set_detect_anomaly(True)
 
 # To control logging level for various modules used in the application:
 # from here: https://github.com/huggingface/transformers/issues/3050
@@ -59,6 +62,14 @@ def main(args):
         outf = open(args.outfile, "w")
         outallsatf = open(args.outfile + ".allsat", "w")
         outf2 = open(args.outfile + ".intermediate", "w")
+        
+        outfparams = open(args.outfile + ".params", "w")
+        outfparams.write("%s\n" %args)
+        outfparams.flush()
+        outfparams.close()
+    
+    if args.num_locate_steps == -1:
+        args.num_locate_steps = args.optim_steps + 1
 
     # Fix seed
     if args.seed is not None:
@@ -309,10 +320,11 @@ def main(args):
         end_idx = (len(source_dataset) + args.end_idx) % len(source_dataset) # also works with negative end_idx
 
         ## 23/07/18 - Hayley - load already generated data.
-        data_source = 'jigsaw'
-        print("data_source", data_source)
-        init_gen_ids = joblib.load(f'outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_{data_source}_input_ids.pkl')
-        source_dataset = joblib.load(f'outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_{data_source}_texts.pkl')
+        init_gen_ids = joblib.load(args.input_ids_path)
+        if os.path.exists(args.texts_path):
+            source_dataset = joblib.load(args.texts_path)
+        else:
+            source_dataset = ["" for i in range(len(init_gen_ids))]
         ##
 
         logger.info("Data loaded")
@@ -357,6 +369,9 @@ def main(args):
     ##################################################################################################################################################################
     ##################################################################################################################################################################
     for text_id, source_text in enumerate(source_dataset):
+        
+        if text_id < 3:
+            continue
         
         ## 23/7/18 - Hayley - commented it out.
         # # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
@@ -568,7 +583,8 @@ def main(args):
             # print("predicted_batch", predicted_batch)
             
             # AR_prediction_all = outf_init.loc[outf_init["prompt"]==source_text, "generation"].tolist()
-            AR_prediction = source_text
+            # AR_prediction = source_text
+            AR_prediction = primary_tokenizer.decode(predicted_batch[0])
             
             # locate_indices_all = outf_init.loc[outf_init["prompt"]==source_text, "loc_indices"].tolist()
             # AR_predicted_indices = predicted_batches[-1].cpu() ### 이부분이 좀 이상한 것 같다! 원래 코드가 이렇게 되어 있긴 했는데... 이게 맞나? ㅠㅠ 확인하려면,,, 많은걸 뜯어봐야 한다.
@@ -642,7 +658,8 @@ def main(args):
                         epsilons[lossid - 1] = predicted_loss + getattr(lossfns[lossid], "epsilon_additive", 0) ##TODO check 
                     
                 predictedlosslists.append(predictedlosses)
-                
+                print(f"[autoregressive] total_predicted_loss: {total_predicted_loss}, losses_for_backward[0]: {predictedlosses[0].data.cpu()}, losses_for_backward[1]: {predictedlosses[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, predicted_allsat: {predicted_allsat}")
+                                    
                 
                 if args.only_mucoco == "false":
                     lengthwise_best_prediction = [(AR_prediction, total_predicted_loss, predicted_allsat, predicted_batch[0].tolist(), -1)]
@@ -867,14 +884,6 @@ def main(args):
                         dynamic_loss_update_same_loss_count = 0
                         starttime = time.time()
                         repeat_counts = [0] * batch_size
-
-                        ## 23/7/21 - add locate code
-                        batch = {"input_ids": predicted_batch}
-                        indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch)
-                        # indices = locate_indices_all[sample_idx]
-                        intermediate_result.update({f"indices": indices}) # save indices along with update results
-                        # print("indices", indices)
-                        ##
                         
                         ##################################################################################################################################################################
                         # gradient inference the embeddings
@@ -890,7 +899,7 @@ def main(args):
 
                                     # print(optimizer.new_predictions)
                                     # what does this do?
-                                    pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=getattr(optimizer._optimizer, "new_predictions", None))  # forward
+                                    pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=getattr(optimizer._optimizer, "new_predictions", None))  # forward                                    
                                     
                                     # if not args.time and args.debug:
                                     def get_sent(tokens, tokenizer):
@@ -905,7 +914,7 @@ def main(args):
                                         return batch
 
                                     target_sents = get_sent(torch.cat([target_prefix, pred_tokens], dim=1), primary_tokenizer)
-                                    if step % 10 == 0:
+                                    if step % args.num_log_steps == 0:
                                         intermediate_result.update({f"step_{step}_text": target_sents})
                                     # print(target_sents, end="\n")
                                     
@@ -914,7 +923,10 @@ def main(args):
                                         original_preds = pred_embeds[1]
 
                                     # print("what", args.use_context)
+                                    # print("pred_embeds: ", pred_embeds)
                                     for lossid, lossname in enumerate(losses):
+                                        # print("lossid: ", lossid)
+                                        # print("pred_embeds[0][lossid]: ", pred_embeds[0][lossid])
                                         lossvalue, logging_output =\
                                             lossfns[lossid].compute_loss(
                                                 [source_batch, target_prefix], 
@@ -1001,7 +1013,13 @@ def main(args):
                                             constraint_values.append(constraint_value.item())
                                     
                                         total_batchloss = total_loss.sum()
-                                        optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
+                                        print(f"[step{step}] cur_lr {cur_lr}", 
+                                        print(f"[step{step}] total_batchloss.item()", total_batchloss.item())
+                                        try:
+                                            optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
+                                        except:
+                                            pdb.set_trace()
+                                        print(f"[step{step}] pred_embeds[0][1].grad.norm(p=2, dim=-1)", pred_embeds[0][1].grad.norm(p=2, dim=-1))
 
                                     if args.debug and args.debug_gradients == "true":
                                         total_norm = 0
@@ -1021,11 +1039,37 @@ def main(args):
                                 # indices = [15,16]
                                 # indices가 optim 바깥에서 뽑히도록 일단 구현
                                 
-                                ## HERE: locate code or read locate indices.
+                                ## 23/7/21 - add locate code
+                                ## 23/8/14 - moved inside for loop for gradient-based inference
+                                if step % args.num_locate_steps == 0:
+                                    batch = {"input_ids": pred_tokens}
+                                    # batch = {"input_embeds": pred_embeds[0][1]}
+                                    indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step)
+                                    # indices = list(range(len(pred_tokens[0])))
+                                    intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
+                                    # print(f"=== step {step} ===")
+                                    # print(f"[indices]: {indices}")
+                                    # print(f"[original]: {name2tokenizer[model_paths[1]].decode(pred_tokens[0])}")
+                                    # print("[located]:", end=' ')
+                                    # for i, tok in enumerate(pred_tokens[0]):
+                                    #     if i in indices[0]:
+                                    #         print('<mask>', end='')
+                                    #     else:
+                                    #         print(name2tokenizer[model_paths[1]].decode(tok), end='')
+                                    # print()
+                                    if indices == [[]]:
+                                        print(f"Early stop at @{step} with a loss value of {cur_loss} since no token is to be edited.")
+                                        break
+                                
+                                ## 08/24/23 add gradient clipping
+                                torch.nn.utils.clip_grad_norm_(outputs.parameters(), 1)
+                                
+                                ## Edites 08/17/23: to pass option for projection.
+                                project_yn = True if step % args.num_project_steps == 0 else False
                                 if logging_outputs[0].get('entropy', None) is not None:
-                                    optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None)) ### backpropagate
+                                    optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None), project = project_yn) ### backpropagate
                                 else:
-                                    optimizer.step(indices, scaler=scaler) ### backpropagate
+                                    optimizer.step(indices, scaler=scaler, project = project_yn) ### backpropagate
                                 
                                 update_lr_condition = "none"
                                 if args.linear_scale != "true" and  len(losses) > 1:
@@ -1113,7 +1157,8 @@ def main(args):
                                         best_prediction_set[b].add(target_sents[b])
                                         
                                     constrained = ",".join(constrained)
-
+                                    intermediate_result.update({f"step{step}_best_loss": best_loss[b],f"step{step}_loss0": losses_for_backward[0].item(), f"step{step}_loss1": losses_for_backward[1].item(), f"step{step}_allsat": allsat, f"step{step}_repeat_counts[b]": repeat_counts[b]})
+                                    # print(f"[step{step}] best_loss[b]: {best_loss[b]}, cur_loss: {cur_loss}, losses_for_backward[0]: {losses_for_backward[0].data.cpu()}, losses_for_backward[1]: {losses_for_backward[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, allsat: {allsat}, repeat_counts[b]: {repeat_counts[b]}")
                                     modify_condition =\
                                         args.selection_criterion == "last" or\
                                         (best_loss[b] is None and args.selection_criterion == "weighted_sum") or\
@@ -1274,7 +1319,7 @@ def main(args):
                                         (lengthwise_best_prediction[b][2] and lengthwise_best_prediction[b][4] >= 2 and lengthwise_best_prediction[b][1] > lossvalue)
                                     
                                 
-                                if modify_condition: # loss 값이 줄어들었으면, best prediction을 업데이트 함
+                                if modify_condition: # loss 값이 줄어들었으면, best prediction을 업데이트 ㅡ
                                     if args.debug:
                                         print("modify condition satisfied", end="\n")
                                     else:
@@ -1504,6 +1549,11 @@ def clean_output(tokens, eos_token_id, return_tensors=False, allow_first_eos=Fal
 def cli_main():
     parser = options.get_parser()
     args = parser.parse_args()
-    import joblib
-    joblib.dump(args, './args_decoding.pkl')
+    main(args)
+
+if __name__ == "__main__":
+    
+    args = joblib.load('/home/hyeryung_son/mucoco/outputs/toxicity/locate-edit-gpt2-loc-6toks--1steps-project-5steps-mrr_allsat/outputs_epsilon-3.txt.pkl')
+    args.optim_steps = 10
+    args.num_project_steps = 2
     main(args)
