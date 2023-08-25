@@ -48,7 +48,13 @@ class ClassificationLoss(BaseLoss):
             input_embeds = torch.cat([embed_lut[1](pred_embeds), embed_lut(eos), embed_lut(eos)], dim=1) * kwargs["embed_scale"]
         else:
             input_embeds = torch.cat([pred_embeds, embed_lut(eos), embed_lut(eos)], dim=1) * kwargs["embed_scale"]
-        
+        # print("!!!!!!!!!!!!!!!!!!!!!!!!! inside compute_loss for classification !!!!!!!!!!!!!!!!!!!!!!")
+        # print("source: ", source)
+        # print("prefix: ", prefix)
+        # print("pred_tokens: ", pred_tokens)
+        # print("pred_embeds: ", pred_embeds)
+        # print("pred_embeds.shape ", pred_embeds.shape)
+        # print("input_embeds.shape ", input_embeds.shape)
 
         model_output = self.model(inputs_embeds=input_embeds)
         lm_logits = model_output[0]
