@@ -144,4 +144,7 @@ hayley-toxicity
 notebooks/XAI/fig/
 outputs
 *.tar.gz
-aica_268.pem
+*.pem
+.vscode
+notes_on_dev_env_setting.txt
+*.pkl
