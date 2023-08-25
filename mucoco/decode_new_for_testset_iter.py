@@ -27,7 +27,7 @@ import mucoco.options as options
 import mucoco.utils as utils
 import torch.nn.functional as F
 
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 # To control logging level for various modules used in the application:
 # from here: https://github.com/huggingface/transformers/issues/3050
@@ -370,9 +370,6 @@ def main(args):
     ##################################################################################################################################################################
     for text_id, source_text in enumerate(source_dataset):
         
-        if text_id < 3:
-            continue
-        
         ## 23/7/18 - Hayley - commented it out.
         # # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
         # if text_id < start_idx or text_id > end_idx:
@@ -658,7 +655,7 @@ def main(args):
                         epsilons[lossid - 1] = predicted_loss + getattr(lossfns[lossid], "epsilon_additive", 0) ##TODO check 
                     
                 predictedlosslists.append(predictedlosses)
-                print(f"[autoregressive] total_predicted_loss: {total_predicted_loss}, losses_for_backward[0]: {predictedlosses[0].data.cpu()}, losses_for_backward[1]: {predictedlosses[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, predicted_allsat: {predicted_allsat}")
+                # print(f"[autoregressive] total_predicted_loss: {total_predicted_loss}, losses_for_backward[0]: {predictedlosses[0].data.cpu()}, losses_for_backward[1]: {predictedlosses[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, predicted_allsat: {predicted_allsat}")
                                     
                 
                 if args.only_mucoco == "false":
@@ -1013,13 +1010,11 @@ def main(args):
                                             constraint_values.append(constraint_value.item())
                                     
                                         total_batchloss = total_loss.sum()
-                                        print(f"[step{step}] cur_lr {cur_lr}", 
-                                        print(f"[step{step}] total_batchloss.item()", total_batchloss.item())
-                                        try:
-                                            optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
-                                        except:
-                                            pdb.set_trace()
-                                        print(f"[step{step}] pred_embeds[0][1].grad.norm(p=2, dim=-1)", pred_embeds[0][1].grad.norm(p=2, dim=-1))
+                                        # print(f"[step{step}] cur_lr {cur_lr}") 
+                                        # print(f"[step{step}] total_batchloss.item()", total_batchloss.item())
+                                        optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
+
+                                        # print(f"[step{step}] pred_embeds[0][1].grad.norm(p=2, dim=-1)", pred_embeds[0][1].grad.norm(p=2, dim=-1))
 
                                     if args.debug and args.debug_gradients == "true":
                                         total_norm = 0
@@ -1044,8 +1039,8 @@ def main(args):
                                 if step % args.num_locate_steps == 0:
                                     batch = {"input_ids": pred_tokens}
                                     # batch = {"input_embeds": pred_embeds[0][1]}
-                                    indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step)
-                                    # indices = list(range(len(pred_tokens[0])))
+                                    # indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step)
+                                    indices = list(range(len(pred_tokens[0])))
                                     intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
                                     # print(f"=== step {step} ===")
                                     # print(f"[indices]: {indices}")

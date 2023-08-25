@@ -3,7 +3,7 @@
 LENGTH=20
 # datevar=$(date +%d-%m-%Y)
 MODELNAME=gpt2-large
-data_source="gpt2"
+data_source="jigsaw"
 
 NUM_LOG_STEPS=1
 NUM_LOCATE_STEPS=-1 # if -1 then locate only once.
@@ -30,7 +30,7 @@ do
     echo $EPSILON
     echo $NUM_PROJECT_STEPS
     NUM_LOG_STEPS=$NUM_PROJECT_STEPS
-    OUTPUTDIR=outputs/toxicity/locate-edit-${data_source}-loc-${NUM_EDIT_TOKEN_PER_STEP}toks-${NUM_LOCATE_STEPS}steps-project-${NUM_PROJECT_STEPS}steps-mrr_allsat
+    OUTPUTDIR=outputs/toxicity/locate-edit-${data_source}-loc-6toks-${NUM_LOCATE_STEPS}steps-project-${NUM_PROJECT_STEPS}steps-mrr_allsat--
     mkdir -p $OUTPUTDIR
     bash examples/prompt/constrained_sampling_locate_edit_for_testset.sh \
     nontoxic \
