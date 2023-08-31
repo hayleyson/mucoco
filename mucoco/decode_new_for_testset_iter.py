@@ -1039,8 +1039,11 @@ def main(args):
                                 if step % args.num_locate_steps == 0:
                                     batch = {"input_ids": pred_tokens}
                                     # batch = {"input_embeds": pred_embeds[0][1]}
-                                    # indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step)
-                                    indices = list(range(len(pred_tokens[0])))
+                                    if args.num_edit_token_per_step == -1: 
+                                        print("Editing all tokens")
+                                        indices = list(range(len(pred_tokens[0])))
+                                    else:
+                                        indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step)
                                     intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
                                     # print(f"=== step {step} ===")
                                     # print(f"[indices]: {indices}")
@@ -1057,7 +1060,8 @@ def main(args):
                                         break
                                 
                                 ## 08/24/23 add gradient clipping
-                                torch.nn.utils.clip_grad_norm_(outputs.parameters(), 1)
+                                if args.num_project_steps != 1:
+                                    torch.nn.utils.clip_grad_norm_(outputs.parameters(), 1)
                                 
                                 ## Edites 08/17/23: to pass option for projection.
                                 project_yn = True if step % args.num_project_steps == 0 else False

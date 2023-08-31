@@ -1251,11 +1251,11 @@ def HUSE(generations_df):
     pass
     ##need human evaluation for this
 
-# @click.command()
-# @click.option('--generations_file', required=True, type=str, help='a jsonl file with generations and attribute scores')
-# @click.option('--output_file', required=True, type=str, help='filename to write outputs')
-# @click.option('--metrics', required=True, type=str, help='which metrics to compute, write comma separeted, ppl-own,ppl-big,cola,self-bleu,zipf,repetition,dist-n,sentiment')
-# @click.option('--extra', required=False, type=str, help='extra params like which topic category or keyword file')
+@click.command()
+@click.option('--generations_file', required=True, type=str, help='a jsonl file with generations and attribute scores')
+@click.option('--output_file', required=True, type=str, help='filename to write outputs')
+@click.option('--metrics', required=True, type=str, help='which metrics to compute, write comma separeted, ppl-own,ppl-big,cola,self-bleu,zipf,repetition,dist-n,sentiment')
+@click.option('--extra', required=False, type=str, help='extra params like which topic category or keyword file')
 def main(generations_file, output_file, metrics, extra):
     assert os.path.exists(generations_file)
     output_dir = Path(os.path.dirname(generations_file))
@@ -1484,9 +1484,10 @@ def main(generations_file, output_file, metrics, extra):
     # HUSE: TODO
 
 if __name__ == '__main__':
-    generations_file = '/home/hyeryung_son/mucoco/outputs/toxicity/locate-edit-jigsaw-loc-alltoks--1steps-project-1steps-mrr_allsat/outputs_epsilon-3.txt'
-    output_file = f'{generations_file}.metrics'
-    # metrics = 'toxicity-mucola,toxicity-energy'
-    metrics = 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n'
-    extra = None
-    main(generations_file, output_file, metrics, extra)
+#     generations_file = '/home/hyeryung_son/mucoco/outputs/toxicity/locate-edit-jigsaw-loc-alltoks--1steps-project-1steps-mrr_allsat/outputs_epsilon-3.txt'
+#     output_file = f'{generations_file}.metrics'
+#     # metrics = 'toxicity-mucola,toxicity-energy'
+#     metrics = 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n'
+#     extra = None
+    # main(generations_file, output_file, metrics, extra)
+    main()
