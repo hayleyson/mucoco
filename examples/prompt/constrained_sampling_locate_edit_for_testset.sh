@@ -11,6 +11,8 @@ NUM_EDIT_TOKEN_PER_STEP=${36}
 NUM_PROJECT_STEPS=${37}
 NUM_LOG_STEPS=${38}
 echo $NUM_PROJECT_STEPS
+model_type=${39}
+selection_criterion=${40}
 
 INPUT_IDS_PATH=outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_${data_source}_input_ids.pkl
 TEXTS_PATH=outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_${data_source}_prompts.pkl
@@ -42,8 +44,13 @@ SENTIMENTGENERATIVEMODELYELP=models/sst2-classifier-gedi
 SENTIMENTGENERATIVEMODEL2LMSST2=models/finetuned-lm-negative-sst2#models/finetuned-lm-positive-sst2
 SENTIMENTGENERATIVEMODEL2LMYELP=models/finetuned-lm-negative-yelp#models/finetuned-lm-positive-yelp
 
-TOXICITYCLASSIFIER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best ## make sure to train the classifier and place it here
-TOXICITYTOKENIZER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best
+if [[ "$model_type" == "mucola" ]]; then
+    TOXICITYCLASSIFIER=models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best ## make sure to train the classifier and place it here
+    TOXICITYTOKENIZER=models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best
+elif [[ "$model_type" == "energy" ]]; then
+    TOXICITYCLASSIFIER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best ## make sure to train the classifier and place it here
+    TOXICITYTOKENIZER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best
+fi
 
 #many of these hyperparams were used while experimentation and debugging and do not need to be changed
 gold_loss_epsilons="none"
@@ -60,7 +67,7 @@ WORDLIST="none"
 OUTPUTLEN=20
 MAXLEN=20
 LAMBDALR=2.0
-selection_criterion="primary_allsat" #primary allsat: select the sample satisfying all constraints with lowest primary loss; mrr_allsat: select the most recent sample satisfying all constraints which is repeating (mrr)
+# selection_criterion="primary_allsat" #primary allsat: select the sample satisfying all constraints with lowest primary loss; mrr_allsat: select the most recent sample satisfying all constraints which is repeating (mrr)
 NUM_SAMPLES=1
 length_diff=0
 linear_scale="false"
@@ -86,7 +93,7 @@ LRUPDATESIZE=${29}
 RESTARTS=${30}
 OUTPUTLEN=${31}
 BASELM_GEN_ONLINE=${32} # true if generate base lm generations on the fly, false otherwise.
-EARLY_STOP_PATIENCE=40 # 
+EARLY_STOP_PATIENCE=40
 # RANDOMEXAMPLE=${32}
 # STARTIDX=${33}
 # ENDIDX=${34}
@@ -202,8 +209,8 @@ then
     NUM_SAMPLES=1
     OUTPUTLEN=20
     MAXLEN=20
-    # OPTIMSTEPS=200
-    OPTIMSTEPS=20
+    OPTIMSTEPS=200
+    # OPTIMSTEPS=20
     model=$PRIMARYMODEL:$TOXICITYCLASSIFIER
     tokenizer=$PRIMARYMODEL:$TOXICITYTOKENIZER
     model_types=AutoModelForCausalLM:RobertaCustomForSequenceClassification
@@ -219,9 +226,7 @@ then
     noise_variance=1.0
     embedgd_do_sample="false"
     LAMBDALR=1.0
-    selection_criterion="mrr_allsat"
-    # selection_criterion="weighted_sum"
-    # selection_criterion="primary_allsat"
+    selection_criterion=$selection_criterion
 elif [[ "$option" == "sentiment-disc" ]]
 then
     echo "sentiment-disc (label ${LABELID})"
