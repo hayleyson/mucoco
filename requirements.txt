@@ -2,7 +2,7 @@ transformers>=4.5.1 # copied from github
 #torch==1.11.0 # copied from environment.yml # installed using conda install pytorch==1.11.0 torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 sacrebleu==1.5.1 # copied from environment.yml
 sacremoses==0.0.47 # copied from environment.yml
-sacrerouge==0.2.3 # copied from environment.yml
+#sacrerouge==0.2.3 # copied from environment.yml
 sentence-transformers # <- added on 17/03/23 after running decoding script
 POT # <- added on 17/03/23 after running decoding script
 google-api-python-client # <- added on 17/03/23 after running decoding script
@@ -17,3 +17,11 @@ wandb # <- added on 31/03/23 to log
 evaluate # 05/05/23 for evaluation
 seaborn
 jupyter # 8/8/23 for dev 
+
+
+## 아래: gcp (A100) 환경에서 torch, cuda 설치방법
+## nvidia-smi로 cuda 버전 확인 
+#pip3 install torch==1.13.1+cu116 torchvision torchaudio -f https://download.pytorch.org/whl/torch_stable.html
+
+##conda info --all  | grep -i python 로 path to conda library 확인
+#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/conda/lib 
