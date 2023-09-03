@@ -1043,7 +1043,7 @@ def main(args):
                                         print("Editing all tokens")
                                         indices = list(range(len(pred_tokens[0])))
                                     else:
-                                        indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step)
+                                        indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step, unit=args.locate_unit)
                                     intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
                                     # print(f"=== step {step} ===")
                                     # print(f"[indices]: {indices}")

@@ -13,6 +13,7 @@ NUM_LOG_STEPS=${38}
 echo $NUM_PROJECT_STEPS
 model_type=${39}
 selection_criterion=${40}
+locate_unit=${41}
 
 INPUT_IDS_PATH=outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_${data_source}_input_ids.pkl
 TEXTS_PATH=outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_${data_source}_prompts.pkl
@@ -52,6 +53,16 @@ elif [[ "$model_type" == "energy" ]]; then
     TOXICITYTOKENIZER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best
 fi
 
+if [[ "$NUM_EDIT_TOKEN_PER_STEP" == -1 ]]; then
+    OPTIMSTEPS=200
+    EARLY_STOP_PATIENCE=40
+else
+    OPTIMSTEPS=20
+    EARLY_STOP_PATIENCE=4
+fi
+echo $OPTIMSTEPS
+echo $EARLY_STOP_PATIENCE
+
 #many of these hyperparams were used while experimentation and debugging and do not need to be changed
 gold_loss_epsilons="none"
 DATASTYLE="text"
@@ -72,7 +83,7 @@ NUM_SAMPLES=1
 length_diff=0
 linear_scale="false"
 # linear_scale="true"
-OPTIMSTEPS=500
+# OPTIMSTEPS=500
 OUTPUTSTYLE="jsonl"
 embedgd_do_sample="true"
 embedgd_top_p=1.0
@@ -93,7 +104,8 @@ LRUPDATESIZE=${29}
 RESTARTS=${30}
 OUTPUTLEN=${31}
 BASELM_GEN_ONLINE=${32} # true if generate base lm generations on the fly, false otherwise.
-EARLY_STOP_PATIENCE=40
+# EARLY_STOP_PATIENCE=40
+# EARLY_STOP_PATIENCE=4
 # RANDOMEXAMPLE=${32}
 # STARTIDX=${33}
 # ENDIDX=${34}
@@ -209,7 +221,7 @@ then
     NUM_SAMPLES=1
     OUTPUTLEN=20
     MAXLEN=20
-    OPTIMSTEPS=200
+    # OPTIMSTEPS=200
     # OPTIMSTEPS=20
     model=$PRIMARYMODEL:$TOXICITYCLASSIFIER
     tokenizer=$PRIMARYMODEL:$TOXICITYTOKENIZER
@@ -1064,6 +1076,7 @@ then
         --num_project_steps $NUM_PROJECT_STEPS\
         --input_ids_path $INPUT_IDS_PATH\
         --texts_path $TEXTS_PATH\
+        --locate_unit $locate_unit\
     > $LOGFILE
     bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
     done="true"

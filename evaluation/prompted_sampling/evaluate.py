@@ -896,7 +896,7 @@ def toxicity_score_old(generations_df, perspective_file, perspective_rate_limit=
 
 
 def toxicity_score_energy(generations_df, toxicity_file=None):
-    model_path="/home/hyeryung_son/mucoco/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best"
+    model_path="models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best"
     config = AutoConfig.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     classifier_model = RobertaCustomForSequenceClassification.from_pretrained(model_path, config=config)
@@ -945,7 +945,7 @@ def toxicity_score_energy(generations_df, toxicity_file=None):
     return (np.nanmean(avg_toxicity), sum(toxic_probability)/len(toxic_probability))
 
 def toxicity_score_mucola(generations_df, toxicity_file=None):
-    model_path="/home/hyeryung_son/mucoco/models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best"
+    model_path="models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best"
     config = AutoConfig.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     classifier_model = RobertaCustomForSequenceClassification.from_pretrained(model_path, config=config)

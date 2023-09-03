@@ -487,5 +487,12 @@ def get_parser():
         type=str,
         help="Path to load texts for test data.",
     )
+    
+    parser.add_argument(
+        "--locate_unit",
+        default="word",
+        type=str,
+        help="The unit of locating areas to edit. Word or token.",
+    )
 
     return parser
