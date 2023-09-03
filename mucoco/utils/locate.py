@@ -7,7 +7,7 @@ punctuations.remove('-')
 
 
 # model 의 forward 함수에서 정의를 output_attentions=True를 넘길 수 있게 되어 있다.
-def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10):
+def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word"):
     # torch.cuda.empty_cache()
     # forward
     model.eval()
@@ -63,43 +63,46 @@ def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10):
             # print("top k top_masks", top_masks)
         top_masks_final = no_punc_indices[top_masks]
         # print("top_masks_final", top_masks_final)
+        if unit == "token":
+            locate_ixes.append(list(set(top_masks_final.cpu().detach().tolist())))
         
-        # word의 일부만 locate 한 경우, word 전체를 locate 한다.
-        # 같은 word 안에 있는 token 끼리 묶음.
-        j, k = 0, 0
-        grouped_tokens = []
-        grouped_tokens_for_word = []
-        words = tokenizer.decode(current_sent).strip().split()
-        # print("words", words)
-        while j < len(current_sent):
-            if (tokenizer.decode(current_sent[j]).strip() not in punctuations) and (tokenizer.decode(current_sent[j]) not in ['\n', ' ']):
-                # print("tokenizer.decode(current_sent[j])", tokenizer.decode(current_sent[j]))
-                while k < len(words):
-                    if tokenizer.decode(current_sent[j]).strip() in words[k]:
-                        grouped_tokens_for_word.append(j)
-                        break
+        elif unit == "word":
+            # word의 일부만 locate 한 경우, word 전체를 locate 한다.
+            # 같은 word 안에 있는 token 끼리 묶음.
+            j, k = 0, 0
+            grouped_tokens = []
+            grouped_tokens_for_word = []
+            words = tokenizer.decode(current_sent).strip().split()
+            # print("words", words)
+            while j < len(current_sent):
+                if (tokenizer.decode(current_sent[j]).strip() not in punctuations) and (tokenizer.decode(current_sent[j]) not in ['\n', ' ']):
+                    # print("tokenizer.decode(current_sent[j])", tokenizer.decode(current_sent[j]))
+                    while k < len(words):
+                        if tokenizer.decode(current_sent[j]).strip() in words[k]:
+                            grouped_tokens_for_word.append(j)
+                            break
+                        else:
+                            grouped_tokens.append(grouped_tokens_for_word)
+                            grouped_tokens_for_word = []
+                            k += 1
+                j += 1
+            grouped_tokens.append(grouped_tokens_for_word)
+            # print("grouped_tokens", grouped_tokens)
+            
+            top_masks_final.sort()
+            top_masks_final_final = []
+            for index in top_masks_final:
+                # print("index", index)
+                if index not in top_masks_final_final:
+                    word = [grouped_ixes for grouped_ixes in grouped_tokens if index in grouped_ixes]
+                    # print("word", word)
+                    if len(word) > 0:
+                        word = word[0]
                     else:
-                        grouped_tokens.append(grouped_tokens_for_word)
-                        grouped_tokens_for_word = []
-                        k += 1
-            j += 1
-        grouped_tokens.append(grouped_tokens_for_word)
-        # print("grouped_tokens", grouped_tokens)
-        
-        top_masks_final.sort()
-        top_masks_final_final = []
-        for index in top_masks_final:
-            # print("index", index)
-            if index not in top_masks_final_final:
-                word = [grouped_ixes for grouped_ixes in grouped_tokens if index in grouped_ixes]
-                # print("word", word)
-                if len(word) > 0:
-                    word = word[0]
-                else:
-                    print(f"!!! {index} not in the grouped_ixes {grouped_tokens}")
-                    print(f"!!! tokenizer.decode(index): {tokenizer.decode(index)}")
-                top_masks_final_final.extend(word)
-        locate_ixes.append(list(set(top_masks_final_final)))
+                        print(f"!!! {index} not in the grouped_ixes {grouped_tokens}")
+                        print(f"!!! tokenizer.decode(index): {tokenizer.decode(index)}")
+                    top_masks_final_final.extend(word)
+            locate_ixes.append(list(set(top_masks_final_final)))
 
             
     return locate_ixes
