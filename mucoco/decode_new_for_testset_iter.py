@@ -124,14 +124,16 @@ def main(args):
         if len(keywords) == 1:
             keywords = [f"_topic_:{args.keywords[0]}" for _ in losses] #when keyword isn't used but topic is passed
     
-    if "allsat" in args.selection_criterion: 
-        # with this flag, the output which minimized the primary objective while satisfying all objectives is selected. In case all constraints are not satisfied (e.g when constraints are competing or optimization fails), this will predict the default output (Using an autoregressive decoding setup: beam search in this case)
-        betas = [1.0] + [0.0 for _ in range(len(losses)-1)]
-    elif (args.selection_criterion == "weighted_sum" and args.betas is not None) or args.selection_criterion == "last":
-        # this setup will select the best outputs according to the weights betas for each of the losses (even though they are not satisfied)
-        betas = [float(beta) for beta in args.betas.split(":")]
-    else:
-        raise ValueError("correct selection_criterion or betas needs to be specified")
+    ## 23/09/04 - always set betas with the arguments provided.
+    # if "allsat" in args.selection_criterion: 
+    #     # with this flag, the output which minimized the primary objective while satisfying all objectives is selected. In case all constraints are not satisfied (e.g when constraints are competing or optimization fails), this will predict the default output (Using an autoregressive decoding setup: beam search in this case)
+    #     betas = [1.0] + [0.0 for _ in range(len(losses)-1)]
+    # elif (args.selection_criterion == "weighted_sum" and args.betas is not None) or args.selection_criterion == "last":
+    #     # this setup will select the best outputs according to the weights betas for each of the losses (even though they are not satisfied)
+    #     betas = [float(beta) for beta in args.betas.split(":")]
+    # else:
+    #     raise ValueError("correct selection_criterion or betas needs to be specified")
+    betas = [float(beta) for beta in args.betas.split(":")]
 
     assert len(betas) == len(losses) and len(losses) == len(model_paths) and len(model_paths) == len(model_types) and len(betas) == len(lossabbr)
     assert np.abs(sum(betas) - 1.0) < 1e-6, f"sum of betas is {sum(betas)} != 1.0"
@@ -147,10 +149,7 @@ def main(args):
         if model_path not in name2model: #making sure we are not loading the model twice in case some constraints use the same model. 
             name2tokenizer[model_path] = AutoTokenizer.from_pretrained(tokenizer_paths[i], cache_dir=args.cache_dir,  use_fast=True)
             name2config[model_path] = AutoConfig.from_pretrained(model_path, cache_dir=args.cache_dir)
-            # print(model_path)
-            # print(args.cache_dir)
-            # print(os.getcwd())
-            # print(name2config[model_path])
+
             if model_types[i] == "sentence-transformer":
                 name2model[model_path] = lossbuilder.ModelWrapper(SentenceTransformer(model_path))
             elif "Custom" in model_types[i]:
@@ -159,10 +158,7 @@ def main(args):
                 name2model[model_path] = lossbuilder.ModelWrapper(getattr(transformers, model_types[i]).from_pretrained(model_path, config=name2config[model_path], cache_dir=args.cache_dir))
             
             if not args.show_warnings:
-                # print(logging.root.manager.loggerDict)
-                # input()
                 set_global_logging_level(logging.ERROR, [name2model[model_path].__module__])
-                # logging.getLogger(name2model[model_path].__class__.__name__).setLevel(logging.ERROR) 
             
             name2model[model_path].eval()
             embed_lut_ = name2model[model_path].get_input_embeddings()
@@ -249,9 +245,7 @@ def main(args):
     source_dataset = None
     target_dataset = None
     additional_dataset = None
-    # print("yass queen", args.use_context)
     args.use_context = args.use_context == "true"
-    # print(args.use_context)
     if args.data is not None:
         data_paths = args.data.split(":")
         if len(data_paths) == 1:
@@ -342,7 +336,6 @@ def main(args):
     losslists = [[] for _ in range(len(losses))]
     predictedlosslists = [[] for _ in range(len(losses))]
     source_primarylosslist = [] 
-    # allparetosets = []
     all_stepcounts = []
     avg_time = 0
 
@@ -359,8 +352,6 @@ def main(args):
     args.random_example = args.random_example == "true"
     if args.num_examples > 0 and target_dataset is not None:
         example_p = args.num_examples*1.0/len(source_dataset)
-    # print(example_p, args.random_example)
-    # print(start_idx, end_idx)
     ##################################################################################################################################################################
     ##################################################################################################################################################################
     ##################################################################################################################################################################
@@ -393,8 +384,6 @@ def main(args):
             target_text = target_dataset[text_id]
             additional_text = additional_dataset[text_id]
             context_texts = context_dataset[text_id]
-            # print(context_texts)
-            # input()
         else:
             args.jsonl_tokenized = False
             items = source_text.split("::")
@@ -421,23 +410,18 @@ def main(args):
 
             if len(items) > 5:
                 new_kweight = float(items[5])
-            # if len(items) > 4:
-            #     target_text = items[4].rstrip()
             
             print(args.use_context, context_texts)
                 
         if args.keywords == "_roc_":
             keywords = ["none"] + additional_text.split(", ")
-            # input(keywords)
         if args.keywords == "_rocunique_":
             keywords = ["none"] + additional_text.split(", ") + + ['none']
-            # input(keywords)
         elif args.keywords == "_commongen_":
             print(additional_text)
             keywords = ["none"] + json.loads(additional_text)['concept_set'].split("#")
         elif args.keywords == "_commongenunique_":
             keywords = ["none"] + json.loads(additional_text)['concept_set'].split("#") + ['none']
-            # input(keywords)
 
         
         early_skip="n"
@@ -453,7 +437,6 @@ def main(args):
                 source_text = primary_tokenizer.bos_token
             source_indices = primary_tokenizer.encode(source_text, return_tensors="pt").to(device)
             source_indices_write = source_indices[0].tolist()
-            # if source_indices
             additional_indices = primary_tokenizer.encode(additional_text, return_tensors="pt", add_special_tokens=False).to(device)
             
             eos_token_id = primary_tokenizer.eos_token_id
@@ -525,7 +508,6 @@ def main(args):
             additional_batch = torch.cat(additional_batch, dim=0).to(device)
             for_predicted_source_batch = torch.cat(for_predicted_source_batch, dim=0).to(device)  
             
-            # print("what", args.use_context)
             if args.use_context:
                 context_batch = torch.cat(context_batch, dim=0).to(device)
                 print(context_batch)
@@ -571,23 +553,14 @@ def main(args):
             #             print(time.time()-starttime)
             
             ## change to read from testset file.
-            # predicted_batches = init_gen_ids[source_text]
-            # predicted_batches = init_gen_ids.loc[init_gen_ids["prompt"]==source_text, "generation_ids"].tolist()
             if type(init_gen_ids[text_id]) == list:
                 predicted_batch = torch.tensor([init_gen_ids[text_id]], dtype=torch.long, device=device)
             else:
                 predicted_batch = init_gen_ids[text_id].unsqueeze(0).to(device)
-            # print("predicted_batch", predicted_batch)
             
-            # AR_prediction_all = outf_init.loc[outf_init["prompt"]==source_text, "generation"].tolist()
-            # AR_prediction = source_text
             AR_prediction = primary_tokenizer.decode(predicted_batch[0])
-            
-            # locate_indices_all = outf_init.loc[outf_init["prompt"]==source_text, "loc_indices"].tolist()
-            # AR_predicted_indices = predicted_batches[-1].cpu() ### 이부분이 좀 이상한 것 같다! 원래 코드가 이렇게 되어 있긴 했는데... 이게 맞나? ㅠㅠ 확인하려면,,, 많은걸 뜯어봐야 한다.
             AR_predicted_indices = predicted_batch
-            # print("locate_indices_all: ", locate_indices_all)
-            ##
+            
             ##################################################################################################################################################################
             # 25 initial outputs per prompt
             # intermediate_result={"prompt": source_text}
@@ -620,7 +593,7 @@ def main(args):
                 # losses of the autoregressive output: we should perform atleast as well as this. If we don't, we predict this output
                 # Also, if the autoregressive output already satisfies the constraints, we skip mucoco unless, args.always_mucoco is true
                 predicted_labels = {}
-                total_predicted_loss = 0.0
+                total_weighted_loss = 0.0
                 predicted_allsat=True
                 predictedlosses = []
 
@@ -640,7 +613,7 @@ def main(args):
                     predictedlosses.append(predicted_loss.data.cpu())
                     predicted_loss = predicted_loss.sum().item()
                     intermediate_result.update({f"original_loss{lossid}": predicted_loss})
-                    total_predicted_loss += betas[lossid] * predicted_loss
+                    total_weighted_loss += betas[lossid] * predicted_loss
 
                     if lossid > 0:
                         predicted_allsat = predicted_allsat and (predicted_loss <= min_epsilons[lossid-1])
@@ -655,11 +628,11 @@ def main(args):
                         epsilons[lossid - 1] = predicted_loss + getattr(lossfns[lossid], "epsilon_additive", 0) ##TODO check 
                     
                 predictedlosslists.append(predictedlosses)
-                # print(f"[autoregressive] total_predicted_loss: {total_predicted_loss}, losses_for_backward[0]: {predictedlosses[0].data.cpu()}, losses_for_backward[1]: {predictedlosses[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, predicted_allsat: {predicted_allsat}")
+                # print(f"[autoregressive] total_weighted_loss: {total_weighted_loss}, losses_for_backward[0]: {predictedlosses[0].data.cpu()}, losses_for_backward[1]: {predictedlosses[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, predicted_allsat: {predicted_allsat}")
                                     
                 
-                if args.only_mucoco == "false":
-                    lengthwise_best_prediction = [(AR_prediction, total_predicted_loss, predicted_allsat, predicted_batch[0].tolist(), -1)]
+                # if args.only_mucoco == "false":
+                #     lengthwise_best_prediction = [(AR_prediction, total_weighted_loss, predicted_allsat, predicted_batch[0].tolist(), -1)]
                 skip = predicted_allsat
                     
                 definite_skip = False
@@ -673,14 +646,16 @@ def main(args):
                     ask_skip = input(f"skip this example? [y/n]")
                     definite_skip = ask_skip == "y"
 
-                elif skip and predicted_allsat and (args.always_mucoco == "false"):
+                # elif skip and predicted_allsat and (args.always_mucoco == "false"):
+                elif skip and predicted_allsat:
                     definite_skip = True
 
                 if args.debug:
-                    print('definite_skip', definite_skip, skip, predicted_allsat, args.always_mucoco)
+                    # print('definite_skip', definite_skip, skip, predicted_allsat, args.always_mucoco)
+                    print('definite_skip', definite_skip, skip, predicted_allsat)
                 
                 if not definite_skip:
-                    # print(args.max_length)
+                    
                     if (args.max_length is None or args.max_length == -1) and args.init not in ["source", "target"]: 
                         #since we don't know the about length, we search in a (-length_diff, length_diff) window and predict the best performing one.
                         predicted_length = predicted_batch.size(1)
@@ -698,669 +673,557 @@ def main(args):
                     else: 
                         #another way to use this approach is train models which also compute loss on <pad> token and then predict the entire sentence including pad, it has shown to work in some of our experiments
                         length_range = [args.max_length]           
-                                            
-                    for sent_length_ in length_range:
-                        # prefix_length is used to indicate if instead of predicting the entire sentence via optimization, we want to fix a prefix (of specified length) and predict the remaining suffix. We use part of the beam search prediction as the prefix. 
-                        if args.prefix_length > 0:
-                            sent_length = sent_length_ - args.prefix_length
-                            target_prefix = predicted_batch[:, :args.prefix_length]
-                        else:
-                            sent_length = sent_length_
-                            target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
-                        
-                        if sent_length <= 0:
-                            continue
-                        if sent_length > args.max_allowed_length:
-                            #max_allowed_length is just to make sure things don't go out of memory,
-                            old_l = sent_length
-                            sent_length = args.max_allowed_length
-                            print(f"changed output length to {sent_length} from {old_l} to avoid GPU overflow. This is a temporary solution")
-                        else:
-                            # print("predicting a sentence length: ", sent_length)
-                            pass
-                            
-                        if args.target_type == "simplex": # use V sized real vector for each token and apply softmax before output
-                            outputs = TargetSimplex(
-                                vocabsize=primary_vocab_size,
-                                sent_length=sent_length,
-                                batch_size=batch_size,
-                                device=device,
-                                temperature=args.decode_temperature,
-                                st=args.st,
-                                init_value=source_batch[:,1:-1] if args.init == "source" else None,
-                                random_init=args.init == "random",
-                                do_sample=args.expgd_do_sample,
-                                top_p=args.expgd_top_p,
-                                top_k=args.expgd_top_k,
-                                embed_scales=embed_scales
-                            )
-                        elif args.target_type == "probs": # use V sized vector which sums to one for each token and apply softmax before output
-                            init_value = None
-                            break_after=False
-                            if args.init == "source": #initialize the target with the source
-                                init_value = source_batch
-                                target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
-                                sent_length = init_value.size(1)
-                                break_after=True
-                                # print(source_batch, init_value, sent_length, init_value)
-                            elif args.init == "target": #initialize the target with the autoregressive output
-                                init_value = target_batch
-                                target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
-                                sent_length = init_value.size(1)
-                                break_after=True
-                                # print(source_batch, init_value)
-                            
-                            outputs = TargetProbability(
-                                vocabsize=primary_vocab_size,
-                                sent_length=sent_length,
-                                batch_size=batch_size,
-                                device=device,
-                                st=args.st,
-                                init_value=init_value,
-                                random_init=args.init == "random",
-                                do_sample=args.expgd_do_sample,
-                                top_p=args.expgd_top_p,
-                                top_k=args.expgd_top_k,
-                                embed_scales=embed_scales,
-                                max_steps=args.optim_steps
-                            )
-                        ##################################################################################################################################################################
-                        # initialize embedding
-                        ##################################################################################################################################################################
-                        elif args.target_type == "embeds":
-                            init_value = None
-                            break_after=False
-                            if args.init == "source": #initialize the target with the source
-                                init_value = embed_luts[0](source_batch)
-                                target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
-                                sent_length = init_value.size(1)
-                                break_after=True
-                                # print(source_batch, init_value, sent_length, init_value)
-                            elif args.init == "targettarget": #initialize the target with given target
-                                init_value = embed_luts[0](target_batch)
-                                target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
-                                sent_length = init_value.size(1)
-                                break_after=True 
-                                # print(predicted_batch.size())   
-                                # print(sent_length)
-                            elif args.init == "target": #initialize the target with the autoregressive output
-                                ##################################################################################################################################################################
-                                init_value = embed_luts[0](predicted_batch)
-                                ##################################################################################################################################################################
-                                target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
-                                sent_length = init_value.size(1)
-                                break_after=True 
-                                # print(predicted_batch.size())   
-                                # print(sent_length)
-                            elif args.init == "random_vocab":
-                                random_indices = torch.multinomial(torch.ones(primary_vocab_size,)/primary_vocab_size, num_samples=batch_size*sent_length, replacement=True).view(batch_size, sent_length).to(device)
-                                init_value = embed_luts[0](random_indices)
-                            elif args.init == "embedgd-zeros":
-                                if args.target_tokenize_different:
-                                    with primary_tokenizer.as_target_tokenizer():
-                                        indices = torch.empty((batch_size, sent_length)).long().fill_(primary_tokenizer.eos_token_id).to(device)
-                                else:
-                                    indices = torch.empty((batch_size, sent_length)).long().fill_(primary_tokenizer.eos_token_id).to(device)
-                                # print(primary_tokenizer.decode(indices[0]))
-                                init_value = embed_luts[0](indices)
-                            elif args.init == "zeros":
-                                indices = torch.zeros((batch_size, sent_length)).long().to(device)
-                                init_value = embed_luts[0](indices)
-
-                            
-                            final_bias = None
-                            if args.final_bias:
-                                final_bias = lossfns[0].model.final_logits_bias
-                            ##################################################################################################################################################################
-                            outputs = TargetEmbeddings(
-                                embed_dim=primary_embed_dim,
-                                embed_lut=embed_luts[0],
-                                sent_length=sent_length,
-                                batch_size=batch_size,
-                                device=device,
-                                st=args.st,
-                                init_value=init_value,
-                                random_init=args.init == "random",
-                                sampling_strategy=args.sampling_strategy,
-                                sampling_strategy_k=args.sampling_strategy_k,
-                                embed_scales=embed_scales,
-                                metric=args.metric,
-                                same_embed=args.same_embeds,
-                                final_bias=final_bias,
-                                eos_token_id=primary_tokenizer.eos_token_id
-                            )
-                            ##################################################################################################################################################################
-                        else:
-                            raise ValueError("Wrong target_type")
-
-                        if len(losses) > 1:
-                            lambda_ = Lambda(count=len(epsilons))
-                            if use_cuda:
-                                lambda_.cuda()
-                                
-                        ## 23/7/.. - Hayley - updated to allow locate & edit
-                        args.optim= "embedgd_le" # change option
-                        optimizer = OptimizerLE.from_opt(outputs, args)
-                        optimizer.set_init_pred(predicted_batch)
-                        ##
-                        cur_lr = args.lr
-                        # print(optimizer._optimizer.param_groups)
-                        # input()
-                        if len(losses) > 1:
-                            old_optim = args.optim
-                            args.optim = "gradascent"
-                            old_lr = args.lr
-                            args.lr = args.lambda_lr
-                            optimizer_lambda = Optimizer.from_opt(lambda_, args)
-                            # print(lambda_)
-                            args.optim = old_optim
-                            args.lr = old_lr
-
-                        best_loss = [None] * batch_size
-                        best_allsat = [False] * batch_size
-                        best_repeat_count = [0] * batch_size
-                        best_losses = [[None] * batch_size for _ in range(len(losses))]
-                        best_step = -100
-                        
-                        best_pred_tokens = [None] * batch_size
-                        best_prediction_set = [set() for _ in range(batch_size)]
-                        best_pred_probs = [None] * batch_size
-                        best_index = [-1 for i in range(batch_size)]
-                        
-                        scaler = None
-                        if args.model_dtype == "fp16" and args.fp16_source == "pytorch":
-                            scaler = torch.cuda.amp.GradScaler()
                     
-                        for lossid, lossname in enumerate(losses):
-                            losslists[lossid].append([])
-
-                        broken = False
-                        prev_loss = None
-                        dynamic_lambda_update_prev_loss = None
-                        same_loss_count = 0
-                        dynamic_loss_update_same_loss_count = 0
-                        starttime = time.time()
-                        repeat_counts = [0] * batch_size
+                    ## 23/09/04 - removed looping over length_range. just do one length.       
+                    # for sent_length_ in length_range:
+                    sent_length_ = length_range[0]
+                    
+                    # prefix_length is used to indicate if instead of predicting the entire sentence via optimization, we want to fix a prefix (of specified length) and predict the remaining suffix. We use part of the beam search prediction as the prefix. 
+                    if args.prefix_length > 0:
+                        sent_length = sent_length_ - args.prefix_length
+                        target_prefix = predicted_batch[:, :args.prefix_length]
+                    else:
+                        sent_length = sent_length_
+                        target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
+                    
+                    if sent_length <= 0:
+                        continue
+                    if sent_length > args.max_allowed_length:
+                        #max_allowed_length is just to make sure things don't go out of memory,
+                        old_l = sent_length
+                        sent_length = args.max_allowed_length
+                        print(f"changed output length to {sent_length} from {old_l} to avoid GPU overflow. This is a temporary solution")
+                    else:
+                        # print("predicting a sentence length: ", sent_length)
+                        pass
                         
-                        ##################################################################################################################################################################
-                        # gradient inference the embeddings
-                        ##################################################################################################################################################################
-                        # print("args.optim_steps", args.optim_steps)
+                    if args.target_type == "simplex": # use V sized real vector for each token and apply softmax before output
+                        outputs = TargetSimplex(
+                            vocabsize=primary_vocab_size,
+                            sent_length=sent_length,
+                            batch_size=batch_size,
+                            device=device,
+                            temperature=args.decode_temperature,
+                            st=args.st,
+                            init_value=source_batch[:,1:-1] if args.init == "source" else None,
+                            random_init=args.init == "random",
+                            do_sample=args.expgd_do_sample,
+                            top_p=args.expgd_top_p,
+                            top_k=args.expgd_top_k,
+                            embed_scales=embed_scales
+                        )
+                    elif args.target_type == "probs": # use V sized vector which sums to one for each token and apply softmax before output
+                        init_value = None
+                        break_after=False
+                        if args.init == "source": #initialize the target with the source
+                            init_value = source_batch
+                            target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
+                            sent_length = init_value.size(1)
+                            break_after=True
+                        elif args.init == "target": #initialize the target with the autoregressive output
+                            init_value = target_batch
+                            target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
+                            sent_length = init_value.size(1)
+                            break_after=True
                         
-                        # for step in tqdm(range(args.optim_steps)):
-                        for step in range(args.optim_steps):
-                            try:
-                                with torch.cuda.amp.autocast():
-                                    losses_for_backward = []
-                                    logging_outputs = []
+                        outputs = TargetProbability(
+                            vocabsize=primary_vocab_size,
+                            sent_length=sent_length,
+                            batch_size=batch_size,
+                            device=device,
+                            st=args.st,
+                            init_value=init_value,
+                            random_init=args.init == "random",
+                            do_sample=args.expgd_do_sample,
+                            top_p=args.expgd_top_p,
+                            top_k=args.expgd_top_k,
+                            embed_scales=embed_scales,
+                            max_steps=args.optim_steps
+                        )
+                    ##################################################################################################################################################################
+                    # initialize embedding
+                    ##################################################################################################################################################################
+                    elif args.target_type == "embeds":
+                        init_value = None
+                        break_after=False
+                        if args.init == "source": #initialize the target with the source
+                            init_value = embed_luts[0](source_batch)
+                            target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
+                            sent_length = init_value.size(1)
+                            break_after=True
+                        elif args.init == "targettarget": #initialize the target with given target
+                            init_value = embed_luts[0](target_batch)
+                            target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
+                            sent_length = init_value.size(1)
+                            break_after=True 
+                        elif args.init == "target": #initialize the target with the autoregressive output
+                            ##################################################################################################################################################################
+                            init_value = embed_luts[0](predicted_batch)
+                            ##################################################################################################################################################################
+                            target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
+                            sent_length = init_value.size(1)
+                            break_after=True 
+                        elif args.init == "random_vocab":
+                            random_indices = torch.multinomial(torch.ones(primary_vocab_size,)/primary_vocab_size, num_samples=batch_size*sent_length, replacement=True).view(batch_size, sent_length).to(device)
+                            init_value = embed_luts[0](random_indices)
+                        elif args.init == "embedgd-zeros":
+                            if args.target_tokenize_different:
+                                with primary_tokenizer.as_target_tokenizer():
+                                    indices = torch.empty((batch_size, sent_length)).long().fill_(primary_tokenizer.eos_token_id).to(device)
+                            else:
+                                indices = torch.empty((batch_size, sent_length)).long().fill_(primary_tokenizer.eos_token_id).to(device)
+                            init_value = embed_luts[0](indices)
+                        elif args.init == "zeros":
+                            indices = torch.zeros((batch_size, sent_length)).long().to(device)
+                            init_value = embed_luts[0](indices)
 
-                                    # print(optimizer.new_predictions)
-                                    # what does this do?
-                                    pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=getattr(optimizer._optimizer, "new_predictions", None))  # forward                                    
-                                    
-                                    # if not args.time and args.debug:
-                                    def get_sent(tokens, tokenizer):
-                                        batch = []
-                                        if args.target_tokenize_different:
-                                            with tokenizer.as_target_tokenizer():
-                                                for toks in tokens:
-                                                    batch.append(tokenizer.decode(clean_output(toks.tolist(), -1, allow_first_eos=losses[0] == "bart")))
-                                        else:
+                        
+                        final_bias = None
+                        if args.final_bias:
+                            final_bias = lossfns[0].model.final_logits_bias
+                        ##################################################################################################################################################################
+                        outputs = TargetEmbeddings(
+                            embed_dim=primary_embed_dim,
+                            embed_lut=embed_luts[0],
+                            sent_length=sent_length,
+                            batch_size=batch_size,
+                            device=device,
+                            st=args.st,
+                            init_value=init_value,
+                            random_init=args.init == "random",
+                            sampling_strategy=args.sampling_strategy,
+                            sampling_strategy_k=args.sampling_strategy_k,
+                            embed_scales=embed_scales,
+                            metric=args.metric,
+                            same_embed=args.same_embeds,
+                            final_bias=final_bias,
+                            eos_token_id=primary_tokenizer.eos_token_id
+                        )
+                        ##################################################################################################################################################################
+                    else:
+                        raise ValueError("Wrong target_type")
+
+                    if len(losses) > 1:
+                        lambda_ = Lambda(count=len(epsilons))
+                        if use_cuda:
+                            lambda_.cuda()
+                            
+                    ## 23/7/.. - Hayley - updated to allow locate & edit
+                    args.optim= "embedgd_le" # change option
+                    optimizer = OptimizerLE.from_opt(outputs, args)
+                    optimizer.set_init_pred(predicted_batch)
+                    ##
+                    cur_lr = args.lr
+                    if len(losses) > 1:
+                        old_optim = args.optim
+                        args.optim = "gradascent"
+                        old_lr = args.lr
+                        args.lr = args.lambda_lr
+                        optimizer_lambda = Optimizer.from_opt(lambda_, args)
+                        args.optim = old_optim
+                        args.lr = old_lr
+
+                    best_loss = [None] * batch_size
+                    best_allsat = [False] * batch_size
+                    best_repeat_count = [0] * batch_size
+                    best_losses = [[None] * batch_size for _ in range(len(losses))]
+                    best_step = -100
+                    
+                    best_pred_tokens = [None] * batch_size
+                    best_prediction_set = [set() for _ in range(batch_size)]
+                    best_pred_probs = [None] * batch_size
+                    best_index = [-1 for i in range(batch_size)]
+                    
+                    scaler = None
+                    if args.model_dtype == "fp16" and args.fp16_source == "pytorch":
+                        scaler = torch.cuda.amp.GradScaler()
+                
+                    for lossid, lossname in enumerate(losses):
+                        losslists[lossid].append([])
+
+                    broken = False
+                    prev_loss = None
+                    dynamic_lambda_update_prev_loss = None
+                    same_loss_count = 0
+                    dynamic_loss_update_same_loss_count = 0
+                    starttime = time.time()
+                    repeat_counts = [0] * batch_size
+                    
+                    ##################################################################################################################################################################
+                    # gradient inference the embeddings
+                    ##################################################################################################################################################################
+                    
+                    for step in range(args.optim_steps):
+                        try:
+                            with torch.cuda.amp.autocast():
+                                losses_for_backward = []
+                                logging_outputs = []
+
+                                pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=getattr(optimizer._optimizer, "new_predictions", None))  # forward                                    
+                                
+                                def get_sent(tokens, tokenizer):
+                                    batch = []
+                                    if args.target_tokenize_different:
+                                        with tokenizer.as_target_tokenizer():
                                             for toks in tokens:
                                                 batch.append(tokenizer.decode(clean_output(toks.tolist(), -1, allow_first_eos=losses[0] == "bart")))
-                                        return batch
-
-                                    target_sents = get_sent(torch.cat([target_prefix, pred_tokens], dim=1), primary_tokenizer)
-                                    if step % args.num_log_steps == 0:
-                                        intermediate_result.update({f"step_{step}_text": target_sents})
-                                    # print(target_sents, end="\n")
-                                    
-                                    original_preds = None
-                                    if len(pred_embeds) > 1:
-                                        original_preds = pred_embeds[1]
-
-                                    # print("what", args.use_context)
-                                    # print("pred_embeds: ", pred_embeds)
-                                    for lossid, lossname in enumerate(losses):
-                                        # print("lossid: ", lossid)
-                                        # print("pred_embeds[0][lossid]: ", pred_embeds[0][lossid])
-                                        lossvalue, logging_output =\
-                                            lossfns[lossid].compute_loss(
-                                                [source_batch, target_prefix], 
-                                                [pred_tokens, pred_embeds[0][lossid], pred_probs], 
-                                                additional_batch=additional_batch, 
-                                                context_batch=context_batch,
-                                                use_context=args.use_context,
-                                                embed_scale=embed_scales[lossid], 
-                                                label_id=label_ids[lossid],
-                                                keyword=keywords[lossid],
-                                                original_preds=original_preds,
-                                                kweight=new_kweight,
-                                                step=step
-                                            )
-
-                                        losslists[lossid][-1].append(lossvalue.sum().item())  #for logging
-                                        # intermediate_result.update({f"step_{step}_loss{lossid}": lossvalue.sum().item()})
-                                        losses_for_backward.append(lossvalue)  # for backward
-                                        logging_outputs.append(logging_output)
-                                    
-                                    optimizer.zero_grad(set_to_none=True)
-                                    outputs.zero_grad()
-                                    if len(losses) > 1:
-                                        optimizer_lambda.zero_grad(set_to_none=True)
-                                        lambda_.zero_grad()
-
-                                    for model in name2model.values():
-                                        model.zero_grad(set_to_none=True)
-                                    
-                                    if args.linear_scale == "true": # no lagragian, plain old linear sum
-                                        # 
-                                        # grads = []
-                                        # if args.debug and args.debug_gradients == "true":
-                                        #     for sid in range(len(losses_for_backward)):
-                                        #         optimizer.backward(losses_for_backward[sid], retain_graph=True, scaler=scaler)
-                                        #         grad = []
-                                        #         for p in outputs.parameters():
-                                        #             grad.append(p.grad.data)
-                                        #             param_norm = p.grad.data.norm(2, -1).sum(dim=0)
-                                        #             print(sid, "for theta", param_norm)
-                                        #         grads.append(grad[0])
-                                        #         optimizer.zero_grad(set_to_none=True)
-                                        #         outputs.zero_grad(set_to_none=True)
-                                        #         for modelname in loss2modelname.values():
-                                        #             name2model[modelname].zero_grad(set_to_none=True) 
-                                        #     graddot = (grads[0] * grads[1]).sum(dim=-1)
-                                        #     print(graddot)
-                                        #     grads0norm = torch.nn.functional.normalize(grads[0], p=2, dim=-1)
-                                        #     grads1norm = torch.nn.functional.normalize(grads[1], p=2, dim=-1)
-                                        #     print((grads0norm * grads1norm).sum(dim=-1))
-                                            # input()
-                                        # else:
-                                        # total_loss = betas[0] * losses_for_backward[0]
-                                        total_loss = 0
-                                        cur_epsilons = [] # just for avoiding syntax errors, epsilons are useless in this setting
-                                        for sid in range(len(losses_for_backward)):
-                                            total_loss = total_loss + betas[sid] * losses_for_backward[sid]
-                                            cur_epsilons.append(0.0)
-                                        
-                                        total_batchloss = total_loss.sum()
-                                        optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler)
                                     else:
-                                        total_loss = 0.0
-                                        total_loss = losses_for_backward[0]
-                                        # total_loss_for_lambda = 0.0
-                                        cur_epsilons = []
-                                        # print(total_loss.item(), end=", ")
+                                        for toks in tokens:
+                                            batch.append(tokenizer.decode(clean_output(toks.tolist(), -1, allow_first_eos=losses[0] == "bart")))
+                                    return batch
 
-                                        constraint_values = []
-                                        for sid in range(1, len(losses_for_backward)): #the secondary losses or constraints
-                                            # print(sid-1, epsilons, min_epsilons, epsilon_warmup_steps, epsilon_cooldown_steps)
-                                            cur_epsilon = get_epsilon(step, epsilons[sid-1], min_epsilons[sid-1], epsilon_warmup_steps[sid-1], epsilon_cooldown_steps[sid-1], epsilon_decay_functions[sid-1])
-                                            # print(cur_epsilon)
-                                            constraint_value = (cur_epsilon - losses_for_backward[sid]).detach()
-                                            damp = args.dampness * constraint_value
-                                            # lambda_.set_active(sid-1, constraint_value)
-                                            mask = lambda_.get_mask(sid-1, damp)
-                                            # mask = 1.0
+                                target_sents = get_sent(torch.cat([target_prefix, pred_tokens], dim=1), primary_tokenizer)
+                                if step % args.num_log_steps == 0:
+                                    intermediate_result.update({f"step_{step}_text": target_sents})
+                                # print(target_sents, end="\n")
+                                
+                                original_preds = None
+                                if len(pred_embeds) > 1:
+                                    original_preds = pred_embeds[1]
 
-                                            closs_for_theta = lambda_.get_loss(sid - 1, damp * mask, (cur_epsilon - losses_for_backward[sid]))
-                                            total_loss = total_loss - closs_for_theta
-                                            
-                                            cur_epsilons.append(cur_epsilon)                             
-                                            constraint_values.append(constraint_value.item())
+                                for lossid, lossname in enumerate(losses):
+                                    lossvalue, logging_output =\
+                                        lossfns[lossid].compute_loss(
+                                            [source_batch, target_prefix], 
+                                            [pred_tokens, pred_embeds[0][lossid], pred_probs], 
+                                            additional_batch=additional_batch, 
+                                            context_batch=context_batch,
+                                            use_context=args.use_context,
+                                            embed_scale=embed_scales[lossid], 
+                                            label_id=label_ids[lossid],
+                                            keyword=keywords[lossid],
+                                            original_preds=original_preds,
+                                            kweight=new_kweight,
+                                            step=step
+                                        )
+
+                                    losslists[lossid][-1].append(lossvalue.sum().item())  #for logging
+                                    # intermediate_result.update({f"step_{step}_loss{lossid}": lossvalue.sum().item()})
+                                    losses_for_backward.append(lossvalue)  # for backward
+                                    logging_outputs.append(logging_output)
+                                
+                                optimizer.zero_grad(set_to_none=True)
+                                outputs.zero_grad()
+                                if len(losses) > 1:
+                                    optimizer_lambda.zero_grad(set_to_none=True)
+                                    lambda_.zero_grad()
+
+                                for model in name2model.values():
+                                    model.zero_grad(set_to_none=True)
+                                
+                                if args.linear_scale == "true": # no lagragian, plain old linear sum
+                                    total_loss = 0
+                                    cur_epsilons = [] # just for avoiding syntax errors, epsilons are useless in this setting
+                                    for sid in range(len(losses_for_backward)):
+                                        total_loss = total_loss + betas[sid] * losses_for_backward[sid]
+                                        cur_epsilons.append(0.0)
                                     
-                                        total_batchloss = total_loss.sum()
-                                        # print(f"[step{step}] cur_lr {cur_lr}") 
-                                        # print(f"[step{step}] total_batchloss.item()", total_batchloss.item())
-                                        optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
-
-                                        # print(f"[step{step}] pred_embeds[0][1].grad.norm(p=2, dim=-1)", pred_embeds[0][1].grad.norm(p=2, dim=-1))
-
-                                    if args.debug and args.debug_gradients == "true":
-                                        total_norm = 0
-                                        gi=0
-                                        for p in outputs.parameters():
-                                            gi+=1
-                                            param_norm = p.grad.data.norm(2, -1).sum(dim=0)
-                                            # print(p.dtype)
-                                            print("for theta", param_norm)
-                                        for p in lambda_.parameters():
-                                            print("for lambda", p.grad)
-                                        
-                                        # input()
-                                        
-                                # text (어떤 변수? source_batch)를 태워서 locate 하기 (근데, 궁금한것은 source_batch와 target_prefix 는 다른건가?)
-                                # index가 여기에서 뽑히는 거라고 생각하자.
-                                # indices = [15,16]
-                                # indices가 optim 바깥에서 뽑히도록 일단 구현
-                                
-                                ## 23/7/21 - add locate code
-                                ## 23/8/14 - moved inside for loop for gradient-based inference
-                                if step % args.num_locate_steps == 0:
-                                    batch = {"input_ids": pred_tokens}
-                                    # batch = {"input_embeds": pred_embeds[0][1]}
-                                    if args.num_edit_token_per_step == -1: 
-                                        print("Editing all tokens")
-                                        indices = list(range(len(pred_tokens[0])))
-                                    else:
-                                        indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step, unit=args.locate_unit)
-                                    intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
-                                    # print(f"=== step {step} ===")
-                                    # print(f"[indices]: {indices}")
-                                    # print(f"[original]: {name2tokenizer[model_paths[1]].decode(pred_tokens[0])}")
-                                    # print("[located]:", end=' ')
-                                    # for i, tok in enumerate(pred_tokens[0]):
-                                    #     if i in indices[0]:
-                                    #         print('<mask>', end='')
-                                    #     else:
-                                    #         print(name2tokenizer[model_paths[1]].decode(tok), end='')
-                                    # print()
-                                    if indices == [[]]:
-                                        print(f"Early stop at @{step} with a loss value of {cur_loss} since no token is to be edited.")
-                                        break
-                                
-                                ## 08/24/23 add gradient clipping
-                                if args.num_project_steps != 1:
-                                    torch.nn.utils.clip_grad_norm_(outputs.parameters(), 1)
-                                
-                                ## Edites 08/17/23: to pass option for projection.
-                                project_yn = True if step % args.num_project_steps == 0 else False
-                                if logging_outputs[0].get('entropy', None) is not None:
-                                    optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None), project = project_yn) ### backpropagate
+                                    total_batchloss = total_loss.sum()
+                                    optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler)
                                 else:
-                                    optimizer.step(indices, scaler=scaler, project = project_yn) ### backpropagate
-                                
-                                update_lr_condition = "none"
-                                if args.linear_scale != "true" and  len(losses) > 1:
-                                    sats = torch.Tensor(constraint_values).ge(0.).to(device)
-                                    update_lambda_condition = (step % args.lambda_update == 0)
-                                    lambda_mask = float(update_lambda_condition) * torch.ones_like(sats)
-                                    
-                                    lambda_mask += (1-sats.float()) * (lambda_.is_zero())
-                                    # if not sats.all() and (lambda_.any_zero()):
-                                    #     print("funky new update")
-                                    #     update_lambda_condition = True
-                                    #     lambda_mask = torch.ones_like(sats)
-                                    # lambda_mask += sats.float()
+                                    total_loss = 0.0
+                                    total_loss = losses_for_backward[0]
+                                    cur_epsilons = []
 
-                                    # if args.linear_scale != "true" and  len(losses) > 1 and args.dynamic_lambda_update:
-                                        # lambda_mask += (1 - sats.float())
-                                    # if step > args.lambda_update:
-                                
-                                # total_batchlossitem = total_batchloss.item()
-                                total_batchlossitem = losses_for_backward[0].item()
-                                # if dynamic_lambda_update_prev_loss is not None:
-                                    # print(abs(total_batchlossitem - dynamic_lambda_update_prev_loss))
-                                if dynamic_lambda_update_prev_loss is not None and abs(total_batchlossitem - dynamic_lambda_update_prev_loss) <= 1e-6:
-                                    repeat_counts[0] += 1
-                                    if args.linear_scale != "true" and  len(losses) > 1 and args.dynamic_lambda_update:
-                                        lambda_mask = (1 - sats.float())
-                                        # print("what now", total_batchlossitem, dynamic_lambda_update_prev_loss, constraint_values, sats.float())
-                                        # if sats.all(): #constraints are satisfied
-                                        #     update_lambda_condition = False
-                                        #     print("constraints are satisfied and output is not changing, lambdas will not update!")
-                                        # else:
-                                        #     update_lambda_condition = True
+                                    constraint_values = []
+                                    for sid in range(1, len(losses_for_backward)): #the secondary losses or constraints
+                                        cur_epsilon = get_epsilon(step, epsilons[sid-1], min_epsilons[sid-1], epsilon_warmup_steps[sid-1], epsilon_cooldown_steps[sid-1], epsilon_decay_functions[sid-1])
+                                        constraint_value = (cur_epsilon - losses_for_backward[sid]).detach()
+                                        damp = args.dampness * constraint_value
+                                        mask = lambda_.get_mask(sid-1, damp)
 
-                                    if args.dynamic_lr_update and best_allsat[0] is not None and best_allsat[0]:
-                                        update_lr_condition = "increase"
+                                        closs_for_theta = lambda_.get_loss(sid - 1, damp * mask, (cur_epsilon - losses_for_backward[sid]))
+                                        total_loss = total_loss - closs_for_theta
+                                        
+                                        cur_epsilons.append(cur_epsilon)                             
+                                        constraint_values.append(constraint_value.item())
+                                
+                                    total_batchloss = total_loss.sum()
+                                    # print(f"[step{step}] cur_lr {cur_lr}") 
+                                    # print(f"[step{step}] total_batchloss.item()", total_batchloss.item())
+                                    optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
+
+                                    # print(f"[step{step}] pred_embeds[0][1].grad.norm(p=2, dim=-1)", pred_embeds[0][1].grad.norm(p=2, dim=-1))
+
+                                if args.debug and args.debug_gradients == "true":
+                                    total_norm = 0
+                                    gi=0
+                                    for p in outputs.parameters():
+                                        gi+=1
+                                        param_norm = p.grad.data.norm(2, -1).sum(dim=0)
+                                        print("for theta", param_norm)
+                                    for p in lambda_.parameters():
+                                        print("for lambda", p.grad)
+                
+                            ## 23/7/21 - add locate code
+                            ## 23/8/14 - moved inside for loop for gradient-based inference
+                            if step % args.num_locate_steps == 0:
+                                batch = {"input_ids": pred_tokens}
+                                if args.num_edit_token_per_step == -1: 
+                                    print("Editing all tokens")
+                                    indices = list(range(len(pred_tokens[0])))
                                 else:
-                                    repeat_counts[0] = 1
-                                # print(repeat_counts)
-                                
-                                dynamic_lambda_update_prev_loss = total_batchlossitem
+                                    indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step, unit=args.locate_unit)
+                                intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
 
-                                if update_lr_condition == "increase":
-                                    cur_lr = optimizer._optimizer.update_lr(min(cur_lr + args.lr_update_size, args.max_lr))
-
-                                if args.linear_scale != "true" and len(losses) > 1:
-                                    # print(lambda_mask, repeat_counts)
-                                    # print([p.grad for p in lambda_.parameters()])
-                                    # print(step, lambda_().tolist(), lambda_mask, )
-                                    optimizer_lambda._optimizer.set_mask(lambda_mask.clamp(max=1.0, min=0.0))
-                                    optimizer_lambda.step()
-                                    # print(step, lambda_().tolist())
-                                    # input()
-                                    lambda_.make_positive()
-                                
-                                
-
-                                    # total_batchloss_for_lambda = total_loss_for_lambda.sum()
-                                    # optimizer_lambda.backward(total_batchloss_for_lambda, retain_graph=True, scaler=scaler)
-                                    
-                                gc.collect()
-
-                                
-                                # outputs.printparams()
-                                # input()
-                                
-                                
-                                # print(repeat_counts, allsat)
-                                cur_losses = []
-                                for b in range(batch_size):
-                                    cur_loss = 0.0
-                                    for beta, lossval in zip(betas, losses_for_backward):
-                                        cur_loss = cur_loss + beta * lossval[b].item()     
-                                    cur_losses.append(cur_loss)
-                                    
-                                    constrained = []
-                                    allsat = True
-                                    for i in range(1, len(losses)):
-                                        if losses_for_backward[i] <= min_epsilons[i - 1]:
-                                            constrained.append("sat")
-                                        else:
-                                            constrained.append("vio")
-                                            allsat=False
-                                    
-                                    if args.show_all_outputs and len(losses) > 1 and allsat:
-                                        best_prediction_set[b].add(target_sents[b])
-                                        
-                                    constrained = ",".join(constrained)
-                                    intermediate_result.update({f"step{step}_best_loss": best_loss[b],f"step{step}_loss0": losses_for_backward[0].item(), f"step{step}_loss1": losses_for_backward[1].item(), f"step{step}_allsat": allsat, f"step{step}_repeat_counts[b]": repeat_counts[b]})
-                                    # print(f"[step{step}] best_loss[b]: {best_loss[b]}, cur_loss: {cur_loss}, losses_for_backward[0]: {losses_for_backward[0].data.cpu()}, losses_for_backward[1]: {losses_for_backward[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, allsat: {allsat}, repeat_counts[b]: {repeat_counts[b]}")
-                                    modify_condition =\
-                                        args.selection_criterion == "last" or\
-                                        (best_loss[b] is None and args.selection_criterion == "weighted_sum") or\
-                                        (best_loss[b] is not None and args.selection_criterion == "weighted_sum" and best_loss[b] > cur_loss)
-                                    
-                                    # print(repeat_counts, allsat, best_loss, best_allsat)
-                                    if not modify_condition and args.selection_criterion == "mrr_allsat":
-                                        modify_condition =\
-                                            (best_loss[b] is None and allsat and repeat_counts[b] == 2) or\
-                                            (best_loss[b] is not None and best_allsat[b] and allsat and repeat_counts[b] == 2)
-                                        # print(modify_condition)
-                                        # modify_condition = (best_loss[b] is not None and best_allsat[b] and allsat and repeat_counts[b] == 2)
-
-                                    elif not modify_condition and args.selection_criterion == "primary_allsat":
-                                        modify_condition =\
-                                            (best_loss[b] is None and allsat) or\
-                                            (best_loss[b] is not None and not best_allsat[b] and allsat) or\
-                                            (best_allsat[b] and allsat and best_loss[b] > cur_loss)
-
-                                    # step>20 and 
-
-                                    if modify_condition:
-                                        if args.dynamic_lr_update:
-                                            print("resetting the learning rate and noise std, a constraint has been satisfied")
-                                            cur_lr = optimizer._optimizer.update_lr(args.lr)
-                                            optimizer._optimizer.set_begin_std(0.01) #CHECK
-                                        if args.selection_criterion != "last":
-                                            print(f"modify condition @{step}", time.time()-starttime, end="\n")
-                                        best_loss[b] = cur_loss
-                                        best_allsat[b] = allsat
-                                        best_repeat_count[b] = repeat_counts[b]
-                                        for i in range(len(losses)):
-                                            best_losses[i][b] = losses_for_backward[i][b].item()
-                                        
-                                        best_pred_tokens[b] = pred_tokens[b]
-                                        best_index[b] = step
-                                        # best_pred_probs[b] = (pred_probs[b].cpu(), logging_outputs[0]["lm_logprobs"][b])
-                                        best_constrained = constrained
-                                        best_step = step
-                                    # elif best_step < step - 1 and args.dynamic_lr_update:
-                                    #     print("resetting the learning rate, the constraint just got unsatisfied")
-                                        
-                                if not args.time and step > 0 and step % args.log_interval == 0:
-                                    if len(losses) > 1:
-                                        log = f"beam cons: {predicted_allsat}; "
-                                        log = f"Step {step}: lr:{cur_lr}; total_loss:{total_batchloss:.4f}; current [loss:{sum(cur_losses):.4f}; l:{','.join([f'{x:.4f}' for x in lambda_().tolist()])}; e:{','.join([f'{x:.4f}' for x in cur_epsilons])}; cons:{constrained}; "
-                                        for i in range(len(losslists)):
-                                            log = log + f" {lossabbr[i]}:{losslists[i][-1][-1]:.4f}; "
-                                        
-                                        if best_loss[0] is not None:
-                                            log = log[:-1] + f"] |||| best [cur_loss:{sum(best_loss):.4f}; cons:{best_constrained};  "
-                                            for i in range(len(best_losses)):
-                                                log = log + f"{lossabbr[i]}:{sum(best_losses[i]):.4f}; "
-                                            log = log[:-1] + f"@ step #{best_index[-1]}" 
-                                            log = log + "]"
-                                        else:
-                                            log = log[:-1] + f"] |||| best [none of the generations so far satisfies constraints]"
-                                        print(log)
-                                    else:
-                                        log = f"Step {step}: lr:{cur_lr}; loss:{total_batchloss:.4f}; current [loss:{sum(cur_losses):.4f}; "
-                                        for i in range(len(losslists)):
-                                            log = log + f" {lossabbr[i]}:{losslists[i][-1][-1]:.4f}; "
-
-                                        if best_loss[0] is not None:
-                                            log = log[:-1] + f"] best [loss:{sum(best_loss):.4f} "
-                                            for i in range(len(best_losses)):
-                                                log = log + f"{lossabbr[i]}:{sum(best_losses[i]):.4f}; "
-                                            log = log[:-1] + f" at step {best_index[-1]}" 
-                                            log = log + "]"
-                                        else:
-                                            log = log[:-1] + f"] |||| best [none of the generations so far satisfies constraints]"
-                                        print(log, end="\n")
-                                
-                                del losses_for_backward
-
-                                if args.early_stop_steps > 0: #[0] is batch index, batch size in our case in 1 always so it doesn't matter.
-                                    # print(args.selection_criterion)
-                                    # print(lengthwise_best_prediction)
-                                    early_stop_condition =\
-                                        ("allsat" in args.selection_criterion and best_allsat[0]) or\
-                                        (args.selection_criterion == "weighted_sum") or\
-                                        (args.selection_criterion == "last")
-
-                                    # print(early_stop_condition)
-                                    if prev_loss is not None and abs(cur_loss - prev_loss) <= 1e-6:
-                                        same_loss_count += 1
-                                    else:   
-                                        same_loss_count = 0
-
-                                    if early_stop_condition and same_loss_count >= args.early_stop_steps:
-                                        print(f"Early stop at @{step} with a loss value of {cur_loss} and satisfied constraints")
-                                        break
-                                    elif same_loss_count >= args.early_stop_steps + 100:#2 * args.lambda_update:
-                                        print(f"Early stop at @{step} with a loss value of {cur_loss} and unsatisfied constraints")
-                                        break
-                                        
-                                    prev_loss = cur_loss
-
-
-
-                            except KeyboardInterrupt:
-                                print("skipping remaining optimizing steps and showing the best option so far")
-                                broken=True
-                                break
-
-                        if args.time:
-                            r = time.time()-starttime
-                            print(r)
-                            avg_time += r
-
-                        predictions = []
-                        prediction_idss = []
-                        broken_skip = False
-                        skip_printing = False
-                        for b, item in enumerate(best_pred_tokens):
-                            if item is None and broken:
-                                skip_printing = True
-                                if broken:
-                                    broken_skip=input("Skip this input entirely? yes(y)/no(continue)/press ctrl+c to exit")
-                                    broken_skip = broken_skip.lower() == "y"
+                                if indices == [[]]:
+                                    print(f"Early stop at @{step} with a loss value of {weighted_loss} since no token is to be edited.")
                                     break
-                            if (args.only_mucoco == "false" and not best_allsat[b]) or (item is None): #item is none happens when optimization fails
-                                prediction_ids = ", ".join([str(idx) for idx in AR_predicted_indices[0].tolist()])
-                                prediction_indices = AR_predicted_indices[0].tolist()
-                                prediction = AR_prediction
-
-                                lossvalue = 0.0
-                                for lossid in range(len(betas)):
-                                    lossvalue += betas[lossid] * predictedlosslists[-1][lossid][b] # VERIFICATION NEEDED
-                                print(f"best prediction is from beam search, all constraints were not satisfied, allsat={lengthwise_best_prediction[b][2]}")
+                            
+                            ## 08/24/23 add gradient clipping
+                            if args.num_project_steps != 1:
+                                torch.nn.utils.clip_grad_norm_(outputs.parameters(), 1)
+                            
+                            ## 08/17/23: to pass option for projection.
+                            project_yn = True if step % args.num_project_steps == 0 else False
+                            if logging_outputs[0].get('entropy', None) is not None:
+                                optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None), project = project_yn) ### backpropagate
                             else:
-                                prediction_ids = ", ".join([str(x) for x in target_prefix[b].tolist()])
-                                prediction_ids +=   f'[{", ".join([str(x) for x in item.tolist()])}]'
-                                prediction_indices = target_prefix[b].tolist() + item.tolist()
+                                optimizer.step(indices, scaler=scaler, project = project_yn) ### backpropagate
+                            
+                            update_lr_condition = "none"
+                            if args.linear_scale != "true" and  len(losses) > 1:
+                                sats = torch.Tensor(constraint_values).ge(0.).to(device)
+                                update_lambda_condition = (step % args.lambda_update == 0)
+                                lambda_mask = float(update_lambda_condition) * torch.ones_like(sats)
                                 
-                                targets = clean_output(item.tolist(), primary_tokenizer.eos_token_id, allow_first_eos=losses[0] == "bart")#, prompt=source_batch[b].unsqueeze(0), sentence_complete=True, lossfn=lossfns[0])
-                                if args.target_tokenize_different:
-                                    with primary_tokenizer.as_target_tokenizer():
-                                        prediction = primary_tokenizer.decode(target_prefix[b].tolist() + targets)
+                                lambda_mask += (1-sats.float()) * (lambda_.is_zero())
+                            
+                            total_batchlossitem = losses_for_backward[0].item()
+                            if dynamic_lambda_update_prev_loss is not None and abs(total_batchlossitem - dynamic_lambda_update_prev_loss) <= 1e-6:
+                                repeat_counts[0] += 1
+                                if args.linear_scale != "true" and  len(losses) > 1 and args.dynamic_lambda_update:
+                                    lambda_mask = (1 - sats.float())
+
+                                if args.dynamic_lr_update and best_allsat[0] is not None and best_allsat[0]:
+                                    update_lr_condition = "increase"
+                            else:
+                                repeat_counts[0] = 1
+                            
+                            dynamic_lambda_update_prev_loss = total_batchlossitem
+
+                            if update_lr_condition == "increase":
+                                cur_lr = optimizer._optimizer.update_lr(min(cur_lr + args.lr_update_size, args.max_lr))
+
+                            if args.linear_scale != "true" and len(losses) > 1:
+                                optimizer_lambda._optimizer.set_mask(lambda_mask.clamp(max=1.0, min=0.0))
+                                optimizer_lambda.step()
+                                lambda_.make_positive()
+                    
+                                
+                            gc.collect()
+
+                            #[0] is batch index, batch size in our case in 1 always so it doesn't matter.
+                            weighted_losses = []
+                            weighted_loss = 0.0
+                            for beta, lossval in zip(betas, losses_for_backward):
+                                weighted_loss = weighted_loss + beta * lossval[0].item()     
+                            weighted_losses.append(weighted_loss)
+                            
+                            ## added 23/09/04
+                            primary_loss = losses_for_backward[0][0].item()
+                            attribute_index = 1 # need to modify this part for the case where there're more than one constraints
+                            attribute_loss = losses_for_backward[attribute_index][0].item()
+                            ## done addition
+                            
+                            constrained = []
+                            allsat = True
+                            for i in range(1, len(losses)):
+                                if losses_for_backward[i] <= min_epsilons[i - 1]:
+                                    constrained.append("sat")
                                 else:
-                                    prediction = primary_tokenizer.decode(target_prefix[b].tolist() + targets)
-
-                                print("best prediction at step",best_index[b])
-                                lossvalue = best_loss[b]
-
-                                modify_condition =\
-                                    lengthwise_best_prediction[b] is None or\
-                                    (args.selection_criterion == "weighted_sum" and lengthwise_best_prediction[b][1] > lossvalue)
+                                    constrained.append("vio")
+                                    allsat=False
+                            
+                            if args.show_all_outputs and len(losses) > 1 and allsat:
+                                best_prediction_set[0].add(target_sents[0])
                                 
-                                if not modify_condition and args.selection_criterion == "primary_allsat":
-                                    modify_condition =\
-                                        (not lengthwise_best_prediction[b][2] and best_allsat[b]) or\
-                                        (lengthwise_best_prediction[b][2] and best_allsat[b] and lengthwise_best_prediction[b][1] > lossvalue)
+                            constrained = ",".join(constrained)
+                            intermediate_result.update({f"step{step}_best_loss": best_loss[0],f"step{step}_loss0": losses_for_backward[0].item(), f"step{step}_loss1": losses_for_backward[1].item(), f"step{step}_allsat": allsat, f"step{step}_repeat_counts[0]": repeat_counts[0]})
+                            # print(f"[step{step}] best_loss[0]: {best_loss[0]}, weighted_loss: {weighted_loss}, losses_for_backward[0]: {losses_for_backward[0].data.cpu()}, losses_for_backward[1]: {losses_for_backward[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, allsat: {allsat}, repeat_counts[0]: {repeat_counts[0]}")
+                            
+                        
+                            # modify_condition =\
+                            #     args.selection_criterion == "last" or\
+                            #     (best_loss[0] is None and args.selection_criterion == "weighted_sum") or\
+                            #     (best_loss[0] is not None and args.selection_criterion == "weighted_sum" and best_loss[0] > weighted_loss)
+                            
+                            # if not modify_condition and args.selection_criterion == "mrr_allsat":
+                            #     modify_condition =\
+                            #         (best_loss[0] is None and allsat and repeat_counts[0] == 2) or\
+                            #         (best_loss[0] is not None and best_allsat[0] and allsat and repeat_counts[0] == 2)
+
+                            # elif not modify_condition and args.selection_criterion == "primary_allsat":
+                            #     modify_condition =\
+                            #         (best_loss[0] is None and allsat) or\
+                            #         (best_loss[0] is not None and not best_allsat[0] and allsat) or\
+                            #         (best_allsat[0] and allsat and best_loss[0] > weighted_loss)
+                            
+                            # always update best_xxx if step = 1 (initialize best_xxx after 1st update step)
+                            modify_condition = (step == 1)
+                            
+                            if not modify_condition:
+                                if (step == 0):
+                                    modify_condition = False # if step == 0, same as AR prediction. don't update!
+                                elif args.selection_criterion == "allsat":
+                                    modify_condition = (not best_allsat[0] and not allsat and weighted_loss < best_loss[0]) or \
+                                                       (not best_allsat[0] and allsat) or \
+                                                       (best_allsat[0] and allsat and primary_loss < best_losses[0][0])
+                                elif args.selection_criterion == "attribute":
+                                    modify_condition = (attribute_loss < best_losses[attribute_index][0])
+                                elif args.selection_criterion == "weighted_sum":
+                                    modify_condition = (weighted_loss <  best_loss[0])
+                            
+                            if modify_condition:
+                                if args.dynamic_lr_update:
+                                    print("resetting the learning rate and noise std, a constraint has been satisfied")
+                                    cur_lr = optimizer._optimizer.update_lr(args.lr)
+                                    optimizer._optimizer.set_begin_std(0.01) #CHECK
+                                if args.selection_criterion != "last":
+                                    print(f"modify condition @{step}", time.time()-starttime, end="\n")
+                                best_loss[0] = weighted_loss
+                                best_allsat[0] = allsat
+                                best_repeat_count[0] = repeat_counts[0]
+                                for i in range(len(losses)):
+                                    best_losses[i][0] = losses_for_backward[i][0].item()
                                 
-                                elif not modify_condition and args.selection_criterion == "mrr_allsat":
-                                    modify_condition =\
-                                        (not lengthwise_best_prediction[b][2] and best_allsat[b] and best_repeat_count[b] >= 2) or\
-                                        (lengthwise_best_prediction[b][2] and lengthwise_best_prediction[b][4] >= 2 and lengthwise_best_prediction[b][1] > lossvalue)
+                                best_pred_tokens[0] = pred_tokens[0]
+                                best_index[0] = step
+                                best_constrained = constrained
+                                best_step = step
+                            
+                            del losses_for_backward
+
+                            ## turn off early_stopping for now (23/09/04)
+                            # if args.early_stop_steps > 0: #[0] is batch index, batch size in our case in 1 always so it doesn't matter.
+
+                            #     early_stop_condition =\
+                            #         ("allsat" in args.selection_criterion and best_allsat[0]) or\
+                            #         (args.selection_criterion == "weighted_sum") or\
+                            #         (args.selection_criterion == "last")
+
+                            #     if prev_loss is not None and abs(weighted_loss - prev_loss) <= 1e-6:
+                            #         same_loss_count += 1
+                            #     else:   
+                            #         same_loss_count = 0
+
+                            #     if early_stop_condition and same_loss_count >= args.early_stop_steps:
+                            #         print(f"Early stop at @{step} with a loss value of {weighted_loss} and satisfied constraints")
+                            #         break
+                            #     elif same_loss_count >= args.early_stop_steps + 100:#2 * args.lambda_update:
+                            #         print(f"Early stop at @{step} with a loss value of {weighted_loss} and unsatisfied constraints")
+                            #         break
                                     
-                                
-                                if modify_condition: # loss 값이 줄어들었으면, best prediction을 업데이트 ㅡ
-                                    if args.debug:
-                                        print("modify condition satisfied", end="\n")
-                                    else:
-                                        outallsatf.write("modify_condition satisfied ")
-                                    lengthwise_best_prediction[b] = (prediction, lossvalue, best_allsat[b], prediction_indices, best_repeat_count[b])
-                                    intermediate_result.update({"best_step": best_index[b], 
-                                                        "best_prediction": prediction, 
-                                                        # f"best_loss0": best_losses[0][0],
-                                                        # f"best_loss1": best_losses[1][0]
-                                                        })
-                            
-                            prediction_idss.append(prediction_ids)
-                            predictions.append(prediction)
+                            #     prev_loss = weighted_loss
 
-                        if args.debug and not skip_printing:                    
-                            for i, item in enumerate(best_pred_tokens):
-                                print(f"predicting length: {sent_length}")
-                                print("Given source:", source_text)
-                                print("Given target: ", target_text)
-                                print("Given additional: ", additional_text)
-                                print(f"Prediction ids: {prediction_ids}")
-                                print(f"Prediction: {prediction}")
-                                print("All generations that satisfied the constraints: ", best_prediction_set[i])
 
-                                out = []
-                                # print(predictedlosslists)
-                                # input()
-                                # if target_batch is not None:
-                                #     for lossid in range(len(losses)):
-                                #         out.append(f"Gold {lossabbr[lossid]}: {predictedlosslists[lossid][-1]}")
-                                #out.append(f"Source {lossabbr[0]}: {source_primarylosslist[-1]}")
-                                # print("; ".join(out))
 
-                                out = []
-                                for lossid in range(len(losses)):
-                                    out.append(f"{losses[lossid]}: {best_losses[lossid][i]}")
-                                print("; ".join(out))
+                        except KeyboardInterrupt:
+                            print("skipping remaining optimizing steps and showing the best option so far")
+                            broken=True
+                            break
+                    ## gradient update done.
+
+
+                    if args.time:
+                        r = time.time()-starttime
+                        print(r)
+                        avg_time += r
+                    
+                    ## after doing all optim_steps for the sample
+                    predictions = []
+                    prediction_idss = []
+                    broken_skip = False
+                    skip_printing = False
+                    
+                    #[0] is batch index, batch size in our case in 1 always so it doesn't matter.
+                    ## 23/9/4 removed looping over batches 
+                    # for b, item in enumerate(best_pred_tokens):
+                    item = best_pred_tokens[0]
+                    if item is None and broken:
+                        skip_printing = True
+                        if broken:
+                            broken_skip=input("Skip this input entirely? yes(y)/no(continue)/press ctrl+c to exit")
+                            broken_skip = broken_skip.lower() == "y"
+                            break
+                    ## 23/9/4 commented out falling back to beam search for now
+                    # if (args.only_mucoco == "false" and not best_allsat[0]) or (item is None): #item is none happens when optimization fails
+                    #     prediction_ids = ", ".join([str(idx) for idx in AR_predicted_indices[0].tolist()])
+                    #     prediction_indices = AR_predicted_indices[0].tolist()
+                    #     prediction = AR_prediction
+
+                    #     lossvalue = 0.0
+                    #     for lossid in range(len(betas)):
+                    #         lossvalue += betas[lossid] * predictedlosslists[-1][lossid][0] # VERIFICATION NEEDED
+                    #     print(f"best prediction is from beam search, all constraints were not satisfied, allsat={lengthwise_best_prediction[0][2]}")
+                    # else:
+                    ## 23/9/4 added the item is not None condition b/c if not error occurs when the run early stops for a sample for whom no indices are located.
+                    ## e.g. Early stop at @0 with a loss value of 72.02294921875 since no token is to be edited.
+                    if item is not None: 
+                        prediction_ids = ", ".join([str(x) for x in target_prefix[0].tolist()])
+                        prediction_ids +=   f'[{", ".join([str(x) for x in item.tolist()])}]'
+                        prediction_indices = target_prefix[0].tolist() + item.tolist()
+                        
+                        targets = clean_output(item.tolist(), primary_tokenizer.eos_token_id, allow_first_eos=losses[0] == "bart")#, prompt=source_batch[0].unsqueeze(0), sentence_complete=True, lossfn=lossfns[0])
+                        if args.target_tokenize_different:
+                            with primary_tokenizer.as_target_tokenizer():
+                                prediction = primary_tokenizer.decode(target_prefix[0].tolist() + targets)
+                        else:
+                            prediction = primary_tokenizer.decode(target_prefix[0].tolist() + targets)
+
+                        print("best prediction at step",best_index[0])
+                        lossvalue = best_loss[0]
+                        losses_value = [x[0] for x in best_losses]
+
+                        ## modify_condition에 해당 할때에만 AR_prediction으로 initialize되어 있던 lengthwise_best_prediction을 업데이트 함.
+                        ## -> 항상 locate & edit 결과로 덮어 쓰게끔 단순화하기.
+                        # modify_condition =\
+                        #     lengthwise_best_prediction[0] is None or\
+                        #     (args.selection_criterion == "weighted_sum" and lengthwise_best_prediction[0][1] > lossvalue)
+                        
+                        # if not modify_condition and args.selection_criterion == "primary_allsat":
+                        #     modify_condition =\
+                        #         (not lengthwise_best_prediction[0][2] and best_allsat[0]) or\
+                        #         (lengthwise_best_prediction[0][2] and best_allsat[0] and lengthwise_best_prediction[0][1] > lossvalue)
+                        
+                        # elif not modify_condition and args.selection_criterion == "mrr_allsat":
+                        #     modify_condition =\
+                        #         (not lengthwise_best_prediction[0][2] and best_allsat[0] and best_repeat_count[0] >= 2) or\
+                        #         (lengthwise_best_prediction[0][2] and lengthwise_best_prediction[0][4] >= 2 and lengthwise_best_prediction[0][1] > lossvalue)
+                            
+                        
+                        # if modify_condition:
+                        if args.debug:
+                            print("modify condition satisfied", end="\n")
+                        else:
+                            outallsatf.write("modify_condition satisfied ")
+                        lengthwise_best_prediction[0] = (prediction, lossvalue, best_allsat[0], prediction_indices, best_repeat_count[0], losses_value)
+                        intermediate_result.update({"best_step": best_index[0], 
+                                            "best_prediction": prediction
+                                            })
+                        
+                        prediction_idss.append(prediction_ids)
+                        predictions.append(prediction)
+
+                        # if args.debug and not skip_printing:                    
+                        #     for i, item in enumerate(best_pred_tokens):
+                        #         print(f"predicting length: {sent_length}")
+                        #         print("Given source:", source_text)
+                        #         print("Given target: ", target_text)
+                        #         print("Given additional: ", additional_text)
+                        #         print(f"Prediction ids: {prediction_ids}")
+                        #         print(f"Prediction: {prediction}")
+                        #         print("All generations that satisfied the constraints: ", best_prediction_set[i])
+
+                        #         out = []
+                        #         for lossid in range(len(losses)):
+                        #             out.append(f"{losses[lossid]}: {best_losses[lossid][i]}")
+                        #         print("; ".join(out))
                             
                             
-                            if broken:
-                                broken_skip=input("Skip this input entirely? yes(y)/no(continue)/press ctrl+c to exit")
-                                broken_skip = broken_skip.lower() == "y"
+                        #     if broken:
+                        #         broken_skip=input("Skip this input entirely? yes(y)/no(continue)/press ctrl+c to exit")
+                        #         broken_skip = broken_skip.lower() == "y"
 
                         all_stepcounts += best_index
 
@@ -1374,20 +1237,21 @@ def main(args):
                         for modelname in loss2modelname.values():
                             name2model[modelname].zero_grad(set_to_none=True) 
                         torch.cuda.empty_cache()
-
-                        if args.debug and broken_skip: 
-                            break
                         
-                        if break_after:
-                            break
-                    
-                    ### RESTART HERE
+                        ## 23/09/04 no longer needed since the for b in range(len(batch_size)) type of loop is not removed.
+                        # if args.debug and broken_skip: 
+                        #     break
+                        
+                        # if break_after:
+                        #     break
+                        
+                    ### RESTART HERE (check if convergence failed and restart if it failed & restart_index < restarts)
                     b=0
                     if lengthwise_best_prediction[b] is None or not lengthwise_best_prediction[b][2]: #constraints are not satisfied
                         if restart_idx < args.restarts: #atleast one more restart is left
                             continue #skip printing and loop over
                         elif lengthwise_best_prediction[b] is None:
-                            lengthwise_best_prediction = [("", -1, False, [], -1)] #just blank which didn't satisfy the constraints
+                            lengthwise_best_prediction = [("", -1, False, [], -1, -1)] #just blank which didn't satisfy the constraints
 
                     if args.debug:
                         if not skip_printing:
@@ -1410,6 +1274,8 @@ def main(args):
                                         "text": lengthwise_best_prediction[b][0],
                                         "tokens": lengthwise_best_prediction[b][3],
                                         "allsat": lengthwise_best_prediction[b][2],
+                                        "losses": lengthwise_best_prediction[b][5],
+                                        "weighted_loss":lengthwise_best_prediction[b][1],
                                         "repeat_count": lengthwise_best_prediction[b][4],
                                         "mucoco": True
                                         }]
@@ -1420,6 +1286,8 @@ def main(args):
                                         "text": lengthwise_best_prediction[b][0],
                                         "tokens": lengthwise_best_prediction[b][3],
                                         "allsat": lengthwise_best_prediction[b][2],
+                                        "losses": lengthwise_best_prediction[b][5],
+                                        "weighted_loss":lengthwise_best_prediction[b][1],
                                         "repeat_count": lengthwise_best_prediction[b][4],
                                         "mucoco": True
                                     }
@@ -1442,6 +1310,7 @@ def main(args):
                     break # don't restart if already reached here
 
                 else: # skipping mucoco and writing beam search output 
+                    lengthwise_best_prediction[0] = [(AR_prediction, total_weighted_loss, predicted_allsat, predicted_batch[0].tolist(), -1, predictedlosses)]
                     if ask_skip != "y":
                         if args.debug:
                             print("Skipping this example. the beam search output already satisfies all the constraints or there's no constraints")
@@ -1466,6 +1335,8 @@ def main(args):
                                                 "text": lengthwise_best_prediction[b][0],
                                                 "tokens": lengthwise_best_prediction[b][3],
                                                 "allsat": lengthwise_best_prediction[b][2],
+                                                "losses": lengthwise_best_prediction[b][5],
+                                                "weighted_loss":lengthwise_best_prediction[b][1],
                                                 "mucoco": False
                                                 }]
                                         }
@@ -1476,6 +1347,8 @@ def main(args):
                                                 "text": lengthwise_best_prediction[b][0],
                                                 "tokens": lengthwise_best_prediction[b][3],
                                                 "allsat": lengthwise_best_prediction[b][2],
+                                                "losses": lengthwise_best_prediction[b][5],
+                                                "weighted_loss":lengthwise_best_prediction[b][1],
                                                 "mucoco": False
                                             }
                                         )
