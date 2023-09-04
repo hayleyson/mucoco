@@ -269,9 +269,12 @@ def get_parser():
     parser.add_argument("--epsilon_cooldown_steps", default=None, type=str)
     parser.add_argument("--epsilon_decay_functions", default=None, type=str)
     parser.add_argument("--cache_dir", default="hf_cache", type=str)
+    # parser.add_argument(
+    #     "--selection_criterion", default="primary_allsat", help="", choices=['weighted_sum', 'primary_allsat', "last", "mrr_allsat"] 
+    # ) #mrr = most recent repetition
     parser.add_argument(
-        "--selection_criterion", default="primary_allsat", help="", choices=['weighted_sum', 'primary_allsat', "last", "mrr_allsat"] 
-    ) #mrr = most recent repetition
+        "--selection_criterion", default="primary_allsat", help="", choices=['weighted_sum', 'allsat', "attribute", "last"] 
+    )
     parser.add_argument("--early-stop-steps", default=-1, type=int, help="stop if the output hasn't changed in this many steps and the constraints are satisfied")
     parser.add_argument(
         "--bos", action="store_true", help="add bos tag to the sequence"
