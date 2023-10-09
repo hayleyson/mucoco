@@ -6,10 +6,10 @@
 #SBATCH --mem=64000MB
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=P1
-#SBATCH --output='/home/hyeryungson/mucoco/slurm_output/%j.out'
+#SBATCH --output='slurm_output/%j.out'
 
-iterations=3 # how many times you want to iterate over
-jobid=309820 #$(sbatch --parsable sbatch_train_model.sh False) #Adjustement required: write the file name you want to run
+iterations=1 # how many times you want to iterate over
+jobid=9395 #$(sbatch --parsable sbatch_train_model.sh False) #Adjustement required: write the file name you want to run
 # jobid=308396
 for((i=0; i<$iterations; i++)); do           
     dependency="afterany:${jobid}"
