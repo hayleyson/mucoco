@@ -260,11 +260,8 @@ def bleu_i(weights, all_sentences, smoothing_function, i):
 def conditional_perplexity(generations_df, model, tokenizer, device='cuda', write_file=None):
     perplexities = []
     goodperplexities = []
-    # total_nll = 0
-    # total_tokens = 0
-    
-    total_nll = []
-    total_tokens = []
+    total_nll = 0
+    total_tokens = 0
     g = 0
     ct = 0
     if write_file is not None:
@@ -274,9 +271,7 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating PPL'):
         # prompt_input_ids = torch.LongTensor([row.prompt['tokens']]).to(device)
         prompt = row.prompt['text']
-        if prompt == "":
-            prompt = tokenizer.bos_token
-        prompt_input_ids = tokenizer.encode(prompt, return_tensors='pt').to(device)
+        prompt_input_ids = tokenizer.encode(row.prompt['text'], return_tensors='pt').to(device)
         if not (prompt_input_ids.shape[1] == 1 and prompt_input_ids[0].tolist()[0] == tokenizer.bos_token_id): # this means unconditional, prompt is BOS token (verify)
             prompt_loss = model(prompt_input_ids, labels=prompt_input_ids)[0] * (prompt_input_ids.shape[1]-1)
             # print("in")
@@ -308,12 +303,8 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
             # else:
                 # print("ppl values are weirldly large. Check for errors")
 
-            # total_nll += (full_loss - prompt_loss).item()
-            # total_tokens += (full_input_ids.shape[1] - prompt_input_ids.shape[1])
-            
-            total_nll.append((full_loss - prompt_loss).item())
-            total_tokens.append((full_input_ids.shape[1] - prompt_input_ids.shape[1]))
-            
+            total_nll += (full_loss - prompt_loss).item()
+            total_tokens += (full_input_ids.shape[1] - prompt_input_ids.shape[1])
             # print(full_input_ids[0], prompt_input_ids[0])
             # print(full_loss, prompt_loss)
             # input()
@@ -323,8 +314,7 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
         # input("ok")
     
     print(np.nanmean(goodperplexities), len(goodperplexities), len(perplexities), g)
-    # return np.nanmean(perplexities), np.exp(total_nll/total_tokens)
-    return np.nanmean(perplexities), np.exp(np.nansum(total_nll)/np.nansum(total_tokens))
+    return np.nanmean(perplexities), np.exp(total_nll/total_tokens)
 
 def perplexity(generations_df, model, tokenizer, device='cuda', write_file=None):
     #TODO spearman correlation between human ppl and model ppl, not needed anymore, check degen ppl calculation, it's different from this.
@@ -1273,12 +1263,29 @@ def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
 def HUSE(generations_df):
     pass
     ##need human evaluation for this
+    
+def locate_recall(intermediate_df, label_df):
+    indice_cols = [col for col in intermediate_df.columns if 'indices' in col]
+    intermediate_df['indices'] = [set() for i in range(len(intermediate_df))]
+    
+    for col in indice_cols:
+        intermediate_df['indices'] = intermediate_df['indices'] + intermediate_df[col]
+        
+    label_df['gt_gt0'] = [set(np.where(np.array(x) > 0)[0]) for x in gt_file]
+    label_df['gt_eq1'] = [set(np.where(np.array(x) == 1.0)[0]) for x in gt_file]
+    pass
+
+def locate_precision(intermediate_df, label_df):
+    indice_cols = [col for col in intermediate_df.columns if 'indices' in col]
+    pass
 
 @click.command()
 @click.option('--generations_file', required=True, type=str, help='a jsonl file with generations and attribute scores')
 @click.option('--output_file', required=True, type=str, help='filename to write outputs')
 @click.option('--metrics', required=True, type=str, help='which metrics to compute, write comma separeted, ppl-own,ppl-big,cola,self-bleu,zipf,repetition,dist-n,sentiment')
 @click.option('--extra', required=False, type=str, help='extra params like which topic category or keyword file')
+@click.option('--intermediate_file', required=True, type=str, help='a jsonl file with intermediate generations and locate indices')
+@click.option('--label_file', required=True, type=str, help='a jsonl file with locate labels')
 def main(generations_file, output_file, metrics, extra):
     assert os.path.exists(generations_file)
     output_dir = Path(os.path.dirname(generations_file))
@@ -1293,7 +1300,9 @@ def main(generations_file, output_file, metrics, extra):
         # RuntimeError: cannot reshape tensor of 0 elements into shape [-1, 0] because the unspecified dimension size -1 can be any value and is ambiguous
         generations_df = pd.read_json(generations_file, lines=True) 
         print(generations_df.head())
-            
+    label_df = pd.read_json(label_file, line=True)
+    intermediate_df = pd.read_json(intermediate_file, line=True)
+    
     
     metricset = set(metrics.strip().lower().split(","))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1506,6 +1515,32 @@ def main(generations_file, output_file, metrics, extra):
             print(f'num match, num unit match, total sent count: {num_match}--{num_unit_match}, {total_sent_count}')
 
     # HUSE: TODO
+    
+    if "locate_precision" in metricset:
+        print("locate_precision")
+        precision_label_1_if_gt0, precision_label_1_if_eq1 = locate_precision(intermediate_df, label_df)
+
+        with open(output_dir / output_file, 'a') as fo:
+            fo.write(f'locate precision (if label is 1 if >0): {precision_label_1_if_gt0}\n')
+            fo.write(f'locate precision (if label is 1 if ==1): {precision_label_1_if_eq1}\n')
+            print(f'locate precision (if label is 1 if >0): {precision_label_1_if_gt0}\n')
+            print(f'locate precision (if label is 1 if ==1): {precision_label_1_if_eq1}\n')
+    
+    if "locate_recall" in metricset:
+        print("locate_recall")
+        recall_label_1_if_gt0, recall_label_1_if_eq1 = locate_recall(intermediate_df, label_df)
+
+        with open(output_dir / output_file, 'a') as fo:
+            fo.write(f'locate recall (if label is 1 if >0): {recall_label_1_if_gt0}\n')
+            fo.write(f'locate recall (if label is 1 if ==1): {recall_label_1_if_eq1}\n')
+            print(f'locate recall (if label is 1 if >0): {recall_label_1_if_gt0}\n')
+            print(f'locate recall (if label is 1 if ==1): {recall_label_1_if_eq1}\n')
 
 if __name__ == '__main__':
+#     generations_file = '/home/hyeryung_son/mucoco/outputs/toxicity/locate-edit-jigsaw-loc-alltoks--1steps-project-1steps-mrr_allsat/outputs_epsilon-3.txt'
+#     output_file = f'{generations_file}.metrics'
+#     # metrics = 'toxicity-mucola,toxicity-energy'
+#     metrics = 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n'
+#     extra = None
+    # main(generations_file, output_file, metrics, extra)
     main()

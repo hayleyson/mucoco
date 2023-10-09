@@ -31,12 +31,13 @@ model_types=("mucola")
 # NUM_LOCATE_STEPSS=(1 4)
 # NUM_EDIT_TOKEN_PER_STEPS=(1 3)
 # locate_units=("token")
-NUM_LOCATE_STEPSS=(1)
-NUM_EDIT_TOKEN_PER_STEPS=(3)
+NUM_LOCATE_STEPSS=(-1)
+NUM_EDIT_TOKEN_PER_STEPS=(-1)
 locate_units=("word")
 
+
 selection_criterion="allsat"
-data_source="gpt2"
+data_source="jigsaw"
 EPSILON=-3
 
 for model_type in "${model_types[@]}"
@@ -51,7 +52,7 @@ do
                 echo $model_type
                 echo $NUM_EDIT_TOKEN_PER_STEP
                 echo $locate_unit
-                OUTPUTDIR=outputs/toxicity/timecheck/${data_source}-${locate_unit}-netps${NUM_EDIT_TOKEN_PER_STEP}-nls${NUM_LOCATE_STEPS}-nps${NUM_PROJECT_STEPS}-model${model_type}
+                OUTPUTDIR=outputs/toxicity/locate-unit/${data_source}-${locate_unit}-netps${NUM_EDIT_TOKEN_PER_STEP}-nls${NUM_LOCATE_STEPS}-nps${NUM_PROJECT_STEPS}-model${model_type}
                 mkdir -p $OUTPUTDIR
                 bash examples/prompt/constrained_sampling_locate_edit_for_testset.sh \
                 nontoxic \

@@ -498,4 +498,27 @@ def get_parser():
         help="The unit of locating areas to edit. Word or token.",
     )
 
+    parser.add_argument(
+        "--task_type",
+        default="prompted_generation",
+        type=str,
+        choices=["revision", "prompted_generation"],
+        help="Type of task being solved.",
+    )
+    
+    parser.add_argument(
+        "--dev_mode",
+        default="true",
+        type=str,
+        choices=["true", "false"],
+        help="Whether to run in development-phase mode.",
+    )
+    
+    parser.add_argument(
+        "--resume_index",
+        default=0,
+        type=int,
+        help="Index of prompt or sample to resume controlled decoding from.",
+    )
+
     return parser

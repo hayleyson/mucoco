@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=mucola-eval
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:1
+#SBATCH --time=12:00:00
+#SBATCH --mem=20gb
+#SBATCH --output='slurm_output/%j.out'
+
+start=$(date +%s)
+echo "[start date] $(date)"
+echo "$(pwd), $(hostname)"
+echo 
+
+source ~/.bashrc
+source ~/conda3/etc/profile.d/conda.sh
+conda activate mucola
+
+srun bash examples/prompt/evaluate_only.sh
+
+end=$(date +%s)
+
+echo 
+echo "[end date] $(date)"
+echo "Elapsed Time: $((($end-$start)/60)) minutes $((($end-$start)%60)) seconds"

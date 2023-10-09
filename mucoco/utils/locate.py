@@ -7,7 +7,7 @@ punctuations.remove('-')
 
 
 # model 의 forward 함수에서 정의를 output_attentions=True를 넘길 수 있게 되어 있다.
-def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word"):
+def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True):
     # torch.cuda.empty_cache()
     # forward
     model.eval()
@@ -34,7 +34,10 @@ def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word
         
         current_sent = batch["input_ids"][i][: lengths[i]]
         # print("current_sent", current_sent)
-        no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids).to(torch.device('cuda'))))[0]
+        if use_cuda:
+            no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids).to(torch.device('cuda'))))[0]
+        else:
+            no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids)))[0]
         # print("no_punc_indices", no_punc_indices)
         
         # current tokenizer does not add <s> and </s> to the sentence.
