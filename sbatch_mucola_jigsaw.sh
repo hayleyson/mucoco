@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=mucola-eval
+#SBATCH --job-name=mucola-jigsaw
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:0
+#SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
 #SBATCH --mem=20gb
 #SBATCH --partition=P2
@@ -21,7 +21,7 @@ conda activate mucola
 # srun python -m notebooks.resume_run  || echo "!!! error occurred"
 # srun bash examples/prompt/toxicity-all/mucola-disc.sh
 # srun bash examples/prompt/toxicity-all/locate-edit-disc.sh
-srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset.sh
+srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset_jigsaw.sh
 # srun bash examples/prompt/toxicity-all/mucola-disc-save-init-gen.sh
 # srun bash examples/prompt/evaluate_only.sh
 
