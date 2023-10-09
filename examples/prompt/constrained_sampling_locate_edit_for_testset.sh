@@ -63,6 +63,13 @@ fi
 echo $OPTIMSTEPS
 echo $EARLY_STOP_PATIENCE
 
+# if [[ "$data_source" == "gpt2" ]]; then
+#     RESUME_INDEX=111
+# elif [[ "$data_source" == "jigsaw" ]]; then
+#     RESUME_INDEX=1321
+# fi
+# echo $RESUME_INDEX
+
 #many of these hyperparams were used while experimentation and debugging and do not need to be changed
 gold_loss_epsilons="none"
 DATASTYLE="text"
@@ -79,7 +86,7 @@ OUTPUTLEN=20
 MAXLEN=20
 LAMBDALR=2.0
 # selection_criterion="primary_allsat" #primary allsat: select the sample satisfying all constraints with lowest primary loss; mrr_allsat: select the most recent sample satisfying all constraints which is repeating (mrr)
-NUM_SAMPLES=1
+# NUM_SAMPLES=1
 length_diff=0
 linear_scale="false"
 # linear_scale="true"
@@ -212,13 +219,14 @@ if [[ "$option" == "nontoxic" ]]
 then
     echo "nontoxicity"
     DATASTYLE="jsonl"
-    DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-10k.jsonl
+    # DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-10k.jsonl
+    # DATAFILE=ell-e/toxicity-avoidance/data/testset_gpt2_2500.jsonl
     BASELM_GEN_FILE=$DATA_DIR/control-prompts/generations.jsonl
     # DATAFILE=$DATA_DIR/control-prompts/nontoxic_prompts-1.jsonl
     JSON_PKEY="prompt"
     JSON_SKEY="text"
     # NUM_SAMPLES=25
-    NUM_SAMPLES=1
+    # NUM_SAMPLES=10
     OUTPUTLEN=20
     MAXLEN=20
     # OPTIMSTEPS=200
@@ -239,6 +247,15 @@ then
     embedgd_do_sample="false"
     LAMBDALR=1.0
     selection_criterion=$selection_criterion
+    if [[ "$data_source" == "gpt2" ]]; then
+        TASK_TYPE=prompted_generation
+        NUM_SAMPLES=10
+        DATAFILE=ell-e/toxicity-avoidance/data/testset_gpt2_2500.jsonl
+    elif [[ "$data_source" == "jigsaw" ]]; then
+        TASK_TYPE=revision
+        NUM_SAMPLES=1
+        DATAFILE=ell-e/toxicity-avoidance/data/testset_jigsaw_1960.jsonl
+    fi
 elif [[ "$option" == "sentiment-disc" ]]
 then
     echo "sentiment-disc (label ${LABELID})"
@@ -1077,6 +1094,9 @@ then
         --input_ids_path $INPUT_IDS_PATH\
         --texts_path $TEXTS_PATH\
         --locate_unit $locate_unit\
+        --task_type $TASK_TYPE\
+        --dev_mode true\
+        # --resume_index $RESUME_INDEX\
     > $LOGFILE
     bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
     done="true"
