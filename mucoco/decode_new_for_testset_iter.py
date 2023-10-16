@@ -16,6 +16,7 @@ import joblib
 import time 
 from tqdm import tqdm
 import pdb
+from torch import linalg as LA
 ##
 
 from transformers import AutoTokenizer, AutoConfig
@@ -26,6 +27,7 @@ import mucoco.losses as lossbuilder
 import mucoco.options as options
 import mucoco.utils as utils
 import torch.nn.functional as F
+
 
 # torch.autograd.set_detect_anomaly(True)
 
@@ -56,6 +58,7 @@ def main(args):
     )
     logger = logging.getLogger("mucoco")
     logger.setLevel(logging.ERROR)
+    # logger.setLevel(logging.DEBUG)
     logger.info(args)
 
     if args.outfile is not None:
@@ -379,6 +382,7 @@ def main(args):
     ##################################################################################################################################################################
     ##################################################################################################################################################################
     ##################################################################################################################################################################
+    end_program = False
     for text_id, source_text in enumerate(source_dataset):
         
         ## 23/7/18 - Hayley - commented it out.
@@ -901,7 +905,11 @@ def main(args):
                                     logging_outputs = []
 
                                     pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=getattr(optimizer._optimizer, "new_predictions", None))  # forward                                    
-                                    
+                                    ## 23.10.09: save initial outputs 
+                                    if step == 0:
+                                        init_embeds = pred_embeds[1].data.clone().detach()
+                                    ##
+                        
                                     def get_sent(tokens, tokenizer):
                                         batch = []
                                         if args.target_tokenize_different:
@@ -939,7 +947,6 @@ def main(args):
                                             )
 
                                         losslists[lossid][-1].append(lossvalue.sum().item())  #for logging
-                                        # intermediate_result.update({f"step_{step}_loss{lossid}": lossvalue.sum().item()})
                                         losses_for_backward.append(lossvalue)  # for backward
                                         logging_outputs.append(logging_output)
                                     
@@ -962,10 +969,12 @@ def main(args):
                                         total_batchloss = total_loss.sum()
                                         optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler)
                                     else:
+                                        ## calculating energy value.
                                         total_loss = 0.0
+                                        ## auto-regressive loss (negative likelihood)
                                         total_loss = losses_for_backward[0]
                                         cur_epsilons = []
-
+                                        ## losses related to constraint satisfaction : sum of - lambda * (epsilon - constraint value)
                                         constraint_values = []
                                         for sid in range(1, len(losses_for_backward)): #the secondary losses or constraints
                                             cur_epsilon = get_epsilon(step, epsilons[sid-1], min_epsilons[sid-1], epsilon_warmup_steps[sid-1], epsilon_cooldown_steps[sid-1], epsilon_decay_functions[sid-1])
@@ -974,14 +983,19 @@ def main(args):
                                             mask = lambda_.get_mask(sid-1, damp)
 
                                             closs_for_theta = lambda_.get_loss(sid - 1, damp * mask, (cur_epsilon - losses_for_backward[sid]))
+                                            # logger.debug(f"c{sid}_loss: {closs_for_theta}")
                                             total_loss = total_loss - closs_for_theta
                                             
                                             cur_epsilons.append(cur_epsilon)                             
                                             constraint_values.append(constraint_value.item())
-                                    
+                                            
+                                        # ## 23.10.09: add a l2 loss from original embedding (the smaller the better -> add)
+                                        # logger.debug(f"step {step} - torch.norm(init_embeds - pred_embeds[1], p=2): {torch.norm(init_embeds - pred_embeds[1], p=2)}")
+                                        # total_loss = total_loss + 0.25 * torch.norm(init_embeds - pred_embeds[1], p=2)    
+                                        # logger.debug(f"total_loss: {total_loss}")
+                                        # ##
                                         total_batchloss = total_loss.sum()
-                                        # print(f"[step{step}] cur_lr {cur_lr}") 
-                                        # print(f"[step{step}] total_batchloss.item()", total_batchloss.item())
+                                        # logger.debug(f"total_batchloss: {total_batchloss}")
                                         optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
 
                                         # print(f"[step{step}] pred_embeds[0][1].grad.norm(p=2, dim=-1)", pred_embeds[0][1].grad.norm(p=2, dim=-1))
@@ -1005,22 +1019,48 @@ def main(args):
                                         indices = list(range(len(pred_tokens[0])))
                                     else:
                                         indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step, unit=args.locate_unit, use_cuda=use_cuda)
+                                    # logger.debug(f"indices: {indices}")
                                     intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
 
                                     if indices == [[]]:
                                         print(f"Early stop at @{step} with a loss value of {weighted_loss} since no token is to be edited.")
                                         break
                                 
-                                ## 08/24/23 add gradient clipping
-                                if args.num_project_steps != 1:
-                                    torch.nn.utils.clip_grad_norm_(outputs.parameters(), 1)
+                                # ## 08/24/23 add gradient clipping
+                                # tmp_grad = list(outputs.parameters())[0].grad[:, indices]
+                                # logger.debug(f"!!![gradient min, max, norm] {tmp_grad.min()}, {tmp_grad.max()}, {torch.norm(tmp_grad, p=2)}")
+                                # if args.num_project_steps != 1 and step % args.num_project_steps != 0: # projection을 할때는 gradient clipping을 하지 않는다.
+                                #     torch.nn.utils.clip_grad_norm_(list(outputs.parameters())[0][:, indices], 1)
+                                # tmp_grad = list(outputs.parameters())[0].grad[:, indices]
+                                # logger.debug(f"!!![gradient min, max, norm] {tmp_grad.min()}, {tmp_grad.max()}, {torch.norm(tmp_grad, p=2)}")
+                                
                                 
                                 ## 08/17/23: to pass option for projection.
-                                project_yn = True if step % args.num_project_steps == 0 else False
-                                if logging_outputs[0].get('entropy', None) is not None:
-                                    optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None), project = project_yn) ### backpropagate
-                                else:
-                                    optimizer.step(indices, scaler=scaler, project = project_yn) ### backpropagate
+                                project_yn = True if (step % args.num_project_steps == (args.num_project_steps - 1)) else False
+                                logger.debug(f"step {step} | project? {project_yn} | tot loss {total_batchloss} | curr primary loss {losses_for_backward[0][0].item()}")
+                                old_predictions = getattr(optimizer._optimizer, "new_predictions", None)
+                                try:
+                                    if logging_outputs[0].get('entropy', None) is not None:
+                                        optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None), project = project_yn) ### backpropagate
+                                    else:
+                                        optimizer.step(indices, scaler=scaler, project = project_yn) ### backpropagate
+                                except RuntimeError:
+                                    ## end execution
+                                    logger.debug("Error raised. Ending program.")
+                                    end_program = True
+                                    break
+                                if project_yn:
+                                    new_predictions = getattr(optimizer._optimizer, 'new_predictions', None)
+                                    if old_predictions is None:
+                                        logger.debug(f"index: {indices}, before: {old_predictions}, after: {new_predictions[:, indices].squeeze()}")
+                                    else:
+                                        logger.debug(f"index: {indices}, before: {old_predictions[:, indices].squeeze()}, after: {new_predictions[:, indices].squeeze()}")
+                                # for i, group in enumerate(optimizer._optimizer.param_groups):
+                                #     logger.debug(i)
+                                #     for j, parameter in enumerate(group["params"]):
+                                #         logger.debug(j)
+                                #         logger.debug(parameter.data.shape)
+                                #         logger.debug(parameter.data)
                                 
                                 update_lr_condition = "none"
                                 if args.linear_scale != "true" and  len(losses) > 1:
@@ -1100,10 +1140,10 @@ def main(args):
                                 #         (best_loss[0] is not None and not best_allsat[0] and allsat) or\
                                 #         (best_allsat[0] and allsat and best_loss[0] > weighted_loss)
                                 
-                                # always update best_xxx if step = 1 (initialize best_xxx after 1st update step)
-                                modify_condition = (step == 1)
+                                # always update best_xxx if step = 1 * args.num_project_steps (initialize best_xxx after (1 * args.num_project_steps)st update step)
+                                modify_condition = (step == args.num_project_steps)
                                 
-                                if not modify_condition:
+                                if not modify_condition and (step % args.num_project_steps == 0):
                                     if (step == 0):
                                         modify_condition = False # if step == 0, same as AR prediction. don't update!
                                     elif args.selection_criterion == "allsat":
@@ -1164,7 +1204,8 @@ def main(args):
                                 broken=True
                                 break
                         ## gradient update done.
-
+                        if end_program:
+                            break
 
                         if args.time:
                             r = time.time()-starttime
@@ -1285,6 +1326,9 @@ def main(args):
                             
                             # if break_after:
                             #     break
+                    
+                    if end_program: # if nan occurred, end program entirely
+                        break
                         
                     ### RESTART HERE (check if convergence failed and restart if it failed & restart_index < restarts)
                     b=0
@@ -1406,9 +1450,15 @@ def main(args):
                     outf2.flush()
                     break # don't restart
             
+                if end_program: # if nan occurred, end program entirely
+                    break
+            
                 if args.debug and broken_skip:
                     break
 
+            if end_program: # if nan occurred, end program entirely
+                break
+            
             if args.debug and broken_skip: 
                 break
 

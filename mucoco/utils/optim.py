@@ -1836,38 +1836,17 @@ class EmbedGD_LE(EmbedGD):
                 s = state['s']
 
                 lrs = torch.Tensor(self.lrs[-seqlen-timestep//freq:len(self.lrs)-min(timestep, freq*seqlen-1)//freq]).to(gradient.device).unsqueeze(0).unsqueeze(2)
-                # print(lrs[0, :, 0])
-                # input()
-                # lrs = self.get_learning_rates(timestep, seqlen).to(gradient.device).unsqueeze(0).unsqueeze(2)
-                # print(lrs)
-                # print(lrs)
-                # print(entropy.size(), lrs.size())
-                # lrs = (lrs / entropy.unsqueeze(2))).clamp(min=0.5, max=1.0)
-                # print(lrs)
-                # if timestep > self.warmup_steps:
-                #     self.finaltemp = 0.9
-                #     self.r = pow(self.finaltemp/self.begintemp, 1/(self.temp_reduction_steps-1))
-                #     scale = max(self.finaltemp, self.begintemp * pow(self.r, timestep))
-                #     lrs = scale * lrs
-                    # d = (self.min_lr - lrs)/(self.max_updates - self.warmup_steps)
-                    # lrs = (lrs + (timestep - self.warmup_steps) * d).clamp(min=0.5)
-                    # # print(lrs)
+
                 noise = 0.0
                 if self.noise_variance >= 1e-6:
                     noise = torch.empty_like(gradient).normal_(mean=0,std=1)  #TODO schedule
                     noise_std = min(self.begintemp, max(self.finaltemp, self.begintemp * pow(self.r, timestep)))
                     noise = torch.sqrt(2*lrs) * noise * noise_std
                 
-                # s = s + torch.square(gradient.detach())
-                # sepsilon = 1e-8
-                # print(s.size(), gradient.size())
+                
 
-                # nu = momentum * nu + lrs * (gradient/torch.sqrt(s+sepsilon))
-                # print(torch.norm(gradient, p=2, dim=-1))
-                # print("hola before", nu, momentum, lrs, gradient)
-                nu = momentum * nu + lrs * gradient ## gradient ## grad_distance is used in order to ProjE.
-                # print("hola", nu, parameter.data, noise)
                 if project:
+                    nu = momentum * nu + lrs * gradient ## gradient ## grad_distance is used in order to ProjE.
                     if self.grad_distance == "dot":
                         temp = nu - parameter.data - noise 
                         objective = temp.matmul(embed_lut.t()) # (bs, seqlen, embed_size) * (embed_size, vocab_size)
@@ -1951,29 +1930,44 @@ class EmbedGD_LE(EmbedGD):
                     # print("final_prediction before editing:", final_prediction)
                     final_prediction[:, indices] = next_token[:, indices]
                     # print("final_prediction after editing:", final_prediction)
-                    # self.new_predictions = next_token
                     self.new_predictions = final_prediction
-                    new_embeddings = F.embedding(next_token, embed_lut)
                     
-                    # ## indices에 대해서만 new_embeddings로 update를 하고, 나머지 indices에 대해서는 기존 embedding값 유지
-                    # final_embeddings = parameter.data.clone().detach()
-                    # # print(f"final_embeddings indexed before editing: {final_embeddings[:, indices, :]}")
-                    # final_embeddings[:, indices, :] = new_embeddings[:, indices, :]
-                    # # print(f"new_embeddings indexed: {new_embeddings[:, indices, :]}")
-                    # # print(f"final_embeddings indexed: {final_embeddings[:, indices, :]}")
+                    # new_embeddings = F.embedding(next_token, embed_lut)
+                    new_embeddings = F.embedding(self.new_predictions, embed_lut)
+                    
+                    logger.debug(f"[project]")
+                    logger.debug(f"[before update] parameter@indices {torch.norm(parameter.data[:, indices],p=2)}, parameter {torch.norm(parameter.data,p=2)}")
                     parameter.data.copy_(new_embeddings)
-                    # print("parameter.data.grad", parameter.data.grad)
+                    logger.debug(f"[after update] parameter@indices {torch.norm(parameter.data[:, indices],p=2)}, parameter {torch.norm(parameter.data,p=2)}")
                 else:
-                    print("parameter.data", parameter.data)
-                    update_term = noise - nu
-                    print("update_term", update_term)
-                    mask = torch.zeros_like(noise)
-                    mask[:, indices] = 1
-                    print("mask", mask)
-                    parameter.data.addcmul_(update_term, mask)
-                    # parameter.data[:, indices] = new_embeddings[:, indices]
-                    print("parameter.data", parameter.data)
-                    # parameter에 바로 고쳐보기.
+                    ## note: momentum == 0 for constrained sampling (toxicity)
+                    nu = momentum * nu + lrs * gradient
+                    nu_active = nu[:, indices]
+                    logger.debug(f"gradient[:, indices] min, max, mean: {gradient[:, indices].min()}, {gradient[:, indices].max()}, {gradient[:, indices].mean()}")
+                    ## gradient clipping
+                    nu_active_norm = torch.norm(nu_active, p=2)
+                    logger.debug(f"clipping check. current norm: {nu_active_norm}")
+                    if nu_active_norm.isnan():
+                        raise RuntimeError(
+                            f'The total norm for gradients is non-finite, so it cannot be clipped.')
+                    max_norm = 1
+                    if nu_active_norm >= max_norm:
+                        logger.debug(f"clipping nu.")
+                        nu_active = nu_active * (max_norm / nu_active_norm)
+                        logger.debug(f"clipping nu done. new nu: {torch.norm(nu_active, p=2)}")
+                    ## end gradient clipping
+                    
+                    update_term = torch.zeros_like(noise)
+                    update_term[:, indices] = noise[:, indices] - nu_active
+                    logger.debug(f"[update term] {update_term.sum()}")
+                    logger.debug(f"[before update] parameter@indices {torch.norm(parameter.data[:, indices],p=2)}, parameter {torch.norm(parameter.data,p=2)}")
+                    parameter.data.add_(update_term)
+                    logger.debug(f"[after update] parameter@indices {torch.norm(parameter.data[:, indices],p=2)}, parameter {torch.norm(parameter.data,p=2)}")
+                    
+                    # update_term = noise - nu
+                    # mask = torch.zeros_like(noise)
+                    # mask[:, indices] = 1
+                    # parameter.data.addcmul_(update_term, mask)
 
                 state['step'] += 1
                 state['nu'] = nu
