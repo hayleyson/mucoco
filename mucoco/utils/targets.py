@@ -393,7 +393,6 @@ class TargetEmbeddings(nn.Module):
             self.final_bias = None
         
         self.initialize(random_init=random_init, init_value=init_value)
-        print(self.eos_token_id)
 
     def forward_multiple(self, embed_luts, new_predictions=None, **kwargs):
         if self.same_embed:
