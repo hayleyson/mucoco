@@ -6,9 +6,9 @@ class ModelWrapper:
     
     def forward(self, *args, **kwargs):
         step = kwargs.get("step", -1)
-        if step != -1 and self.last_forward_step == step:
-            # print("no need to go this again", step)
-            return self.last_forward_result
+        # if step != -1 and self.last_forward_step == step:
+        #     # print("no need to go this again", step)
+        #     return self.last_forward_result
         
         if step != -1:
             del kwargs["step"]
