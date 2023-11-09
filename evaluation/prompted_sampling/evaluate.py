@@ -7,6 +7,7 @@ import click
 import math
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, AutoConfig, TextClassificationPipeline
+import scipy
 
 import argparse
 import json
@@ -257,7 +258,7 @@ def bleu_i(weights, all_sentences, smoothing_function, i):
         weights=weights,
         smoothing_function=smoothing_function)
 
-def conditional_perplexity(generations_df, model, tokenizer, device='cuda', write_file=None):
+def conditional_perplexity(generations_df, model, tokenizer, device='cuda', write_file=None, include_trimmed_mean=False):
     perplexities = []
     goodperplexities = []
     # total_nll = 0
@@ -324,7 +325,12 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
     
     print(np.nanmean(goodperplexities), len(goodperplexities), len(perplexities), g)
     # return np.nanmean(perplexities), np.exp(total_nll/total_tokens)
-    return np.nanmean(perplexities), np.exp(np.nansum(total_nll)/np.nansum(total_tokens))
+    if include_trimmed_mean:
+        notna_perplexities = perplexities[np.isnan(perplexities)]
+        return np.nanmean(perplexities), scipy.stats.trim_mean(notna_perplexities, proportiontocut=0.001), np.exp(np.nansum(total_nll)/np.nansum(total_tokens))
+        
+    else:
+        return np.nanmean(perplexities), np.exp(np.nansum(total_nll)/np.nansum(total_tokens))
 
 def perplexity(generations_df, model, tokenizer, device='cuda', write_file=None):
     #TODO spearman correlation between human ppl and model ppl, not needed anymore, check degen ppl calculation, it's different from this.
@@ -844,6 +850,7 @@ def toxicity_score(generations_df, perspective_file, perspective_rate_limit=5):
                             'spanAnnotations': True,
                             "languages": ["en"],
                         }
+                        # print(analyze_request)
                         batch_request.add(client.comments().analyze(body=analyze_request), callback=response_callback, request_id=f"gen-{i}-{genid}-{j}")
                     # print(batch_request)
                     # input()
@@ -1332,6 +1339,20 @@ def main(generations_file, output_file, metrics, extra):
         with open(output_dir / output_file, 'a') as fo:
             fo.write(f'gpt2-xl perplexity, gpt2-xl total perplexity = {ppl}, {total_ppl}\n')
             print(f'gpt2-xl perplexity, gpt2-xl total perplexity = {ppl}, {total_ppl}\n')
+            
+    if "ppl-big-trim" in metricset: #GPT2-XL
+        print("big-trim")
+        
+        eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
+        eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
+        torch.cuda.empty_cache()
+        with torch.no_grad():
+            ppl, ppl_trim, total_ppl = conditional_perplexity(generations_df, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"), include_trimmed_mean=True)
+
+        # write output results
+        with open(output_dir / output_file, 'a') as fo:
+            fo.write(f'gpt2-xl perplexity, gpt2-xl perplexity after trimming 0.001, gpt2-xl total perplexity = {ppl}, {ppl_trimm}, {total_ppl}\n')
+            print(f'gpt2-xl perplexity, gpt2-xl perplexity after trimming 0.001, gpt2-xl total perplexity = {ppl}, {ppl_trim}, {total_ppl}\n')
 
     
     if "ppl-own" in metricset: #GPT2-Large

@@ -1840,9 +1840,12 @@ class EmbedGD_LE(EmbedGD):
                 noise = 0.0
                 if self.noise_variance >= 1e-6:
                     noise = torch.empty_like(gradient).normal_(mean=0,std=1)  #TODO schedule
+                    logger.debug(f"noise value: {noise.sum()}")
                     noise_std = min(self.begintemp, max(self.finaltemp, self.begintemp * pow(self.r, timestep)))
+                    logger.debug(f"noise_std value: {noise_std}")
                     noise = torch.sqrt(2*lrs) * noise * noise_std
-                
+                    logger.debug(f"noise value: {noise.sum()}")
+
                 
 
                 if project:
@@ -1939,12 +1942,22 @@ class EmbedGD_LE(EmbedGD):
                     logger.debug(f"[before update] parameter@indices {torch.norm(parameter.data[:, indices],p=2)}, parameter {torch.norm(parameter.data,p=2)}")
                     parameter.data.copy_(new_embeddings)
                     logger.debug(f"[after update] parameter@indices {torch.norm(parameter.data[:, indices],p=2)}, parameter {torch.norm(parameter.data,p=2)}")
+                
+                    ## reset momentum after projection
+                    nu = torch.zeros_like(gradient)
                 else:
-                    ## note: momentum == 0 for constrained sampling (toxicity)
+                    ## (deprecated) note: momentum == 0 for constrained sampling (toxicity)
+                    if type(nu) == int:
+                        logger.info(f"momentum: {momentum}, lrs: {lrs.sum()}, past nu norm: {nu}")
+                    else:
+                        logger.info(f"momentum: {momentum}, lrs: {lrs.sum()}, past nu norm: {torch.norm(nu, p=2)}")
                     nu = momentum * nu + lrs * gradient
+                    
                     nu_active = nu[:, indices]
+                    logger.info(nu_active.sum())
                     logger.debug(f"gradient[:, indices] min, max, mean: {gradient[:, indices].min()}, {gradient[:, indices].max()}, {gradient[:, indices].mean()}")
                     ## gradient clipping
+                    
                     nu_active_norm = torch.norm(nu_active, p=2)
                     logger.debug(f"clipping check. current norm: {nu_active_norm}")
                     if nu_active_norm.isnan():
@@ -1959,6 +1972,7 @@ class EmbedGD_LE(EmbedGD):
                     
                     update_term = torch.zeros_like(noise)
                     update_term[:, indices] = noise[:, indices] - nu_active
+                    logger.debug(f"[noise term] {noise[:, indices].sum()}")
                     logger.debug(f"[update term] {update_term.sum()}")
                     logger.debug(f"[before update] parameter@indices {torch.norm(parameter.data[:, indices],p=2)}, parameter {torch.norm(parameter.data,p=2)}")
                     parameter.data.add_(update_term)
@@ -1968,6 +1982,9 @@ class EmbedGD_LE(EmbedGD):
                     # mask = torch.zeros_like(noise)
                     # mask[:, indices] = 1
                     # parameter.data.addcmul_(update_term, mask)
+                    
+                    ## allow momentum 
+                    nu[:, indices] = nu_active
 
                 state['step'] += 1
                 state['nu'] = nu

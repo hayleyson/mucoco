@@ -17,13 +17,7 @@ source ~/conda3/etc/profile.d/conda.sh
 # conda activate hson-mucola
 conda activate mucola
 
-# srun bash examples/training_constraint_models/train_toxicity_classifier.sh  || echo "!!! error occurred"
-# srun python -m notebooks.resume_run  || echo "!!! error occurred"
-# srun bash examples/prompt/toxicity-all/mucola-disc.sh
-# srun bash examples/prompt/toxicity-all/locate-edit-disc.sh
-srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset.sh
-# srun bash examples/prompt/toxicity-all/mucola-disc-save-init-gen.sh
-# srun bash examples/prompt/evaluate_only.sh
+srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset-lr-update-$1.sh
 
 end=$(date +%s)
 

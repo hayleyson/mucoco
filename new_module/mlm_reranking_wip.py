@@ -1,33 +1,160 @@
 import os
 import sys
 sys.path.append("/home/s3/hyeryung/mucoco")
+import logging
+import json
 
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
-import logging
-import json
 import torch
 import transformers
 from transformers import AutoTokenizer, AutoConfig, AutoModelForMaskedLM
 import wandb
-
+import torch.nn.functional as F
 
 import mucoco.losses as lossbuilder
 import mucoco.options as options
 import mucoco.utils as utils
 from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon, locate
 
-import torch.nn.functional as F
+
+def get_combinatorial_candidates(mask_token_index, predicted_token_ids, inputs, config,  
+                                   mlm_tokenizer, primary_tokenizer):
+    ## get k ** num_located_indices sequences with different combinations of the top k tokens for located locations
+    ## test_sequences will hold a list of input ids encoded with GPT2Tokenizer
+    test_sequences = []
+    num_located_tokens = mask_token_index.size(-1)
+    num_all_cases = config['k_per_location'] ** num_located_tokens
+    tok_cand_combo = [0 for i in range(num_located_tokens)]
+    for case_id in range(num_all_cases):
+        for i in range(num_located_tokens):
+            tok_cand_combo[i] = (case_id // (config['k_per_location']**i)) % config['k_per_location']
+        
+        tmp_seq = inputs['input_ids'].clone()
+        for pos_id, tok_cand_id in enumerate(tok_cand_combo):
+            tmp_seq[0, mask_token_index[pos_id]] = predicted_token_ids.indices[pos_id, tok_cand_id]
+        
+        # need to do decode with RobertaTokenizer and encode with GPT2Tokenizer
+        # logger.debug(mlm_tokenizer.batch_decode(tmp_seq[:, mask_token_index], skip_special_tokens=True))
+        tmp_dec_seq = primary_tokenizer(mlm_tokenizer.batch_decode(tmp_seq, skip_special_tokens=True), return_tensors="pt").input_ids.cuda()
+        test_sequences.append(tmp_dec_seq)
+    
+    return test_sequences
+    
+
+def combinatorial_candidate_search(test_sequences, 
+                                   source_indices, source_batch, target_prefix, 
+                                   embed_luts, embed_scales, primary_tokenizer, config):
+
+    ## pass the candidates through loss functions and calculate weighted sum of losses.
+
+    ## define arguments that do not change across candidates
+    target_prefix = torch.empty((source_indices.size(0), 0)).long().to(config['device'])
+    primary_embed_dim = embed_luts[-1].embedding_dim
+    init = "target"
+    batch_size = 1
+    st = False
+    sampling_strategy = 'greedy'
+    sampling_strategy_k = 'none'
+    metric='l2'
+    same_embeds = True
+    final_bias = None
+    new_kweight = 5.0
+    step = 0
+    label_ids = [0, 0]
+    keywords = ["the" for _ in config['losses']]
+
+    candidate_total_losses = []
+    candidate_losses_for_loggings = []
+    candidate_allsats = []
+    candidate_primary_losses = []
+
+    with tqdm(total = len(test_sequences)) as pbar:
+        for ix in range(len(test_sequences)):
+
+            # logger.debug(f"== {ix} ==")
+            ## initialize embeddings
+            edit_candidate = test_sequences[ix]
+            sent_length = edit_candidate.size(1)
+            init_value = embed_luts[0](edit_candidate)
+            outputs = TargetEmbeddings(
+                        embed_dim=primary_embed_dim,
+                        embed_lut=embed_luts[0],
+                        sent_length=sent_length,
+                        batch_size=batch_size,
+                        device=config['device'],
+                        st=st,
+                        init_value=init_value, # initialize with current prediction
+                        random_init= init == "random",
+                        sampling_strategy=sampling_strategy,
+                        sampling_strategy_k=sampling_strategy_k,
+                        embed_scales=embed_scales,
+                        metric=metric,
+                        same_embed=same_embeds,
+                        final_bias=final_bias,
+                        eos_token_id=primary_tokenizer.eos_token_id
+                    )
+            pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=edit_candidate)
+            
+            ## c.f. What's happening inside. outputs.forward_multiple
+            # pred_tokens = test_sequences[ix]
+            # pred_probs = [None, None] # placeholder
+            # pred_embs = []
+            # for embed_lut in embed_luts:
+            #     pred_embs.append(embed_luts[0](test_sequences[ix]))
+            # pred_embeds = (pred_embs, embed_luts[0](test_sequences[ix]))
+
+            ## forward pass to calculate losses.
+            original_preds = None
+            if len(pred_embeds) > 1:
+                original_preds = pred_embeds[1]
+
+            losses_for_backward = []
+
+            for lossid, lossname in enumerate(config['losses']):
+                with torch.no_grad():
+                    lossvalue, logging_output =\
+                        lossfns[lossid].compute_loss(
+                            [source_batch, target_prefix], 
+                            [pred_tokens, pred_embeds[0][lossid], pred_probs], 
+                            additional_batch=None, 
+                            context_batch=None,
+                            use_context='false',
+                            embed_scale=embed_scales[lossid], 
+                            label_id=label_ids[lossid],
+                            keyword=keywords[lossid],
+                            original_preds=original_preds,
+                            kweight=new_kweight,
+                            step=step
+                        )
+
+                losses_for_backward.append(lossvalue)  # for backward
+                
+
+            ## calculate weighted sum of losses, check whether satisfying all constraints
+            allsat = True
+            total_loss = 0
+            losses_for_logging = []
+            for lossid, lossvalue in enumerate(losses_for_backward):
+                total_loss += config['loss_weights'][lossid] * lossvalue.sum().item()
+                losses_for_logging.append(lossvalue.sum().item())
+                if (lossid == 0):
+                    candidate_primary_losses.append(lossvalue.sum().item())
+                if (lossid >= 1) and (losses_for_backward[lossid] > config['min_epsilons'][lossid - 1]):
+                    allsat = False
+            candidate_total_losses.append(total_loss)
+            candidate_losses_for_loggings.append(losses_for_logging)
+            candidate_allsats.append(allsat)
+            
+            # step += 1 # not necessary, but doing it to avoid errors in model_wrapper.py forward
+            pbar.update(1)
+            for modelname in loss2modelname.values():
+                name2model[modelname].zero_grad(set_to_none=True) 
+            torch.cuda.empty_cache()
 
 
 ## hyperparemeters
-# selection_criteria = "weighted_sum" # "allsat_primary"
-# num_edit_token_per_step = 4
-# locate_unit = "token"
-# k_per_location = 3
-# loss_weights = [0.5, 0.5] # weights for each loss used for calculating the weighted sum of losses
-# n_iter = 1 # num times to repeat locate & edit
 config = dict(
 early_stopping_patience=-1,
 method='mlm',
@@ -63,37 +190,13 @@ source_data = 'ell-e/toxicity-avoidance/data/testset_gpt2_2500.jsonl'
 )
 
 display_name = f"mlm-{config['locate_unit']}-nps{config['num_edit_token_per_step']}-k{config['k_per_location']}-{config['selection_criteria']}-{config['loss_weights'][0]}-{config['loss_weights'][1]}-wandb-2"
-wandb.init(project="mucola", config=config, name=display_name)
+run = wandb.init(project="mucola", config=config, name=display_name)
 
-## other arguments
-# min_epsilons=[-3]
-# num_samples = 10
-# num_samples = 1
-# device = "cuda"
-# target_type='embeds'
-# cache_dir='hf_cache'
-# jsonl_primary_key = "prompt"
-# jsonl_secondary_key = "text"
-# losses = ['gpt2', 'classification_no_prefix']
-# build_loss_dict={'coeff_steps': 200, 
-#                 'coeff_pattern': 'constant',
-#                 'loss_type': 'dotplusplus',
-#                 'length_normalize': False,
-#                 'AR_temperature': 1.0,
-#                 'AR_top_k': 0,
-#                 'AR_top_p': 0.96,
-#                 'max_output_length': 20}
 class dummyArgs:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
 build_loss_args=dummyArgs(**config['build_loss_dict'])
-# model_paths=['gpt2-large',
-#             'models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best']
-# tokenizer_paths=['gpt2-large',
-#                 'models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best']
-# model_types=['AutoModelForCausalLM',
-#             'RobertaCustomForSequenceClassification']
 
 ## logging-related
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
@@ -299,130 +402,16 @@ for text_id in range(len(source_dataset)):
                 predicted_token_ids = torch.topk(logits[0, mask_token_index], k=config['k_per_location'], dim=-1)
                 # logger.debug(predicted_token_ids) # shape : (config['num_edit_token_per_step'],  config['k_per_location'])
 
-                ## get k ** num_located_indices sequences with different combinations of the top k tokens for located locations
-                ## test_sequences will hold a list of input ids encoded with GPT2Tokenizer
-                test_sequences = []
-                num_located_tokens = len(indices[0])
-                num_all_cases = config['k_per_location'] ** num_located_tokens
-                tok_cand_combo = [0 for i in range(num_located_tokens)]
-                for case_id in range(num_all_cases):
-                    for i in range(num_located_tokens):
-                        tok_cand_combo[i] = (case_id // (config['k_per_location']**i)) % config['k_per_location']
-                    
-                    tmp_seq = inputs['input_ids'].clone()
-                    for pos_id, tok_cand_id in enumerate(tok_cand_combo):
-                        tmp_seq[0, mask_token_index[pos_id]] = predicted_token_ids.indices[pos_id, tok_cand_id]
-                    
-                    # need to do decode with RobertaTokenizer and encode with GPT2Tokenizer
-                    # logger.debug(mlm_tokenizer.batch_decode(tmp_seq[:, mask_token_index], skip_special_tokens=True))
-                    tmp_dec_seq = primary_tokenizer(mlm_tokenizer.batch_decode(tmp_seq, skip_special_tokens=True), return_tensors="pt").input_ids.cuda()
-                    test_sequences.append(tmp_dec_seq)
-
-                ## pass the candidates through loss functions and calculate weighted sum of losses.
-
-                ## define arguments that do not change across candidates
-                target_prefix = torch.empty((source_indices.size(0), 0)).long().to(config['device'])
-                primary_embed_dim = embed_luts[-1].embedding_dim
-                init = "target"
-                batch_size = 1
-                st = False
-                sampling_strategy = 'greedy'
-                sampling_strategy_k = 'none'
-                metric='l2'
-                same_embeds = True
-                final_bias = None
-                new_kweight = 5.0
-                step = 0
-                label_ids = [0, 0]
-                keywords = ["the" for _ in config['losses']]
-
-                candidate_total_losses = []
-                candidate_losses_for_loggings = []
-                candidate_allsats = []
-                candidate_primary_losses = []
-
-                with tqdm(total = len(test_sequences)) as pbar:
-                    for ix in range(len(test_sequences)):
-
-                        # logger.debug(f"== {ix} ==")
-                        ## initialize embeddings
-                        edit_candidate = test_sequences[ix]
-                        sent_length = edit_candidate.size(1)
-                        init_value = embed_luts[0](edit_candidate)
-                        outputs = TargetEmbeddings(
-                                    embed_dim=primary_embed_dim,
-                                    embed_lut=embed_luts[0],
-                                    sent_length=sent_length,
-                                    batch_size=batch_size,
-                                    device=config['device'],
-                                    st=st,
-                                    init_value=init_value, # initialize with current prediction
-                                    random_init= init == "random",
-                                    sampling_strategy=sampling_strategy,
-                                    sampling_strategy_k=sampling_strategy_k,
-                                    embed_scales=embed_scales,
-                                    metric=metric,
-                                    same_embed=same_embeds,
-                                    final_bias=final_bias,
-                                    eos_token_id=primary_tokenizer.eos_token_id
-                                )
-                        pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=edit_candidate)
+                if config['search-option'] == 'combinatorial':
+                    test_sequences = get_combinatorial_candidates(mask_token_index, predicted_token_ids, inputs, config,  
+                                    mlm_tokenizer, primary_tokenizer)
+                    combinatorial_candidate_search(test_sequences, 
+                                    source_indices, source_batch, target_prefix, 
+                                    embed_luts, embed_scales, primary_tokenizer, config)
+                
+                elif config['search-option'] == 
                         
-                        ## c.f. What's happening inside. outputs.forward_multiple
-                        # pred_tokens = test_sequences[ix]
-                        # pred_probs = [None, None] # placeholder
-                        # pred_embs = []
-                        # for embed_lut in embed_luts:
-                        #     pred_embs.append(embed_luts[0](test_sequences[ix]))
-                        # pred_embeds = (pred_embs, embed_luts[0](test_sequences[ix]))
 
-                        ## forward pass to calculate losses.
-                        original_preds = None
-                        if len(pred_embeds) > 1:
-                            original_preds = pred_embeds[1]
-
-                        losses_for_backward = []
-
-                        for lossid, lossname in enumerate(config['losses']):
-                            with torch.no_grad():
-                                lossvalue, logging_output =\
-                                    lossfns[lossid].compute_loss(
-                                        [source_batch, target_prefix], 
-                                        [pred_tokens, pred_embeds[0][lossid], pred_probs], 
-                                        additional_batch=None, 
-                                        context_batch=None,
-                                        use_context='false',
-                                        embed_scale=embed_scales[lossid], 
-                                        label_id=label_ids[lossid],
-                                        keyword=keywords[lossid],
-                                        original_preds=original_preds,
-                                        kweight=new_kweight,
-                                        step=step
-                                    )
-
-                            losses_for_backward.append(lossvalue)  # for backward
-                            
-
-                        ## calculate weighted sum of losses, check whether satisfying all constraints
-                        allsat = True
-                        total_loss = 0
-                        losses_for_logging = []
-                        for lossid, lossvalue in enumerate(losses_for_backward):
-                            total_loss += config['loss_weights'][lossid] * lossvalue.sum().item()
-                            losses_for_logging.append(lossvalue.sum().item())
-                            if (lossid == 0):
-                                candidate_primary_losses.append(lossvalue.sum().item())
-                            if (lossid >= 1) and (losses_for_backward[lossid] > config['min_epsilons'][lossid - 1]):
-                                allsat = False
-                        candidate_total_losses.append(total_loss)
-                        candidate_losses_for_loggings.append(losses_for_logging)
-                        candidate_allsats.append(allsat)
-                        
-                        # step += 1 # not necessary, but doing it to avoid errors in model_wrapper.py forward
-                        pbar.update(1)
-                        for modelname in loss2modelname.values():
-                            name2model[modelname].zero_grad(set_to_none=True) 
-                        torch.cuda.empty_cache()
                 
                 if config['selection_criteria'] == "weighted_sum":
                     best_ix = np.argmin(np.array(candidate_total_losses))
@@ -524,58 +513,66 @@ for text_id in range(len(source_dataset)):
             
 outf.close()
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from evaluation.prompted_sampling.evaluate import conditional_perplexity, toxicity_score, toxicity_score_energy, toxicity_score_mucola, distinctness
-from pathlib import Path
+from evalute_only_wandb import main
 
-output_dir = Path(os.path.dirname(outfile))
-output_file = f"{outdir}/results_epsilon{config['min_epsilons'][0]}-test.txt"
-generations_df = pd.read_json(outfile, lines=True) 
+run_path=run.path
+run.finish()
 
-metrics="toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n"
-metricset = set(metrics.strip().lower().split(","))
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+main(run_path = run_path, 
+     outfile = outfile, 
+     metrics = 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
+# from transformers import AutoModelForCausalLM, AutoTokenizer
+# from evaluation.prompted_sampling.evaluate import conditional_perplexity, toxicity_score, toxicity_score_energy, toxicity_score_mucola, distinctness
+# from pathlib import Path
 
-if "ppl-big" in metricset: #GPT2-XL
-    logger.debug("big")
+# output_dir = Path(os.path.dirname(outfile))
+# output_file = f"{outdir}/results_epsilon{config['min_epsilons'][0]}-test.txt"
+# generations_df = pd.read_json(outfile, lines=True) 
+
+# metrics="toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n"
+# metricset = set(metrics.strip().lower().split(","))
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# if "ppl-big" in metricset: #GPT2-XL
+#     logger.debug("big")
     
-    eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
-    eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
-    torch.cuda.empty_cache()
-    with torch.no_grad():
-        ppl, total_ppl = conditional_perplexity(generations_df, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
-    wandb.log({'ppl': ppl, 'total_ppl': total_ppl})
+#     eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
+#     eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
+#     torch.cuda.empty_cache()
+#     with torch.no_grad():
+#         ppl, total_ppl = conditional_perplexity(generations_df, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
+#     wandb.log({'ppl': ppl, 'total_ppl': total_ppl})
 
-if 'toxicity' in metricset:
-    logger.debug("toxicity")
-    (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score(generations_df, perspective_file=output_dir / (output_file+".toxicity"))
-    wandb.log({'avg_max_toxicity': avg_max_toxicity, 'toxic_probability_p': toxic_probability_p,
-               'avg_toxicity': avg_toxicity, 'toxic_probability_s': toxic_probability_s})
+# if 'toxicity' in metricset:
+#     logger.debug("toxicity")
+#     (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score(generations_df, perspective_file=output_dir / (output_file+".toxicity"))
+#     wandb.log({'avg_max_toxicity': avg_max_toxicity, 'toxic_probability_p': toxic_probability_p,
+#                'avg_toxicity': avg_toxicity, 'toxic_probability_s': toxic_probability_s})
         
-if 'toxicity-energy' in metricset:
-    logger.debug("toxicity-energy")
-    (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score_energy(generations_df, toxicity_file=output_dir / (output_file+".toxicity_energy"))
-    wandb.log({'avg_max_toxicity_energy': avg_max_toxicity, 'toxic_probability_p_energy': toxic_probability_p,
-               'avg_toxicity_energy': avg_toxicity, 'toxic_probability_s_energy': toxic_probability_s})
-    # with open(output_dir / output_file, 'a') as fo:
-    #     fo.write(f'[energy model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
-    #     logger.debug(f'[energy model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
+# if 'toxicity-energy' in metricset:
+#     logger.debug("toxicity-energy")
+#     (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score_energy(generations_df, toxicity_file=output_dir / (output_file+".toxicity_energy"))
+#     wandb.log({'avg_max_toxicity_energy': avg_max_toxicity, 'toxic_probability_p_energy': toxic_probability_p,
+#                'avg_toxicity_energy': avg_toxicity, 'toxic_probability_s_energy': toxic_probability_s})
+#     # with open(output_dir / output_file, 'a') as fo:
+#     #     fo.write(f'[energy model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
+#     #     logger.debug(f'[energy model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
         
-if 'toxicity-mucola' in metricset:
-    logger.debug("toxicity-mucola")
-    (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score_mucola(generations_df, toxicity_file=output_dir / (output_file+".toxicity_mucola"))
-    wandb.log({'avg_max_toxicity_mucola': avg_max_toxicity, 'toxic_probability_p_mucola': toxic_probability_p,
-               'avg_toxicity_mucola': avg_toxicity, 'toxic_probability_s_mucola': toxic_probability_s})
-    # with open(output_dir / output_file, 'a') as fo:
-    #     fo.write(f'[mucola model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
-    #     logger.debug(f'[mucola model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
+# if 'toxicity-mucola' in metricset:
+#     logger.debug("toxicity-mucola")
+#     (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score_mucola(generations_df, toxicity_file=output_dir / (output_file+".toxicity_mucola"))
+#     wandb.log({'avg_max_toxicity_mucola': avg_max_toxicity, 'toxic_probability_p_mucola': toxic_probability_p,
+#                'avg_toxicity_mucola': avg_toxicity, 'toxic_probability_s_mucola': toxic_probability_s})
+#     # with open(output_dir / output_file, 'a') as fo:
+#     #     fo.write(f'[mucola model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
+#     #     logger.debug(f'[mucola model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
 
-if "dist-n" in metricset:
-    logger.debug("dist-n")
-    dist1, dist2, dist3 = distinctness(generations_df)
-    wandb.log({'dist-1': dist1, 'dist-2': dist2, 'dist-3': dist3})
-    # # write output results
-    # with open(output_dir / output_file, 'a') as fo:
-    #     for i, dist_n in enumerate([dist1, dist2, dist3]):
-    #         fo.write(f'dist-{i+1} = {dist_n}\n')
-    #         print(f'dist-{i+1} = {dist_n}')
+# if "dist-n" in metricset:
+#     logger.debug("dist-n")
+#     dist1, dist2, dist3 = distinctness(generations_df)
+#     wandb.log({'dist-1': dist1, 'dist-2': dist2, 'dist-3': dist3})
+#     # # write output results
+#     # with open(output_dir / output_file, 'a') as fo:
+#     #     for i, dist_n in enumerate([dist1, dist2, dist3]):
+#     #         fo.write(f'dist-{i+1} = {dist_n}\n')
+#     #         print(f'dist-{i+1} = {dist_n}')
