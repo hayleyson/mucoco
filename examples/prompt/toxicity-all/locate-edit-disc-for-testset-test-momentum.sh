@@ -30,8 +30,8 @@ EPSILON=-3
 # NUM_LOG_STEPS=1
 # NUM_LOCATE_STEPS=1 # if -1 then locate only once.
 # NUM_EDIT_TOKEN_PER_STEP=1 # if -1 then locate all tokens (same as mucola)
-NUM_PROJECT_STEPSS=(5)
-STEP_SIZES=(0.0)
+NUM_PROJECT_STEPSS=(15)
+STEP_SIZES=(0.01)
 # STEP_SIZES=(0.01 0.001 0.0001 0.00001)
 
 
@@ -50,7 +50,7 @@ do
             echo $model_type
             echo $STEP_SIZE
 
-            OUTPUTDIR=outputs/toxicity/projection-debug/${data_source}-${locate_unit}-netps${NUM_EDIT_TOKEN_PER_STEP}-nls${NUM_LOCATE_STEPS}-nps${NUM_PROJECT_STEPS}-model${model_type}-lr${STEP_SIZE}-debug-tmp
+            OUTPUTDIR=outputs/toxicity/momentum/${data_source}-${locate_unit}-netps${NUM_EDIT_TOKEN_PER_STEP}-nls${NUM_LOCATE_STEPS}-nps${NUM_PROJECT_STEPS}-model${model_type}-lr${STEP_SIZE}
             mkdir -p $OUTPUTDIR
             bash examples/prompt/constrained_sampling_locate_edit_for_testset.sh \
             nontoxic \
@@ -60,7 +60,7 @@ do
             $STEP_SIZE \
             dotplusplus \
             l2 \
-            0.0 \
+            0.2 \
             constant \
             legal \
             0 \

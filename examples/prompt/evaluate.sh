@@ -10,7 +10,8 @@ then
 elif [[ "$task" == "nontoxic" ]]
 then
     echo "nontoxic"
-    python ./evaluation/prompted_sampling/evaluate.py --generations_file $output --metrics toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n --output_file $results_path
+    # python ./evaluation/prompted_sampling/evaluate.py --generations_file $output --metrics toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n --output_file $results_path
+    python ./evaluation/prompted_sampling/evaluate.py --generations_file $output --metrics ppl-big --output_file $results_path
 elif [[ "$task" == "commongen" || "$task" == "roc" ]]
 then
     echo $task

@@ -30,9 +30,11 @@ EPSILON=-3
 # NUM_LOG_STEPS=1
 # NUM_LOCATE_STEPS=1 # if -1 then locate only once.
 # NUM_EDIT_TOKEN_PER_STEP=1 # if -1 then locate all tokens (same as mucola)
-NUM_PROJECT_STEPSS=(5)
-STEP_SIZES=(0.0)
-# STEP_SIZES=(0.01 0.001 0.0001 0.00001)
+
+# lr 업데이트가 안되게 한 상황에서, 기존에는 nan이 발생하던 set-up 에서 잘 작동하는지 체크
+
+NUM_PROJECT_STEPSS=(20 25)
+STEP_SIZES=(0.01)
 
 
 for model_type in "${model_types[@]}"
@@ -50,7 +52,7 @@ do
             echo $model_type
             echo $STEP_SIZE
 
-            OUTPUTDIR=outputs/toxicity/projection-debug/${data_source}-${locate_unit}-netps${NUM_EDIT_TOKEN_PER_STEP}-nls${NUM_LOCATE_STEPS}-nps${NUM_PROJECT_STEPS}-model${model_type}-lr${STEP_SIZE}-debug-tmp
+            OUTPUTDIR=outputs/toxicity/projection-debug/${data_source}-${locate_unit}-netps${NUM_EDIT_TOKEN_PER_STEP}-nls${NUM_LOCATE_STEPS}-nps${NUM_PROJECT_STEPS}-model${model_type}-lr${STEP_SIZE}-2
             mkdir -p $OUTPUTDIR
             bash examples/prompt/constrained_sampling_locate_edit_for_testset.sh \
             nontoxic \
@@ -80,8 +82,8 @@ do
             $EPSILON \
             true \
             true \
-            0.45 \
-            0.01 \
+            $STEP_SIZE \
+            0.0 \
             0 \
             true \
             false \

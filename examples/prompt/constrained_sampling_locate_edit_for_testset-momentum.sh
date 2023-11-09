@@ -63,15 +63,12 @@ fi
 echo $OPTIMSTEPS
 echo $EARLY_STOP_PATIENCE
 
-RESUME_INDEX=0
 # if [[ "$data_source" == "gpt2" ]]; then
 #     RESUME_INDEX=111
 # elif [[ "$data_source" == "jigsaw" ]]; then
 #     RESUME_INDEX=1321
 # fi
 # echo $RESUME_INDEX
-RESUME_INDEX=216
-echo $RESUME_INDEX
 
 #many of these hyperparams were used while experimentation and debugging and do not need to be changed
 gold_loss_epsilons="none"
@@ -1099,7 +1096,7 @@ then
         --locate_unit $locate_unit\
         --task_type $TASK_TYPE\
         --dev_mode true\
-        --resume_index $RESUME_INDEX\
+        # --resume_index $RESUME_INDEX\
     > $LOGFILE
     bash examples/prompt/evaluate.sh $option $OUTFILE $EVALFILE $EXTRAS $DATAFILE 
     done="true"

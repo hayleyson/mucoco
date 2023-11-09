@@ -57,7 +57,7 @@ def main(args):
         stream=sys.stdout,
     )
     logger = logging.getLogger("mucoco")
-    # logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.ERROR)
     logger.setLevel(logging.DEBUG)
     logger.info(args)
 
@@ -215,7 +215,6 @@ def main(args):
     lossfns = []
     for i, loss in enumerate(losses):
         lossfns.append(lossbuilder.build_loss(loss, name2model[model_paths[i]], name2tokenizer[model_paths[i]], args))
-        print(lossfns[-1])
         loss2modelname[loss] = model_paths[i]
         loss2tokenizer[loss] = name2tokenizer[model_paths[i]]
     primary_tokenizer = loss2tokenizer[losses[0]]
@@ -312,7 +311,7 @@ def main(args):
                     context_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(context_data)]
                     if args.jsonl_secondary_key is not None and args.jsonl_secondary_key != "none":
                         context_dataset = [x[args.jsonl_secondary_key] for x in context_dataset]
-                ##@
+                ##
                 if args.dev_mode == "true":
                     generation_dataset = [json.loads(l)["generations"] for l in open(source_data)]
             elif args.task_type == "revision":
@@ -662,7 +661,6 @@ def main(args):
                         total_weighted_loss += betas[lossid] * predicted_loss
 
                         if lossid > 0:
-                            logger.debug(f"initial min_epsilons[lossid-1]: {min_epsilons[lossid-1]}")
                             predicted_allsat = predicted_allsat and (predicted_loss <= min_epsilons[lossid-1])
                         
                         if "label_prediction" in predicted_lo:
@@ -671,15 +669,12 @@ def main(args):
                             predicted_labels[lossid] = "NA"
                         
                         if lossid > 0 and args.gold_loss_epsilons[lossid-1] == "true": #use the predicted loss as the threshold, mucoco has to beat it then
-                            
                             min_epsilons[lossid - 1] = predicted_loss + getattr(lossfns[lossid], "epsilon_additive", 0)
                             epsilons[lossid - 1] = predicted_loss + getattr(lossfns[lossid], "epsilon_additive", 0) ##TODO check 
-                            logger.debug(f"!!updated min_epsilon to {min_epsilons[lossid - 1]}")    
-
+                        
                     predictedlosslists.append(predictedlosses)
                     # print(f"[autoregressive] total_weighted_loss: {total_weighted_loss}, losses_for_backward[0]: {predictedlosses[0].data.cpu()}, losses_for_backward[1]: {predictedlosses[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, predicted_allsat: {predicted_allsat}")
                                         
-                    logger.debug(f"predicted_allsat: {predicted_allsat}")
                     
                     # if args.only_mucoco == "false":
                     #     lengthwise_best_prediction = [(AR_prediction, total_weighted_loss, predicted_allsat, predicted_batch[0].tolist(), -1)]
@@ -905,7 +900,6 @@ def main(args):
                         
                         for step in range(args.optim_steps):
                             try:
-                                logger.info(f"step: {step}")
                                 with torch.cuda.amp.autocast():
                                     losses_for_backward = []
                                     logging_outputs = []
@@ -937,9 +931,6 @@ def main(args):
                                         original_preds = pred_embeds[1]
 
                                     for lossid, lossname in enumerate(losses):
-                                        
-                                        print(lossfns[lossid])
-                                        
                                         lossvalue, logging_output =\
                                             lossfns[lossid].compute_loss(
                                                 [source_batch, target_prefix], 
@@ -1005,11 +996,6 @@ def main(args):
                                         # ##
                                         total_batchloss = total_loss.sum()
                                         # logger.debug(f"total_batchloss: {total_batchloss}")
-                                        
-                                        ## REMOVE THIS AFTER EXPERIMENT (23.10.19)
-                                        # total_batchloss = total_batchloss * 0.0
-                                        # logger.debug(f"total_batchloss: {total_batchloss}")
-                                        ##
                                         optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
 
                                         # print(f"[step{step}] pred_embeds[0][1].grad.norm(p=2, dim=-1)", pred_embeds[0][1].grad.norm(p=2, dim=-1))
@@ -1051,16 +1037,16 @@ def main(args):
                                 
                                 ## 08/17/23: to pass option for projection.
                                 project_yn = True if (step % args.num_project_steps == (args.num_project_steps - 1)) else False
-                                logger.debug(f"step {step} | project? {project_yn} | tot loss {total_batchloss} | curr primary loss {losses_for_backward[0][0].item()} | curr constraint loss {losses_for_backward[1][0].item()} | epsilon {min_epsilons[0]}")
+                                logger.debug(f"step {step} | project? {project_yn} | tot loss {total_batchloss} | curr primary loss {losses_for_backward[0][0].item()}")
                                 old_predictions = getattr(optimizer._optimizer, "new_predictions", None)
                                 try:
                                     if logging_outputs[0].get('entropy', None) is not None:
                                         optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None), project = project_yn) ### backpropagate
                                     else:
                                         optimizer.step(indices, scaler=scaler, project = project_yn) ### backpropagate
-                                except Exception as error:
+                                except RuntimeError:
                                     ## end execution
-                                    logger.error(f"Error raised. Ending program. Error msg: {error}")
+                                    logger.error("Error raised. Ending program.")
                                     end_program = True
                                     break
                                 if project_yn:
@@ -1085,23 +1071,12 @@ def main(args):
                                     lambda_mask += (1-sats.float()) * (lambda_.is_zero())
                                 
                                 total_batchlossitem = losses_for_backward[0].item()
-                                logger.debug(f"total_batchlossitem: {total_batchlossitem}, dynamic_lambda_update_prev_loss: {dynamic_lambda_update_prev_loss}")
-                                logger.debug(f"condition 1: {dynamic_lambda_update_prev_loss is not None}")
-                                
-                                
-                                if dynamic_lambda_update_prev_loss is not None:
-                                    logger.debug(f"abs(arg1 - arg2): {abs(total_batchlossitem - dynamic_lambda_update_prev_loss)}")
-                                    logger.debug(f"condition 2: {abs(total_batchlossitem - dynamic_lambda_update_prev_loss) <= 1e-6}")
                                 if dynamic_lambda_update_prev_loss is not None and abs(total_batchlossitem - dynamic_lambda_update_prev_loss) <= 1e-6:
-                                    logger.debug("entering outer if statement.")
                                     repeat_counts[0] += 1
                                     if args.linear_scale != "true" and  len(losses) > 1 and args.dynamic_lambda_update:
                                         lambda_mask = (1 - sats.float())
-                                    logger.debug(f"condition 3: args.dynamic_lr_update {args.dynamic_lr_update}")
-                                    logger.debug(f"condition 4: best_allsat[0] is not None {best_allsat[0] is not None}")
-                                    logger.debug(f"condition 5: best_allsat[0] {best_allsat[0]}")
+
                                     if args.dynamic_lr_update and best_allsat[0] is not None and best_allsat[0]:
-                                        logger.debug("update_lr_condition updated to increase.")
                                         update_lr_condition = "increase"
                                 else:
                                     repeat_counts[0] = 1

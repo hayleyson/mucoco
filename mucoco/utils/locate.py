@@ -1,5 +1,6 @@
 import torch
 import string
+import re
 
 punctuations = string.punctuation + '\n '
 punctuations = list(punctuations)
@@ -75,8 +76,10 @@ def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word
             j, k = 0, 0
             grouped_tokens = []
             grouped_tokens_for_word = []
-            words = tokenizer.decode(current_sent).strip().split()
-            # print("words", words)
+            # words = tokenizer.decode(current_sent).strip().split()
+            # words = re.split('|'.join(['\\'+x for x in punctuations + [' ']]), tokenizer.decode(current_sent).strip())
+            words = re.split(' |\.|\n', tokenizer.decode(current_sent).strip())
+            print("words", words)
             while j < len(current_sent):
                 if (tokenizer.decode(current_sent[j]).strip() not in punctuations) and (tokenizer.decode(current_sent[j]) not in ['\n', ' ']):
                     # print("tokenizer.decode(current_sent[j])", tokenizer.decode(current_sent[j]))
@@ -101,9 +104,9 @@ def locate(model, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word
                     # print("word", word)
                     if len(word) > 0:
                         word = word[0]
-                    else:
-                        print(f"!!! {index} not in the grouped_ixes {grouped_tokens}")
-                        print(f"!!! tokenizer.decode(index): {tokenizer.decode(index)}")
+                    # else:
+                    #     print(f"!!! {index} not in the grouped_ixes {grouped_tokens}")
+                    #     print(f"!!! tokenizer.decode(index): {tokenizer.decode(index)}")
                     top_masks_final_final.extend(word)
             locate_ixes.append(list(set(top_masks_final_final)))
 

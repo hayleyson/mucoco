@@ -1,8 +1,10 @@
 import logging
 import os
+import argparse
+import sys
+sys.path.append("/home/s3/hyeryung/mucoco")
 
 import wandb
-import click
 import pandas as pd
 from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -10,22 +12,18 @@ import torch
 
 from evaluation.prompted_sampling.evaluate import conditional_perplexity, toxicity_score, toxicity_score_energy, toxicity_score_mucola, distinctness
 
-
 ## logging-related
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 logger = logging.getLogger("le")
 logger.setLevel(logging.DEBUG)
 
-@click.command()
-@click.option('--run_path', help='Run path of a previous run to eval.')
-@click.option('--outfile', help='Path to the outputs file for eval.')
-@click.option('--metrics', default='toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n', help='comma-separated string of a list of metrics for eval.')
 def main(run_path, outfile, metrics):
+    
     wandb.init(project="mucola", id=run_path.split('/')[-1], resume="must")
     
     api = wandb.Api()
     run = api.run(run_path)
-    
+
     output_dir = Path(os.path.dirname(outfile))
     output_file = f"results_epsilon{run.config['min_epsilons'][0]}-test.txt"
     generations_df = pd.read_json(outfile, lines=True) 
@@ -80,4 +78,13 @@ def main(run_path, outfile, metrics):
         #         print(f'dist-{i+1} = {dist_n}')
         
 if __name__ == "__main__":
-    main()
+    
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--run_path', help='Run path of a previous run to eval.')
+    parser.add_argument('--outfile', help='Path to the outputs file for eval.')
+    parser.add_argument('--metrics', default='toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n', help='comma-separated string of a list of metrics for eval.')
+    
+    args = parser.parse_args()
+    
+    main(args.run_path, args.outfile, args.metrics)
