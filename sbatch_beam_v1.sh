@@ -16,7 +16,7 @@ source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
-srun python /home/s3/hyeryung/mucoco/new_module/mlm_reranking_beam_search_variant0.py
+srun python /home/s3/hyeryung/mucoco/new_module/mlm_reranking_beam_search_variant1.py
 
 end=$(date +%s)
 
