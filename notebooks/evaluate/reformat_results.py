@@ -1,6 +1,8 @@
 import pandas as pd
 
-dat = pd.read_json('/home/s3/hyeryung/mucoco/outputs/toxicity/mlm-reranking/mlm-token-nps4-k3-weighted_sum-0.5-0.5/outputs_epsilon-3.txt',
+display_name = 'mlm-token-nps4-k3-weighted_sum-0.5-0.5'
+
+dat = pd.read_json(f"/home/s3/hyeryung/mucoco/outputs/toxicity/mlm-reranking/{display_name}/outputs_epsilon-3.txt",
                    lines=True)
 
 original_dat = pd.read_json('/home/s3/hyeryung/mucoco/ell-e/toxicity-avoidance/data/testset_gpt2_2500.jsonl',
@@ -29,5 +31,5 @@ for ix, row in dat.iterrows():
         untangled_dat['allsat'].append(gen['allsat'])
     
 final_dat = pd.DataFrame(untangled_dat)
-final_dat.to_excel('/home/s3/hyeryung/mucoco/outputs/toxicity/mlm-reranking/mlm-token-nps4-k3-weighted_sum-0.5-0.5/outputs_epsilon-3.xlsx')        
+final_dat.to_excel(f"/home/s3/hyeryung/mucoco/outputs/toxicity/mlm-reranking/{display_name}/outputs_epsilon-3.xlsx")        
     
