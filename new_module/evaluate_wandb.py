@@ -10,16 +10,17 @@ from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-from evaluation.prompted_sampling.evaluate import conditional_perplexity, toxicity_score, toxicity_score_energy, toxicity_score_mucola, distinctness
+from evaluation.prompted_sampling.evaluate import conditional_perplexity, toxicity_score, toxicity_score_energy, toxicity_score_mucola, distinctness, repetition
 
 ## logging-related
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 logger = logging.getLogger("le")
 logger.setLevel(logging.DEBUG)
 
-def main(run_path, outfile, metrics):
+def evaluate(run_path, outfile, metrics):
     
-    wandb.init(project="mucola", id=run_path.split('/')[-1], resume="must")
+    # wandb.init(project="mucola", id=run_path.split('/')[-1], resume="allow")
+    wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
     
     api = wandb.Api()
     run = api.run(run_path)
@@ -77,6 +78,15 @@ def main(run_path, outfile, metrics):
         #         fo.write(f'dist-{i+1} = {dist_n}\n')
         #         print(f'dist-{i+1} = {dist_n}')
         
+        # repetition
+    if "repetition" in metricset:
+        eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-large')
+        rep_rate = repetition(generations_df, eval_tokenizer, rep_file=output_dir / (output_file+".repetitions"))
+        wandb.log({'rep_rate': rep_rate})
+        # with open(output_dir / output_file, 'a') as fo:
+        #     fo.write(f'repetition_rate: {rep_rate}')
+        #     print(f'repetition_rate: {rep_rate}')
+        
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
@@ -87,4 +97,4 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    main(args.run_path, args.outfile, args.metrics)
+    evaluate(args.run_path, args.outfile, args.metrics)
