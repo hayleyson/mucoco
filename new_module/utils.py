@@ -1,6 +1,7 @@
 import os
 import logging
 from typing import List
+import wandb
 
 import torch
 import torch.nn.functional as F
@@ -75,7 +76,10 @@ def score_hypotheses(my_prefix: torch.Tensor, my_hypotheses, my_config, mylossfn
             if _lossid == 0:
                 primr_loss_list.append(lossvalue.item())
             logging_loss.append(lossvalue.item())
-            curr_loss += my_config['loss_weights'][_lossid] * lossvalue.item()
+            if _lossid == 0:
+                curr_loss += (1 - wandb.config.closs_weight) * lossvalue.item()
+            else:
+                curr_loss += wandb.config.closs_weight * lossvalue.item()
         total_loss_list.append(curr_loss)
         logging_loss_list.append(logging_loss)
     return total_loss_list, primr_loss_list, logging_loss_list
@@ -109,7 +113,7 @@ def constrained_beam_search(source_batch,
             hypotheses_exp = []
             for hyp in hypotheses:
                 # logger.debug(f"hyp: {hyp}")
-                for j in range(config['k_per_location']):
+                for j in range(wandb.config.k_per_location):
                     candidate = predicted_token_ids.indices[torch.where(mask_token_index_primary == i)[0], j]
                     # logger.debug(f"candidate: {candidate}")
                     candidate = primary_tokenizer.encode(mlm_tokenizer.decode(candidate), return_tensors="pt").to(config['device'])
@@ -163,7 +167,7 @@ def constrained_beam_search_v0(source_batch,
             hypotheses_exp = []
             for hyp in hypotheses:
                 # logger.debug(f"hyp: {hyp}")
-                for j in range(config['k_per_location']):
+                for j in range(wandb.config.k_per_location):
                     candidate = predicted_token_ids.indices[torch.where(mask_token_index_primary == i)[0], j]
                     # logger.debug(f"candidate: {candidate}")
                     candidate = primary_tokenizer.encode(mlm_tokenizer.decode(candidate), return_tensors="pt").to(config['device'])
