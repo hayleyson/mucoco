@@ -1236,6 +1236,8 @@ def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
         generations = [gen['tokens'] for gen in row['generations']]
         for gen in generations:
             total_examples += 1
+            if len(gen) == 0:
+                continue
             if gen[-1] == SEP:
                 gen.pop(-1)
             rev_gen = list(reversed(gen))
