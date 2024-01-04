@@ -29,6 +29,77 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s -   %(message
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+def create_pairs_for_ranking(labels, logits):
+
+    ## what would be an efficient to create pairs?
+    first = []
+    second = []
+    num_samples = len(labels)
+    for i in range(num_samples):
+        for j in range(i+1, num_samples):
+            if labels[i] > labels[j]:
+                first.append(i)
+                second.append(j)
+            elif labels[i] < labels[j]:
+                first.append(j)
+                second.append(i)
+    better_logits = logits[first]
+    worse_logits = logits[second]
+
+    return better_logits, worse_logits
+
+class MyCollator(object):
+    def __init__(self, margin, tokenizer):
+        self.margin = margin
+        self.tokenizer = tokenizer
+
+    def __call__(self, batch):
+        ## sort samples by labels from batch
+        sorted_batch = sorted(batch, key=lambda x: x['labels'])
+
+        less_xx_batch = sorted_batch[:len(batch)//2]
+        more_xx_batch = sorted_batch[len(batch)//2:]
+
+        ## check if label difference is greater than margin (1?)
+        less_xx_batch_final = []
+        more_xx_batch_final = []
+        for i in range(len(batch)//2):
+            ## only use pairs that have label difference greater than margin
+            if less_xx_batch[i]['labels'] +self.margin < more_xx_batch[i]['labels']:
+                less_xx_batch_final.append(less_xx_batch[i])
+                more_xx_batch_final.append(more_xx_batch[i])
+            
+        # logger.debug(f"dropped items: {len(batch)-len(less_xx_batch_final)-len(more_xx_batch_final)}")
+
+        ## tokenize
+        less_xx_outputs =  self.tokenizer([example['text'] for example in less_xx_batch_final], padding=True, truncation=True, return_tensors="pt")
+        more_xx_outputs =  self.tokenizer([example['text'] for example in more_xx_batch_final], padding=True, truncation=True, return_tensors="pt")
+        
+        # outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
+        # outputs['labels'] = torch.Tensor([example['labels'] for example in batch])
+        
+        return {
+            "less_xx_input_ids": less_xx_outputs['input_ids'],
+            "less_xx_attention_mask": less_xx_outputs['attention_mask'],
+            "more_xx_input_ids": more_xx_outputs['input_ids'],
+            "more_xx_attention_mask": more_xx_outputs['attention_mask'],
+            "less_xx_labels": torch.Tensor([example['labels'] for example in less_xx_batch_final]),
+            "more_xx_labels": torch.Tensor([example['labels'] for example in more_xx_batch_final]),
+        }
+        
+def scale_labels(example):
+    example["labels"] = (example["labels"] + 3.) / 6. # range: -3 ~ 3 -> 0 ~ 1
+    return example
+
+
+
+class NegativeLogOddsLoss(nn.Module):
+    def __init__(self):
+        super(NegativeLogOddsLoss, self).__init__()
+
+    def forward(self, fy_i, fy_1_i):
+        return - torch.mean(torch.log(torch.sigmoid(fy_i - fy_1_i)))
+
 def main(args):
     
     batch_size = args.batch_size
@@ -39,6 +110,11 @@ def main(args):
     model_name = args.model
     margin = args.margin
     val_loss_type = args.val_loss_type
+    weight_mse = args.loss_weight_mse
+    weight_ranking = args.loss_weight_ranking
+    ranking_loss_type = args.ranking_loss_type
+    max_save_num = args.max_save_num
+    ckpt_save_path = args.checkpoint_path #"models/roberta-base-pt16-formality-ranker-with-gpt2-large-embeds-filtered"    
     
     config = {'batch_size': batch_size, 
               'num_epochs': num_epochs, 
@@ -48,10 +124,16 @@ def main(args):
               'weight_decay': weight_decay,
               'margin': margin,
               'val_loss_type': val_loss_type,
+              'loss_weight_mse': weight_mse,
+              'loss_weight_ranking': weight_ranking,
+              'ranking_loss_type': ranking_loss_type
               }
+    if ranking_loss_type == "scaled_ranking_loss":
+        del config['margin']
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    run = wandb.init(project='formality', entity='hayleyson', config=config)
+    run = wandb.init(project='formality', entity='hayleyson', config=config,
+                     notes=ckpt_save_path)
 
     ### data load
     # data= pd.read_csv('data/formality/PT16/answers', delimiter='\t', names=['score', 'individual scores', 'na', 'text'])
@@ -85,58 +167,23 @@ def main(args):
         train_data = pd.read_csv(f'{dpath}/train.tsv', sep='\t')
     valid_data = pd.read_csv(f'{dpath}/valid.tsv', sep='\t')
 
-    max_save_num = args.max_save_num
-    ckpt_save_path = args.checkpoint_path #"models/roberta-base-pt16-formality-ranker-with-gpt2-large-embeds-filtered"
     os.makedirs(ckpt_save_path, exist_ok=True)
     with open(f'{ckpt_save_path}/config.txt', 'w') as f:
-        config.update({'run_path': f'{run.entity}/{run.project}/{run.id}'})
+        config.update({'run_path': f'{run.entity}/{run.project}/{run.id}',
+                       'run_name': run.name})
         f.write(json.dumps(config))
 
     model, tokenizer = define_model(num_classes=1, device=device)
 
-    class MyCollator(object):
-        def __init__(self, margin):
-            self.margin = margin
-
-        def __call__(self, batch):
-            ## sort samples by labels from batch
-            sorted_batch = sorted(batch, key=lambda x: x['labels'])
-
-            less_xx_batch = sorted_batch[:len(batch)//2]
-            more_xx_batch = sorted_batch[len(batch)//2:]
-
-            ## check if label difference is greater than margin (1?)
-            less_xx_batch_final = []
-            more_xx_batch_final = []
-            for i in range(len(batch)//2):
-                ## only use pairs that have label difference greater than margin
-                if less_xx_batch[i]['labels'] +self.margin < more_xx_batch[i]['labels']:
-                    less_xx_batch_final.append(less_xx_batch[i])
-                    more_xx_batch_final.append(more_xx_batch[i])
-                
-            # logger.debug(f"dropped items: {len(batch)-len(less_xx_batch_final)-len(more_xx_batch_final)}")
-
-            ## tokenize
-            less_xx_outputs =  tokenizer([example['text'] for example in less_xx_batch_final], padding=True, truncation=True, return_tensors="pt")
-            more_xx_outputs =  tokenizer([example['text'] for example in more_xx_batch_final], padding=True, truncation=True, return_tensors="pt")
-            
-            # outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
-            # outputs['labels'] = torch.Tensor([example['labels'] for example in batch])
-            
-            return {
-                "less_xx_input_ids": less_xx_outputs['input_ids'],
-                "less_xx_attention_mask": less_xx_outputs['attention_mask'],
-                "more_xx_input_ids": more_xx_outputs['input_ids'],
-                "more_xx_attention_mask": more_xx_outputs['attention_mask'],
-                "less_xx_labels": torch.Tensor([example['labels'] for example in less_xx_batch_final]),
-                "more_xx_labels": torch.Tensor([example['labels'] for example in more_xx_batch_final]),
-            }
-
-    collate_fn = MyCollator(margin)
+    def collate_fn_default(batch):
+        outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
+        outputs['labels'] = torch.Tensor([example['labels'] for example in batch])
+        return outputs
     
-    def scale_labels(example):
-        example["labels"] = (example["labels"] + 3.) / 6. # range: -3 ~ 3 -> 0 ~ 1
-        return example
+    if ranking_loss_type == "margin_ranking_loss":
+        collate_fn = MyCollator(margin, tokenizer)
+    elif ranking_loss_type == "scaled_ranking_loss":
+        collate_fn = collate_fn_default
     
     train_dataset = Dataset.from_pandas(train_data)
     train_dataset = train_dataset.rename_column('score', 'labels')
@@ -150,20 +197,23 @@ def main(args):
     if val_loss_type == 'margin_ranking_loss':
         valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size*2,collate_fn=collate_fn,drop_last=True) 
         #c.f. batch_size*2 to avoid 1 sample in the last batch
+    elif val_loss_type == 'scaled_ranking_loss':
+        valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn) 
     elif val_loss_type == 'mse_loss':
-        def collate_fn_for_inference(batch):
-            outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
-            outputs['labels'] = torch.Tensor([example['labels'] for example in batch])
-            return outputs
-        valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn_for_inference)
+        valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn_default)
 
     optimizer = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 
     num_warmup_steps = len(train_loader)*num_epochs*0.1
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_loader)*num_epochs)
 
-    loss_fct = nn.MarginRankingLoss(margin=margin)
-    # c.f. loss(x1,x2,y)=max(0,−y∗(x1−x2)+margin)
+    if ranking_loss_type == "margin_ranking_loss":
+        ranking_loss_fct = nn.MarginRankingLoss(margin=1)
+    elif ranking_loss_type == "scaled_ranking_loss":
+        ranking_loss_fct = NegativeLogOddsLoss()
+        
+    mse_loss_fct = nn.MSELoss()
+    # loss(x1,x2,y)=max(0,−y∗(x1−x2)+margin)
 
     step=0
     best_val_loss = float("inf")
@@ -172,16 +222,38 @@ def main(args):
         model.train()
         train_loss = 0
         for batch in tqdm(train_loader, total=len(train_loader)):
+            if ranking_loss_type == "margin_ranking_loss":
+                less_xx_logits = model(input_ids = batch['less_xx_input_ids'].to(device),
+                                    labels = batch['less_xx_labels'].to(device),
+                                    attention_mask = batch['less_xx_attention_mask'].to(device)).logits
 
-            less_xx_logits = model(input_ids = batch['less_xx_input_ids'].to(device),
-                                labels = batch['less_xx_labels'].to(device),
-                                attention_mask = batch['less_xx_attention_mask'].to(device)).logits
+                more_xx_logits = model(input_ids = batch['more_xx_input_ids'].to(device),
+                                    labels = batch['more_xx_labels'].to(device),
+                                    attention_mask = batch['more_xx_attention_mask'].to(device)).logits
 
-            more_xx_logits = model(input_ids = batch['more_xx_input_ids'].to(device),
-                                labels = batch['more_xx_labels'].to(device),
-                                attention_mask = batch['more_xx_attention_mask'].to(device)).logits
+                
+                ranking_loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
 
-            loss = loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+                all_logits = torch.cat([less_xx_logits.squeeze(), more_xx_logits.squeeze()], dim=0).to(device)
+                all_labels = torch.cat([batch['less_xx_labels'].squeeze(), batch['more_xx_labels'].squeeze()], dim=0).to(device)
+
+                mse_loss = mse_loss_fct(all_logits, all_labels)
+            elif ranking_loss_type == "scaled_ranking_loss":
+                outputs = model(input_ids = batch['input_ids'].to(device),
+                        labels = batch['labels'].to(device),
+                        attention_mask = batch['attention_mask'].to(device))
+
+                mse_loss = outputs.loss
+
+                ## create pairs for ranking loss
+                more_xx_logits, less_xx_logits = create_pairs_for_ranking(batch['labels'], outputs.logits)
+
+                # ranking_loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+                ranking_loss = ranking_loss_fct(more_xx_logits, less_xx_logits)
+
+            logger.debug(f"mse_loss: {mse_loss}, ranking_loss: {ranking_loss}")
+            logger.debug(f"weight_mse *  mse_loss: {weight_mse *  mse_loss}, weight_ranking * ranking_loss: {weight_ranking * ranking_loss}")
+            loss = weight_mse *  mse_loss + weight_ranking * ranking_loss
             
             loss.backward()
             train_loss += loss.item()
@@ -207,7 +279,15 @@ def main(args):
                                         labels = batch['more_xx_labels'].to(device),
                                         attention_mask = batch['more_xx_attention_mask'].to(device)).logits
 
-                    loss = loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+                    loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+                
+                elif val_loss_type == 'scaled_ranking_loss':
+                    outputs = model(input_ids = batch['input_ids'].to(device),
+                                    labels = batch['labels'].to(device),
+                                    attention_mask = batch['attention_mask'].to(device))
+                    more_xx_logits, less_xx_logits = create_pairs_for_ranking(batch['labels'], outputs.logits)
+
+                    ranking_loss = ranking_loss_fct(more_xx_logits, less_xx_logits)
                 
                 elif val_loss_type == 'mse_loss':
                     outputs = model(input_ids = batch['input_ids'].to(device),
@@ -269,7 +349,11 @@ if __name__ == "__main__":
     args.add_argument('--margin', type=float, default=0.16666666666666666, help='margin for MarginRankingLoss & constructing batches')
     args.add_argument('--checkpoint_path', type=str, help='path to save checkpoints')
     args.add_argument('--max_save_num', type=int, default=1, help='maximum number of checkpoints to save')
-    args.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'mse_loss'], help='type of validation loss')
+    args.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss', 'mse_loss'], help='type of validation loss')
+    args.add_argument('--loss_weight_mse', type=float, default=0., help='weight for mse loss')
+    args.add_argument('--loss_weight_ranking', type=float, default=1., help='weight for ranking loss')
+    args.add_argument('--ranking_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss'], help='type of ranking loss')
+    
     args = args.parse_args()
     
     main(args)
