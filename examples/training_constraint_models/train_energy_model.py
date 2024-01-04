@@ -232,6 +232,8 @@ def main(args):
     mse_loss_fct = nn.MSELoss()
     # loss(x1,x2,y)=max(0,−y∗(x1−x2)+margin)
 
+    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / batch_size)
+
     step=0
     best_val_loss = float("inf")
     for epoch in tqdm(range(num_epochs)):
@@ -284,7 +286,7 @@ def main(args):
             train_loss += loss.item()
             
             train_metrics = {'step':step, 'train_loss': loss.item(), 'learning_rate': scheduler.get_last_lr()[0]}
-            if step + 1 < (epoch * num_batches_in_epoch):
+            if step + 1 < (epoch * n_steps_per_epoch):
                 wandb.log(train_metrics)
 
             optimizer.step()
