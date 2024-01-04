@@ -283,7 +283,9 @@ def main(args):
             loss.backward()
             train_loss += loss.item()
             
-            wandb.log({'step':step, 'train_loss': loss.item(), 'learning_rate': scheduler.get_last_lr()[0]})
+            train_metrics = {'step':step, 'train_loss': loss.item(), 'learning_rate': scheduler.get_last_lr()[0]}
+            if step + 1 < (epoch * num_batches_in_epoch):
+                wandb.log(train_metrics)
 
             optimizer.step()
             scheduler.step()
@@ -322,8 +324,8 @@ def main(args):
                 
                 valid_loss += loss.item()
                 
-        wandb.log({'epoch':epoch, 'train_loss_per_epoch':train_loss/len(train_loader) , 'valid_loss_per_epoch': valid_loss/len(valid_loader),
-                'epoch_end_learning_rate': scheduler.get_last_lr()[0]})
+        valid_metrics = {'epoch':epoch, 'valid_loss': valid_loss/len(valid_loader)}
+        wandb.log({**train_metrics, **valid_metrics})
         logger.info(f"Epoch: {epoch}, Training Loss: {train_loss/len(train_loader)}, Validation Loss: {valid_loss/len(valid_loader)}")
 
         avg_val_loss = valid_loss/len(valid_loader)
