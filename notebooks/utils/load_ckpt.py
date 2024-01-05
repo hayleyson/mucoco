@@ -25,19 +25,19 @@ params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
 
 # config 
 
-def define_model(mod_path=None, load_weights=True, output_attentions=False, output_hidden_states=False,
-                 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")):
+def define_model(num_classes:int = 2,
+                 mod_path:str=None, 
+                 load_weights:bool=True, 
+                 output_attentions:bool=False, 
+                 output_hidden_states:bool=False,
+                 device:torch.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"))\
+                     -> (AutoModelForSequenceClassification, AutoTokenizer):
     
     base_path = params[1]
-    binarize_labels = False
-    if len(params) > 12:
-        binarize_labels = params[12] == "binarize_labels"
 
     filetype = "txt"
     if len(params) > 13:
         filetype = params[13]
-
-    labels = [int(label) for label in params[2].split(",")]
 
     tokenizer_ = AutoTokenizer.from_pretrained(params[6])
     if params[10] != "none":
@@ -47,10 +47,10 @@ def define_model(mod_path=None, load_weights=True, output_attentions=False, outp
         tokenizer = tokenizer_
         # tokenizer = AutoTokenizer.from_pretrained(params[6])
         
-    config = AutoConfig.from_pretrained(params[6], num_labels=len(labels))
+    config = AutoConfig.from_pretrained(params[6], num_labels=num_classes)
     config2 = None
     if params[10] != "none":  
-        config2 = AutoConfig.from_pretrained(params[10], num_labels=len(labels))
+        config2 = AutoConfig.from_pretrained(params[10], num_labels=num_classes)
         # print(config2.pad_token_id)
         config2.pad_token_id = tokenizer.pad_token_id
         # print(config2.pad_token_id)
