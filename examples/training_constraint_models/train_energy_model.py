@@ -104,6 +104,42 @@ class NegativeLogOddsLoss(nn.Module):
     def forward(self, fy_i, fy_1_i):
         return - torch.mean(torch.log(torch.sigmoid(fy_i - fy_1_i)))
 
+def validate_model(model, valid_loader, val_loss_type, ranking_loss_fct, device):
+    "Compute performance of the model on the validation dataset"
+    valid_loss = 0.
+    model.eval()
+    with torch.no_grad():
+        for batch in valid_loader:
+            if val_loss_type == 'margin_ranking_loss':
+                
+                less_xx_logits = model(input_ids = batch['less_xx_input_ids'].to(device),
+                                labels = batch['less_xx_labels'].to(device),
+                                attention_mask = batch['less_xx_attention_mask'].to(device)).logits
+
+                more_xx_logits = model(input_ids = batch['more_xx_input_ids'].to(device),
+                                    labels = batch['more_xx_labels'].to(device),
+                                    attention_mask = batch['more_xx_attention_mask'].to(device)).logits
+                
+                loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+            
+            elif val_loss_type == 'scaled_ranking_loss':
+                outputs = model(input_ids = batch['input_ids'].to(device),
+                                labels = batch['labels'].to(device),
+                                attention_mask = batch['attention_mask'].to(device))
+                more_xx_logits, less_xx_logits = create_pairs_for_ranking(batch['labels'], outputs.logits)
+
+                loss = ranking_loss_fct(more_xx_logits, less_xx_logits)
+            
+            elif val_loss_type == 'mse_loss':
+                outputs = model(input_ids = batch['input_ids'].to(device),
+                                labels = batch['labels'].to(device),
+                                attention_mask = batch['attention_mask'].to(device))
+                loss = outputs.loss
+            
+            valid_loss += (loss.item()*len(batch['labels']))
+    return valid_loss/len(valid_loader)
+
+
 def main(args):
     
     batch_size = args.batch_size
@@ -123,6 +159,7 @@ def main(args):
     valid_data_path = args.valid_data_path
     wandb_entity = args.wandb_entity
     wandb_project = args.wandb_project  
+    num_validate_steps = args.num_validate_steps
     
     config = {'batch_size': batch_size, 
               'num_epochs': num_epochs, 
@@ -233,9 +270,12 @@ def main(args):
     # loss(x1,x2,y)=max(0,−y∗(x1−x2)+margin)
 
     n_steps_per_epoch = math.ceil(len(train_loader.dataset) / batch_size)
+    if num_validate_steps == -1:
+        num_validate_steps = n_steps_per_epoch
 
     step=0
     best_val_loss = float("inf")
+    best_val_step = -1
     for epoch in tqdm(range(num_epochs)):
 
         model.train()
@@ -286,84 +326,57 @@ def main(args):
             train_loss += loss.item()
             
             train_metrics = {'step':step, 'train_loss': loss.item(), 'learning_rate': scheduler.get_last_lr()[0]}
-            if step + 1 < (epoch * n_steps_per_epoch):
-                wandb.log(train_metrics)
-
+            
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
             step+=1
-
-
-        valid_loss = 0
-        for batch in valid_loader:
-            model.eval()
-            with torch.no_grad():
-                if val_loss_type == 'margin_ranking_loss':
-                    less_xx_logits = model(input_ids = batch['less_xx_input_ids'].to(device),
-                                    labels = batch['less_xx_labels'].to(device),
-                                    attention_mask = batch['less_xx_attention_mask'].to(device)).logits
-
-                    more_xx_logits = model(input_ids = batch['more_xx_input_ids'].to(device),
-                                        labels = batch['more_xx_labels'].to(device),
-                                        attention_mask = batch['more_xx_attention_mask'].to(device)).logits
-
-                    loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+        
+            if step % num_validate_steps == 0:
                 
-                elif val_loss_type == 'scaled_ranking_loss':
-                    outputs = model(input_ids = batch['input_ids'].to(device),
-                                    labels = batch['labels'].to(device),
-                                    attention_mask = batch['attention_mask'].to(device))
-                    more_xx_logits, less_xx_logits = create_pairs_for_ranking(batch['labels'], outputs.logits)
-
-                    ranking_loss = ranking_loss_fct(more_xx_logits, less_xx_logits)
+                valid_loss = validate_model(model, valid_loader, val_loss_type, ranking_loss_fct, device) ## also check correlation?
+                valid_metrics = {'epoch':epoch, 'valid_loss': valid_loss}
+                wandb.log({**train_metrics, **valid_metrics})
                 
-                elif val_loss_type == 'mse_loss':
-                    outputs = model(input_ids = batch['input_ids'].to(device),
-                                    labels = batch['labels'].to(device),
-                                    attention_mask = batch['attention_mask'].to(device))
-                    loss = outputs.loss
-                
-                valid_loss += loss.item()
-                
-        valid_metrics = {'epoch':epoch, 'valid_loss': valid_loss/len(valid_loader)}
-        wandb.log({**train_metrics, **valid_metrics})
-        logger.info(f"Epoch: {epoch}, Training Loss: {train_loss/len(train_loader)}, Validation Loss: {valid_loss/len(valid_loader)}")
+                # avg_val_loss = valid_loss/len(valid_loader)
+                avg_val_loss = valid_loss
+                if avg_val_loss < best_val_loss:
+                    logger.info("Saving checkpoint!")
+                    best_val_loss = avg_val_loss
+                    best_val_step = step
+                    # tokenizer.save_pretrained(f"{ckpt_save_path}/epoch_{epoch}")
+                    # model.save_pretrained(f"{ckpt_save_path}/epoch_{epoch}")
+                    tokenizer.save_pretrained(f"{ckpt_save_path}/step_{step}")
+                    model.save_pretrained(f"{ckpt_save_path}/step_{step}")
+                    torch.save({"optimizer": optimizer.state_dict(),
+                                "scheduler": scheduler.state_dict(),}, f"{ckpt_save_path}/step_{step}/optimizer_scheduler.pt")
 
-        avg_val_loss = valid_loss/len(valid_loader)
-        if avg_val_loss < best_val_loss:
-            logger.info("Saving checkpoint!")
-            best_val_loss = avg_val_loss
-            # torch.save({
-            #     'epoch': epoch,
-            #     'model_state_dict': model.state_dict(),
-            #     'optimizer_state_dict': optimizer.state_dict(),
-            #     'val_loss': best_val_loss,
-            #     },
-            #     f"{ckpt_save_path}/epoch_{epoch}_best_ckpt.pt"
-            # )
-            tokenizer.save_pretrained(f"{ckpt_save_path}/epoch_{epoch}")
-            model.save_pretrained(f"{ckpt_save_path}/epoch_{epoch}")
+                    # check if num of saved checkpoints exceed max_save_num.
+                    fileData = {}
+                    test_output_dir = ckpt_save_path
+                    for fname in os.listdir(test_output_dir):
+                        # if fname.startswith('epoch'):
+                        if fname.startswith('step'):
+                            fileData[fname] = os.stat(test_output_dir + '/' + fname).st_mtime
+                        else:
+                            pass
+                    sortedFiles = sorted(fileData.items(), key=itemgetter(1))
 
-            # check if num of saved checkpoints exceed max_save_num.
-            fileData = {}
-            test_output_dir = ckpt_save_path
-            for fname in os.listdir(test_output_dir):
-                if fname.startswith('epoch'):
-                    fileData[fname] = os.stat(test_output_dir + '/' + fname).st_mtime
-                else:
-                    pass
-            sortedFiles = sorted(fileData.items(), key=itemgetter(1))
+                    if len(sortedFiles) < max_save_num:
+                        pass
+                    else: # if so, delete the oldest checkpoint(s).
+                        delete = len(sortedFiles) - max_save_num
+                        for x in range(0, delete):
+                            one_folder_name = test_output_dir + '/' + sortedFiles[x][0]
+                            logger.debug(one_folder_name)
+                            os.system('rm -r ' + one_folder_name)
+                    logger.info('-----------------------------------')
+            else:
+                wandb.log(train_metrics)
 
-            if len(sortedFiles) < max_save_num:
-                pass
-            else: # if so, delete the oldest checkpoint(s).
-                delete = len(sortedFiles) - max_save_num
-                for x in range(0, delete):
-                    one_folder_name = test_output_dir + '/' + sortedFiles[x][0]
-                    logger.debug(one_folder_name)
-                    os.system('rm -r ' + one_folder_name)
-            logger.info('-----------------------------------')
+    logger.info(f"best_val_loss: {best_val_loss}, best_val_step: {best_val_step}")
+    os.rename(f"{ckpt_save_path}/step_{step}", f"{ckpt_save_path}/step_{step}_best_checkpoint")
+        
     
 
 if __name__ == "__main__":
@@ -371,7 +384,7 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser(description='Training a ranking model')
     args.add_argument('--model', type=str, default='roberta-large-ranker', help='model name')
     args.add_argument('--batch_size', type=int, default=16, help='batch size')
-    args.add_argument('--num_epochs', type=int, default=20, help='number of epochs')
+    args.add_argument('--num_epochs', type=int, default=3, help='number of epochs')
     args.add_argument('--max_lr', type=float, default=5e-5, help='maximum learning rate')
     args.add_argument('--weight_decay', type=float, default=0.01, help='weight decay')
     #args.add_argument('--filtering', action='store_true', help='filtering training data')
@@ -387,6 +400,7 @@ if __name__ == "__main__":
     args.add_argument('--wandb_entity', type=str, default='hayleyson', help='wandb entity')
     args.add_argument('--wandb_project', type=str, default='formality', help='wandb project')
     args.add_argument('--task', type=str, default='formality', choices=['formality', 'sentiment'], help='task name')
+    args.add_argument('--num_validate_steps', type=int, default=-1, help='number of steps until validate & save checkpoint. -1: only validate & save checkpoint at the end of each epoch')
     
     args = args.parse_args()
     
