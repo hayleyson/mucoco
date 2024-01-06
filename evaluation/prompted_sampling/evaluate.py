@@ -6,8 +6,10 @@ from tqdm import tqdm
 import click
 import math
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, AutoConfig, TextClassificationPipeline
+from transformers import AutoModelForSequenceClassification, AutoModelForCausalLM, AutoTokenizer, pipeline, AutoConfig, TextClassificationPipeline
 import scipy
+from torch.utils.data import DataLoader, Dataset
+import numpy as np
 
 import argparse
 import json
@@ -1022,6 +1024,93 @@ def toxicity_score_mucola(generations_df, toxicity_file=None):
         
     return (np.nanmean(avg_max_toxicity), sum(toxic_probability_p)/len(toxic_probability_p), \
             np.nanmean(avg_toxicity), sum(toxic_probability_s)/len(toxic_probability_s))
+
+def formality_score_ext(generations_df, output_file, device):
+    
+    
+    class CustomDataset():
+        def __init__(self, data_list):
+            self.data_list = data_list
+            
+        def __len__(self):
+            return len(self.data_list)
+        
+        def __getitem__(self, index):
+            return self.data_list[index]
+
+    def collate_fn(example_batch):
+       return tokenizer(example_batch, padding=True, truncation=True, return_tensors="pt").to(device)
+    
+    tokenizer = AutoTokenizer.from_pretrained("cointegrated/roberta-base-formality")
+    model = AutoModelForSequenceClassification.from_pretrained("cointegrated/roberta-base-formality")
+    model.to(device)
+    model.eval()
+    
+    softmax = nn.Softmax(dim=-1)
+    
+    generations = generations_df["generations"]
+    texts = [example[0]['text'] for example in generations]
+    dataset = CustomDataset(texts)
+    dataloader = DataLoader(dataset, batch_size=8,
+                            shuffle=False, collate_fn=collate_fn)
+    
+    formality_scores = []
+    formal_counts = 0
+    for batch in dataloader:
+        with torch.no_grad():
+            outputs = model(**batch)
+            # print(outputs.logits)
+            probs = softmax(outputs.logits)
+            formality_scores.extend(probs[:, -1].tolist())
+            formal_counts += torch.sum(torch.where(probs[:,-1] >= 0.5,1,0)).item()
+            
+    with open(output_file, 'w') as f:
+        f.writelines([str(x)+'\n' for x in formality_scores])
+    
+    return np.nanmean(formality_scores), formal_counts/len(texts)
+
+
+def formality_score_int(checkpoint_path, generations_df, output_file, device):
+    
+    
+    class CustomDataset():
+        def __init__(self, data_list):
+            self.data_list = data_list
+            
+        def __len__(self):
+            return len(self.data_list)
+        
+        def __getitem__(self, index):
+            return self.data_list[index]
+
+    def collate_fn(example_batch):
+       return tokenizer(example_batch, padding=True, truncation=True, return_tensors="pt").to(device)
+
+    config = AutoConfig.from_pretrained(checkpoint_path)    
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+    model = RobertaCustomForSequenceClassification.from_pretrained(checkpoint_path,config=config)
+    model.to(device)
+    model.eval()
+    
+    generations = generations_df["generations"]
+    texts = [example[0]['text'] for example in generations]
+    dataset = CustomDataset(texts)
+    dataloader = DataLoader(dataset, batch_size=8,
+                            shuffle=False, collate_fn=collate_fn)
+    
+    formality_scores = []
+    formal_counts = 0
+    for batch in dataloader:
+        with torch.no_grad():
+            outputs = model(**batch)
+            formality_scores.extend(outputs.logits.squeeze().tolist())
+            formal_counts += torch.sum(torch.where(outputs.logits > 0,1,0)).item()
+            
+    with open(output_file, 'w') as f:
+        f.writelines([str(x)+'\n' for x in formality_scores])
+    
+    return np.nanmean(formality_scores), formal_counts/len(texts)
+        
 
 def distinctness(generations_df):
     dist1, dist2, dist3 = [], [], []

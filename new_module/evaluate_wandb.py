@@ -3,6 +3,7 @@ import os
 import argparse
 import sys
 sys.path.append("/home/s3/hyeryung/mucoco")
+sys.path.append("/home/hyeryung_son/mucoco")
 
 import wandb
 import pandas as pd
@@ -10,14 +11,18 @@ from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-from evaluation.prompted_sampling.evaluate import conditional_perplexity, toxicity_score, toxicity_score_energy, toxicity_score_mucola, distinctness, repetition
+from evaluation.prompted_sampling.evaluate import conditional_perplexity, toxicity_score, toxicity_score_energy, toxicity_score_mucola, \
+    formality_score_int, formality_score_ext, distinctness, repetition
 
 ## logging-related
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 logger = logging.getLogger("le")
 logger.setLevel(logging.DEBUG)
 
-def evaluate(run_path, outfile, metrics):
+def evaluate(run_path, outfile, metrics, **kwargs):
+    """
+    kwargs: includes "formality_model_path" for formality-int score
+    """
     
     # wandb.init(project="mucola", id=run_path.split('/')[-1], resume="allow")
     wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
@@ -67,6 +72,17 @@ def evaluate(run_path, outfile, metrics):
         # with open(output_dir / output_file, 'a') as fo:
         #     fo.write(f'[mucola model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
         #     logger.debug(f'[mucola model] avg_max_toxicity = {avg_max_toxicity}, toxicity prob prompt = {toxic_probability_p}, avg_toxicity = {avg_toxicity}, toxicity prob={toxic_probability_s}\n')
+
+    if 'formality-ext' in metricset:
+        logger.debug("formality-external")
+        avg_formality, formal_proba = formality_score_ext(generations_df, output_dir / (output_file+".formality_ext"), device)
+        wandb.log({'avg_formality': avg_formality, 'formal_proba': formal_proba})
+        
+    if 'formality-int' in metricset:
+        logger.debug("formality-internal")
+        avg_formality, formal_proba = formality_score_int(formality_model_path,
+                                                          generations_df, output_dir / (output_file+".formality_int"), device)
+        wandb.log({'avg_formality_int': avg_formality, 'formal_proba_int': formal_proba})
 
     if "dist-n" in metricset:
         logger.debug("dist-n")
