@@ -1,0 +1,725 @@
+Popen(['git', 'rev-parse', '--show-toplevel'], cwd=/home/s3/hyeryung/mucoco, stdin=None, shell=False, universal_newlines=False)
+Popen(['git', 'rev-parse', '--show-toplevel'], cwd=/home/s3/hyeryung/mucoco, stdin=None, shell=False, universal_newlines=False)
+Starting new HTTPS connection (1): api.wandb.ai:443
+https://api.wandb.ai:443 "POST /graphql HTTP/1.1" 200 1762
+https://api.wandb.ai:443 "POST /graphql HTTP/1.1" 200 365
+wandb: Currently logged in as: hayleyson. Use `wandb login --relogin` to force relogin
+Popen(['git', 'cat-file', '--batch-check'], cwd=/home/s3/hyeryung/mucoco, stdin=<valid stream>, shell=False, universal_newlines=False)
+wandb: wandb version 0.16.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.16.0
+wandb: Run data is saved locally in /home/s3/hyeryung/mucoco/wandb/run-20240105_071312-1eo9d9mr
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run northern-galaxy-8
+wandb: ⭐️ View project at https://wandb.ai/hayleyson/formality-decoding
+wandb: 🚀 View run at https://wandb.ai/hayleyson/formality-decoding/runs/1eo9d9mr
+Starting new HTTPS connection (1): huggingface.co:443
+https://huggingface.co:443 "HEAD /gpt2-large/resolve/main/tokenizer_config.json HTTP/1.1" 404 0
+https://huggingface.co:443 "HEAD /gpt2-large/resolve/main/config.json HTTP/1.1" 200 0
+https://huggingface.co:443 "HEAD /gpt2-large/resolve/main/tokenizer_config.json HTTP/1.1" 404 0
+https://huggingface.co:443 "HEAD /gpt2-large/resolve/main/vocab.json HTTP/1.1" 200 0
+https://huggingface.co:443 "HEAD /gpt2-large/resolve/main/config.json HTTP/1.1" 200 0
+https://huggingface.co:443 "HEAD /gpt2-large/resolve/main/generation_config.json HTTP/1.1" 200 0
+https://huggingface.co:443 "HEAD /roberta-base/resolve/main/tokenizer_config.json HTTP/1.1" 404 0
+https://huggingface.co:443 "HEAD /roberta-base/resolve/main/config.json HTTP/1.1" 200 0
+https://huggingface.co:443 "HEAD /roberta-base/resolve/main/tokenizer_config.json HTTP/1.1" 404 0
+https://huggingface.co:443 "HEAD /roberta-base/resolve/main/vocab.json HTTP/1.1" 200 0
+https://huggingface.co:443 "HEAD /roberta-base/resolve/main/config.json HTTP/1.1" 200 0
+text_id 0 sample_id 0 
+[text] Is Any Baby Really A Freak.
+ 
+[input_ids] tensor([[ 3792,  4377, 14801, 16123,   317, 45328,    13,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 2]]
+located indices: Is Baby
+best_text: If Anybody Really A Freak.
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: If
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: If
+text_id 1 sample_id 0 
+[text] aspen colorado has he best music festivals, you sit all over the moutians its  on and just hang out
+ 
+[input_ids] tensor([[  292,  3617,  3124,  4533,   468,   339,  1266,  2647, 25575,    11,
+           345,  1650,   477,   625,   262,   285,   448,  1547,   663,   220,
+           319,   290,   655,  8181,   503,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: as
+best_text: Aspen colorado has he best music festivals, you sit all over the moutians its  on and just hang out
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: As
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: As
+text_id 2 sample_id 0 
+[text] You can get almost anything on ebay!
+ 
+[input_ids] tensor([[ 1639,   460,   651,  2048,  1997,   319,   304, 24406,     0,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: You
+best_text: You can get almost anything on ebay!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: You
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: You
+text_id 3 sample_id 0 
+[text] everybody is Dying to get in
+ 
+[input_ids] tensor([[16833,  2618,   318, 41011,   284,   651,   287,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: every
+best_text: Somebody is Dying to get in
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: Some
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: Some
+text_id 4 sample_id 0 
+[text] not idiots like 50 cent and his whole Gay unit.those kinds of ppl give hip-hop a bad name.
+ 
+[input_ids] tensor([[ 1662, 35838,   588,  2026,  1247,   290,   465,  2187, 16013,  4326,
+            13, 25591,  6982,   286,   279,   489,  1577, 10359,    12,  8548,
+           257,  2089,  1438,    13,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 1, 8, 9]]
+located indices: not idiots Gay unit
+best_text: He's like 50 cent and his whole life is.those kinds of ppl give hip-hop a bad name.
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: He
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: He
+text_id 5 sample_id 0 
+[text] different from what I've seen though
+ 
+[input_ids] tensor([[39799,   422,   644,   314,  1053,  1775,   996,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: different
+best_text: So from what I've seen though
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: So
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: So
+text_id 6 sample_id 0 
+[text] I want to be on TV!
+ 
+[input_ids] tensor([[  40,  765,  284,  307,  319, 3195,    0,  198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: I
+best_text: I want to be on TV!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: I
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: I
+text_id 7 sample_id 0 
+[text] dont let anyone decide the fate but you.
+ 
+[input_ids] tensor([[   67,   756,  1309,  2687,  5409,   262, 10030,   475,   345,    13,
+           198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 6]]
+located indices: d fate
+best_text: Dont let anyone decide the future but you.
+
+iter 1, sample_idx: 0
+located indices: [[0, 6]]
+located indices: D future
+iter 2, sample_idx: 0
+located indices: [[0, 6]]
+located indices: D future
+text_id 8 sample_id 0 
+[text] 50 is just riding coattails with that movie.
+ 
+[input_ids] tensor([[ 1120,   318,   655, 10311,   763,  1078,  1768,   351,   326,  3807,
+            13,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 9, 3]]
+located indices: 50 movie riding
+best_text: There is just no coattails with that one.
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: There
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: There
+text_id 9 sample_id 0 
+[text] The blind klan guy is hilarious!
+ 
+[input_ids] tensor([[  464,  7770,   479,  9620,  3516,   318, 20105,     0,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: The
+best_text: This blind klan guy is hilarious!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: This
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: This
+text_id 10 sample_id 0 
+[text] Lauren Hill and Mary J. Bilge... the 411 both are great albums to listen to... Old School...
+ 
+[input_ids] tensor([[14772, 23532,  3327,   290,  5335,   449,    13, 24207,   469,   986,
+           262, 43184,  1111,   389,  1049, 16788,   284,  6004,   284,   986,
+          5706,  3961,   986,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: La
+best_text: Auren Hill and Mary J. Bilge... the 411 both are great albums to listen to... Old School...
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: A
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: A
+text_id 11 sample_id 0 
+[text] do you have 2lbs worth o brick?
+ 
+[input_ids] tensor([[ 4598,   345,   423,   362, 32133,  2861,   267, 17214,    30,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: do
+best_text: Do you have 2lbs worth o brick?
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: Do
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: Do
+text_id 12 sample_id 0 
+[text] i betta go and ask another stupid question lol....
+ 
+[input_ids] tensor([[   72,   731,  8326,   467,   290,  1265,  1194,  8531,  1808, 19462,
+          1106,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: i
+best_text: I betta go and ask another stupid question lol....
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: I
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: I
+text_id 13 sample_id 0 
+[text] As a guy that doesn't generally like romantic movies this was really nice.
+ 
+[input_ids] tensor([[ 1722,   257,  3516,   326,  1595,   470,  4143,   588, 14348,  6918,
+           428,   373,  1107,  3621,    13,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 8, 2, 9]]
+located indices: As romantic guy movies
+best_text: In a country that doesn't generally like surprises, this was really nice.
+
+iter 1, sample_idx: 0
+located indices: [[0, 8]]
+located indices: In surprises
+iter 2, sample_idx: 0
+located indices: [[0, 8]]
+located indices: In surprises
+text_id 14 sample_id 0 
+[text] I can still see my brother's 45 in my mind's eye.
+ 
+[input_ids] tensor([[  40,  460,  991,  766,  616, 3956,  338, 4153,  287,  616, 2000,  338,
+         4151,   13,  198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: I
+best_text: I can still see my brother's 45 in my mind's eye.
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: I
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: I
+text_id 15 sample_id 0 
+[text] Back in my day Emo was a comedian :/
+ 
+[input_ids] tensor([[ 7282,   287,   616,  1110,  2295,    78,   373,   257, 23139,  1058,
+            14,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: Back
+best_text: Even in my day Emo was a comedian :/
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: Even
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: Even
+text_id 16 sample_id 0 
+[text] Why sit and listen to Locke, Jack, or Syead?
+ 
+[input_ids] tensor([[ 5195,  1650,   290,  6004,   284, 34576,    11,  3619,    11,   393,
+          1632,  1329,    30,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: Why
+best_text: To sit and listen to Locke, Jack, or Syead?
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: To
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: To
+text_id 17 sample_id 0 
+[text] I like when the Prime Minister goes door to door to find the girl!
+ 
+[input_ids] tensor([[  40,  588,  618,  262, 5537, 4139, 2925, 3420,  284, 3420,  284, 1064,
+          262, 2576,    0,  198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 13]]
+located indices: I girl
+best_text: I like when the Prime Minister goes door to door to find the truth!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: I
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: I
+text_id 18 sample_id 0 
+[text] And every time I hear that song I get butterflies in my stomach!
+ 
+[input_ids] tensor([[ 1870,   790,   640,   314,  3285,   326,  3496,   314,   651, 44571,
+           287,   616, 11384,     0,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: And
+best_text: And every time I hear that song I get butterflies in my stomach!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: And
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: And
+text_id 19 sample_id 0 
+[text] It's the biggest load of crap I've seen for ages.
+ 
+[input_ids] tensor([[ 1026,   338,   262,  4094,  3440,   286, 18824,   314,  1053,  1775,
+           329,  9337,    13,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 3, 6]]
+located indices: It biggest crap
+best_text: It's the biggest load of garbage I've seen for ages.
+
+iter 1, sample_idx: 0
+located indices: [[0, 11, 4, 6]]
+located indices: It ages load garbage
+iter 1. Update best prediction
+best_text: It's the biggest piece of data I've seen for years.
+
+iter 2, sample_idx: 0
+located indices: [[0, 6]]
+located indices: It data
+iter 2. Update best prediction
+best_text: It's the biggest piece of art I've seen for years.
+
+text_id 20 sample_id 0 
+[text] as i lay dying is far far away from christ definitaly!
+ 
+[input_ids] tensor([[  292,  1312,  3830,  9950,   318,  1290,  1290,  1497,   422, 33826,
+          2730,  1287,    88,     0,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: as
+best_text: Where i lay dying is far far away from christ definitaly!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: Where
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: Where
+text_id 21 sample_id 0 
+[text] I might be seeing them in a few months!
+ 
+[input_ids] tensor([[  40, 1244,  307, 4379,  606,  287,  257, 1178, 1933,    0,  198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: I
+best_text: We might be seeing them in a few months!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: We
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: We
+text_id 22 sample_id 0 
+[text] that´s why they needed to open that hatch so much!
+ 
+[input_ids] tensor([[ 5562, 18265,    82,  1521,   484,  2622,   284,  1280,   326, 25834,
+           523,   881,     0,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: that
+best_text: This´s why they needed to open that hatch so much!
+
+iter 1, sample_idx: 0
+located indices: [[0, 9]]
+located indices: This hatch
+iter 1. Update best prediction
+best_text: This´s why they needed to open that up so much!
+
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: This
+text_id 23 sample_id 0 
+[text] He's supposed to be in jail!
+ 
+[input_ids] tensor([[1544,  338, 4385,  284,  307,  287, 7356,    0,  198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: He
+best_text: He's supposed to be in jail!
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: He
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: He
+text_id 24 sample_id 0 
+[text] i thought that she did an outstanding job in the movie
+ 
+[input_ids] tensor([[   72,  1807,   326,   673,   750,   281, 11660,  1693,   287,   262,
+          3807,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 10]]
+located indices: i movie
+best_text: I thought that she did an outstanding job in the interview
+
+iter 1, sample_idx: 0
+located indices: [[0, 10]]
+located indices: I interview
+iter 2, sample_idx: 0
+located indices: [[0, 10]]
+located indices: I interview
+text_id 25 sample_id 0 
+[text] Nicole Kidman, I love her eyes
+ 
+[input_ids] tensor([[30403,  2305, 16828,   805,    11,   314,  1842,   607,  2951,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 2]]
+located indices: Nic Kid
+best_text: Hole Colman, I love her eyes
+
+iter 1, sample_idx: 0
+located indices: [[0, 8]]
+located indices: H eyes
+iter 1. Update best prediction
+best_text: Nole Colman, I love her.
+
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: N
+text_id 26 sample_id 0 
+[text] omg i love that song im listening to it right now
+ 
+[input_ids] tensor([[ 296,   70, 1312, 1842,  326, 3496,  545, 8680,  284,  340,  826,  783,
+          198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 1]]
+located indices: omg
+best_text: I, i love that song im listening to it right now
+
+iter 1, sample_idx: 0
+located indices: [[0, 5]]
+located indices: I song
+iter 1. Update best prediction
+best_text: Yeah, i love that, im listening to it right now
+
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: Yeah
+text_id 27 sample_id 0 
+[text] tell him you want a 3 way with another hot girl
+ 
+[input_ids] tensor([[33331,   683,   345,   765,   257,   513,   835,   351,  1194,  3024,
+          2576,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: tell
+best_text: Tell him you want a 3 way with another hot girl
+
+iter 1, sample_idx: 0
+located indices: [[0, 9]]
+located indices: Tell hot
+iter 2, sample_idx: 0
+located indices: [[0, 9]]
+located indices: Tell hot
+text_id 28 sample_id 0 
+[text] No, no, no that was WITNESS...
+ 
+[input_ids] tensor([[ 2949,    11,   645,    11,   645,   326,   373,   370, 46144,   986,
+           198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 8]]
+located indices: NoITNESS
+best_text: No, no, no that was WTF...
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: No
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: No
+text_id 29 sample_id 0 
+[text] aneways shonenjump.com is cool and yeah narutos awsum
+ 
+[input_ids] tensor([[  272, 43613,   427, 34481, 43327,    13,   785,   318,  3608,   290,
+         10194, 30083,   315,   418,  3253, 16345,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: an
+best_text: seways shonenjump.com is cool and yeah narutos awsum
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: s
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: s
+text_id 30 sample_id 0 
+[text] i think they would have, quite a shame isn't it
+ 
+[input_ids] tensor([[   72,   892,   484,   561,   423,    11,  2407,   257, 10195,  2125,
+           470,   340,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: i
+best_text: I think they would have, quite a shame isn't it
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: I
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: I
+text_id 31 sample_id 0 
+[text] im a huge green day fan!!!!!
+ 
+[input_ids] tensor([[  320,   257,  3236,  4077,  1110,  4336, 50184,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 6]]
+located indices: im!!!!!
+best_text: As a huge green day fan,
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: As
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: As
+text_id 32 sample_id 0 
+[text] Chicken Little my son loves that movie I have to watch at least 4 times a day!
+ 
+[input_ids] tensor([[45565,  7703,   616,  3367, 10408,   326,  3807,   314,   423,   284,
+          2342,   379,  1551,   604,  1661,   257,  1110,     0,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: Chicken
+best_text: The Little my son loves that movie I have to watch at least 4 times a day!
+
+iter 1, sample_idx: 0
+located indices: [[0, 1]]
+located indices: The Little
+iter 1. Update best prediction
+best_text: I know my son loves that movie I have to watch at least 4 times a day!
+
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: I
+text_id 33 sample_id 0 
+[text] who is your best bet for american idol season five
+ 
+[input_ids] tensor([[ 8727,   318,   534,  1266,   731,   329, 45630,   272, 21580,  1622,
+          1936,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: who
+best_text: This is your best bet for american idol season five
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: This
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: This
+text_id 34 sample_id 0 
+[text] my age gas prices and my blood pressure  LOL
+ 
+[input_ids] tensor([[ 1820,  2479,  3623,  4536,   290,   616,  2910,  3833,   220, 35513,
+           198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 9]]
+located indices: my LOL
+best_text: New age gas prices and my blood pressure.
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: New
+iter 1. Update best prediction
+best_text: My age gas prices and my blood pressure.
+
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: My
+text_id 35 sample_id 0 
+[text] Where in the world do you come up with these questions????
+ 
+[input_ids] tensor([[8496,  287,  262,  995,  466,  345, 1282,  510,  351,  777, 2683, 9805,
+          198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 10]]
+located indices: Where questions
+best_text: How in the world do you come up with these numbers????
+
+iter 1, sample_idx: 0
+located indices: [[0, 10]]
+located indices: How numbers
+iter 2, sample_idx: 0
+located indices: [[0, 10]]
+located indices: How numbers
+text_id 36 sample_id 0 
+[text] even though i also agree that the girls on Love Hina are pretty scrumptious
+ 
+[input_ids] tensor([[10197,   996,  1312,   635,  4236,   326,   262,  4813,   319,  5896,
+           367,  1437,   389,  2495,  6040,   388,   457,   699,   198]],
+       device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0]]
+located indices: even
+best_text: - though i also agree that the girls on Love Hina are pretty scrumptious
+
+iter 1, sample_idx: 0
+located indices: [[0]]
+located indices: -
+iter 2, sample_idx: 0
+located indices: [[0]]
+located indices: -
+text_id 37 sample_id 0 
+[text] and the blond says Great they already put me on my first murder mystery case
+ 
+[input_ids] tensor([[  392,   262, 32749,  1139,  3878,   484,  1541,  1234,   502,   319,
+           616,   717,  5123, 10715,  1339,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 2, 14]]
+located indices: and blond case
+best_text: As the title says Great they already put me on my first murder mystery.
+
+iter 1, sample_idx: 0
+located indices: [[0, 13]]
+located indices: As mystery
+iter 1. Update best prediction
+best_text: As the title says Great they already put me on my first murder spree.
+
+iter 2, sample_idx: 0
+located indices: [[0, 2, 13]]
+located indices: As title spree
+text_id 38 sample_id 0 
+[text] im looking for the song lyrics to a song called Breath Me by Sia...does anyone else like that song?
+ 
+[input_ids] tensor([[  320,  2045,   329,   262,  3496, 15844,   284,   257,  3496,  1444,
+         26988,  2185,   416,   311,   544,   986, 22437,  2687,  2073,   588,
+           326,  3496,    30,   198]], device='cuda:0')
+iter 0, sample_idx: 0
+located indices: [[0, 10, 15]]
+located indices: im Breath...
+{'task': 'formality', 'output_dir_prefix': 'outputs/formality/mlm-reranking', 'early_stopping_patience': -1, 'method': 'mlm-beamsearch', 'locate_unit': 'token', 'min_epsilons': [0.75], 'num_samples': 1, 'device': 'cuda', 'target_type': 'embeds', 'cache_dir': 'hf_cache', 'jsonl_primary_key': 'prompt', 'jsonl_secondary_key': 'text', 'losses': ['gpt2', 'classification_no_prefix'], 'build_loss_dict': {'coeff_steps': 200, 'coeff_pattern': 'constant', 'loss_type': 'xentropy', 'length_normalize': False, 'AR_temperature': 1.0, 'AR_top_k': 0, 'AR_top_p': 0.96, 'max_output_length': 20}, 'model_paths': ['gpt2-large', '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'], 'tokenizer_paths': ['gpt2-large', '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'], 'model_types': ['AutoModelForCausalLM', 'RobertaCustomForSequenceClassification'], 'source_data': 'data/formality/GYAFC_Corpus/Entertainment_Music/test/informal', 'source_style': 'informal', 'target_style': 'formal', 'target_label_ids': [1, 1], 'num_edit_token_per_step': 5, 'k_per_location': 15, 'n_iter': 3, 'selection_criteria': 'weighted_sum', 'closs_weight': 0.32, 'beam_size': 5}
+50265
+Traceback (most recent call last):
+  File "new_module/examples/formality_transfer.py", line 506, in <module>
+    main(config)
+  File "new_module/examples/formality_transfer.py", line 290, in main
+    hypotheses = constrained_beam_search_v0(source_batch,
+  File "/home/s3/hyeryung/mucoco/new_module/utils.py", line 180, in constrained_beam_search_v0
+    losses, primary_losses, constraint_losses = score_hypotheses(source_batch,
+  File "/home/s3/hyeryung/mucoco/new_module/utils.py", line 67, in score_hypotheses
+    mylossfns[_lossid].compute_gold_loss(
+  File "/home/s3/hyeryung/mucoco/mucoco/losses/gpt2.py", line 491, in compute_gold_loss
+    model_output = self.model(input_tokens)
+  File "/home/s3/hyeryung/mucoco/mucoco/losses/model_wrapper.py", line 29, in __call__
+    return self.forward(*args, **kwargs)
+  File "/home/s3/hyeryung/mucoco/mucoco/losses/model_wrapper.py", line 24, in forward
+    self.last_forward_result = self.model(*args, **kwargs)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 1080, in forward
+    transformer_outputs = self.transformer(
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 903, in forward
+    outputs = block(
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 391, in forward
+    attn_outputs = self.attn(
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 313, in forward
+    query, key, value = self.c_attn(hidden_states).split(self.split_size, dim=2)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/transformers/pytorch_utils.py", line 103, in forward
+    x = torch.addmm(self.bias, x.view(-1, x.size(-1)), self.weight)
+KeyboardInterrupt
+Error in atexit._run_exitfuncs:
+Traceback (most recent call last):
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/wandb/sdk/wandb_manager.py", line 175, in _teardown
+    result = self._service.join()
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/site-packages/wandb/sdk/service/service.py", line 271, in join
+    ret = self._internal_proc.wait()
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/subprocess.py", line 1083, in wait
+    return self._wait(timeout=timeout)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/subprocess.py", line 1822, in _wait
+    (pid, sts) = self._try_wait(0)
+  File "/home/s3/hyeryung/miniconda3/envs/loc-edit/lib/python3.8/subprocess.py", line 1780, in _try_wait
+    (pid, sts) = os.waitpid(self.pid, wait_flags)
+KeyboardInterrupt
+Starting new HTTPS connection (1): o151352.ingest.sentry.io:443
+https://o151352.ingest.sentry.io:443 "POST /api/4504800232407040/envelope/ HTTP/1.1" 200 2
