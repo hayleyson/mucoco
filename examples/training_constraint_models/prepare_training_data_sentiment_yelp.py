@@ -8,6 +8,7 @@ sys.path.append("/home/s3/hyeryung/mucoco")
 os.chdir("/home/s3/hyeryung/mucoco")
             
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s", 
                    datefmt="%m/%d/%Y %H:%M:%S", 
@@ -30,13 +31,9 @@ def main():
     
     data = data.rename(columns={'stars': 'labels'})
     
-    data = data.sample(frac=1,random_state=999).reset_index(drop=True)#shuffle
-    train_size = math.ceil(len(data) * 0.9)
-    valid_size = math.ceil(len(data) * 0.05)
-
-    train_data = data.iloc[:train_size,:].copy()
-    valid_data = data.iloc[train_size:-valid_size, :].copy()
-    test_data = data.iloc[-valid_size:,:].copy()
+    ## stratified split, small valid set
+    train_data, test_data = train_test_split(data, test_size=0.05, random_state=999,stratify=data['labels'])
+    train_data, valid_data = train_test_split(train_data, test_size=5000, random_state=999,stratify=train_data['labels'])
 
     ## save train/valid data for reproducibility
     os.makedirs('../data/yelp',exist_ok=True)
