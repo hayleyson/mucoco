@@ -8,8 +8,9 @@ import json
 import logging
 from collections import namedtuple
 from typing import List
-sys.path.append("/home/s3/hyeryung/mucoco")
-os.chdir("/home/s3/hyeryung/mucoco")
+project_dir = '/home/hyeryung_son/mucoco' # "/home/s3/hyeryung/mucoco"
+sys.path.append(project_dir)
+os.chdir(project_dir)
 
 # installed packages
 from tqdm import tqdm
@@ -29,26 +30,6 @@ import mucoco.utils as utils
 from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon, locate
 from new_module.evaluate_wandb import evaluate
 from new_module.utils import editing_beam_search, score_hypotheses
-
-# Define sweep config
-sweep_configuration = {
-    "method": "random",
-    "name": "sweep",
-    "metric": {"goal": "minimize", "name": "toxicity"},
-    "parameters": {
-        "num_edit_token_per_step": {"values": [1,2,3,4,5]}, 
-        "k_per_location": {"values": [5, 10, 15]},
-        "n_iter": {"values": [1, 2, 3]},
-        "selection_criteria": {"values": ["weighted_sum", "allsat_primary"]},
-        "closs_weight": {"max": 0.5, "min": 0.0},
-        "beam_size":{"values": [1,2,3,4,5]} 
-    },
-}
-
-# Initialize sweep by passing in config.
-# (Optional) Provide a name of the project.
-# sweep_id = wandb.sweep(sweep=sweep_configuration, project="my-first-sweep")
-
 
 def main():
     ## hyperparemeters
@@ -73,18 +54,22 @@ def main():
                     'AR_top_k': 0,
                     'AR_top_p': 0.96,
                     'max_output_length': 20},
-    model_paths=['gpt2-large',
-                'models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best'],
+    model_paths=['gpt2-large', 
+                 'models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best'],
+                #'models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best'],
     tokenizer_paths=['gpt2-large',
-                    'models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best'],
+                     'models/models_mucola/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best'],
+                    #'models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best'],
     model_types=['AutoModelForCausalLM',
                 'RobertaCustomForSequenceClassification'],
     source_data = 'new_module/toxicity-avoidance/data/testset_gpt2_2500.jsonl',
     )
 
-    run = wandb.init(project="mucola", config=config)
+    run = wandb.init(project="mucola", config=config, notes="debugging")
     run_id=run.path.split('/')[-1]
-    display_name = f"sweep-{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-k{wandb.config.k_per_location}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}-{run_id}-wandb"
+    # edit: 23/12/13 - Deleted k from the display_name since it is an unused hyperparameter.
+    display_name = f"sweep-{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}-{run_id}-wandb-debug"
+    # display_name = f"sweep-{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-k{wandb.config.k_per_location}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}-{run_id}-wandb"
  
     class dummyArgs:
         def __init__(self, **kwargs):
@@ -321,8 +306,15 @@ def main():
                         torch.LongTensor(sorted(indices[0])), 
                         primary_model, 
                         primary_tokenizer,
+                        lossfns,
                         config, 
-                        beam_size = wandb.config.beam_size
+                        beam_size = wandb.config.beam_size,
+                        additional_batch=additional_batch, 
+                        context_batch=context_batch,
+                        use_context=use_context,
+                        label_ids=label_ids,
+                        keywords=keywords,
+                        kweight=new_kweight
                     )             
 
                     candidate_total_losses, candidate_primary_losses, candidate_losses_for_loggings = score_hypotheses(
@@ -448,10 +440,34 @@ def main():
     outf.close()
 
     # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
-    evaluate(run.path, outfile, 'toxicity-energy,toxicity-mucola,ppl-big,dist-n,repetition') # 시간 문제로, perspective api 제외
+    evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n,repetition') # 시간 문제로, perspective api 제외
 
-# wandb.agent(sweep_id, function=main, count=20)
-wandb.agent("kagjdk5r", project="my-first-sweep", function=main, count=5)
+
+if __name__ == "__main__":
+    
+    
+    # Define sweep config
+    sweep_configuration = {
+        "method": "random",
+        "name": "sweep",
+        "metric": {"goal": "minimize", "name": "toxicity"},
+        "parameters": {
+            "num_edit_token_per_step": {"values": [5]}, # [1,2,3,4,5]}, 
+            # "k_per_location": {"values": [5, 10, 15]},
+            "n_iter": {"values": [3]},#[1, 2, 3]},
+            "selection_criteria": {"values": ["weighted_sum"]}, #["weighted_sum", "allsat_primary"]},
+            "closs_weight": {"values": [0.322924626233093]}, #{"max": 0.5, "min": 0.0},
+            "beam_size":{"values": [5]}, #[1,2,3,4,5]} 
+        },
+    }
+
+    # Initialize sweep by passing in config.
+    # (Optional) Provide a name of the project.
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project="my-first-sweep")
+    wandb.agent(sweep_id, function=main, count=1)
+    # wandb.agent("kagjdk5r", project="my-first-sweep", function=main, count=5)
+    
+    
 
 
 
