@@ -10,7 +10,7 @@ from operator import itemgetter
 # os.chdir("/home/s3/hyeryung/mucoco")
 sys.path.append(".")
 os.chdir(".")
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,3,4"
             
 from numpy import std
 from tqdm import tqdm

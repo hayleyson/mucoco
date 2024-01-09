@@ -46,19 +46,19 @@ conda activate loc-edit
 # --task=sentiment \
 # --num_validate_steps=100 
 
-srun accelerate launch --num_processes=3 new_module/em_training/train_energy_model_copy.py \
+srun accelerate launch --main_process_port 29502 --num_processes=3 new_module/em_training/train_energy_model_copy.py \
 --model=roberta-base \
 --model_type=RobertaCustomForSequenceClassification \
 --batch_size=32 \
 --num_epochs=3 \
 --max_lr=5e-5 \
 --weight_decay=0.01 \
---checkpoint_path=models/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training \
+--checkpoint_path=models/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds \
 --max_save_num=3 \
 --training_loss_type=cross_entropy \
 --val_loss_type=mse_loss \
---train_data_path='data/yelp/train.jsonl' \
---valid_data_path='data/yelp/valid.jsonl' \
+--train_data_path='data/yelp/train_binary.jsonl' \
+--valid_data_path='data/yelp/valid_binary.jsonl' \
 --wandb_project=sentiment \
 --task=sentiment \
 --num_validate_steps=100 

@@ -3,9 +3,9 @@
 #SBATCH --mem=250000MB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=16
-#SBATCH --gres=gpu:3
+#SBATCH --gres=gpu:1
 #SBATCH --output='sentiment_model_%j.out'
-#SBATCH --nodelist=n02
+#SBATCH --nodelist=master
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -46,14 +46,31 @@ conda activate loc-edit
 # --task=sentiment \
 # --num_validate_steps=100 
 
-srun accelerate launch --num_processes=3 examples/training_constraint_models/train_energy_model.py \
+# srun accelerate launch --num_processes=3 new_module/em_training/train_energy_model_copy.py \
+# --model=roberta-base \
+# --model_type=RobertaCustomForSequenceClassification \
+# --batch_size=32 \
+# --num_epochs=3 \
+# --max_lr=5e-5 \
+# --weight_decay=0.01 \
+# --checkpoint_path=models/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training \
+# --max_save_num=3 \
+# --training_loss_type=cross_entropy \
+# --val_loss_type=mse_loss \
+# --train_data_path='data/yelp/train.jsonl' \
+# --valid_data_path='data/yelp/valid.jsonl' \
+# --wandb_project=sentiment \
+# --task=sentiment \
+# --num_validate_steps=100 
+
+srun accelerate launch --num_processes=1 new_module/em_training/train_energy_model_copy.py \
 --model=roberta-base \
---model_type=RobertaCustomForSequenceClassification \
---batch_size=32 \
+--model_type=AutoModelForSequenceClassification \
+--batch_size=16 \
 --num_epochs=3 \
 --max_lr=5e-5 \
 --weight_decay=0.01 \
---checkpoint_path=models/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training \
+--checkpoint_path=models/roberta-base-yelp-sentiment-classifier-energy-training \
 --max_save_num=3 \
 --training_loss_type=cross_entropy \
 --val_loss_type=mse_loss \

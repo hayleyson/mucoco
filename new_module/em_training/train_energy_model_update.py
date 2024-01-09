@@ -10,7 +10,7 @@ from operator import itemgetter
 # os.chdir("/home/s3/hyeryung/mucoco")
 sys.path.append(".")
 os.chdir(".")
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
             
 from numpy import std
 from tqdm import tqdm
@@ -247,7 +247,7 @@ def main(args):
     train_dataset = Dataset.from_pandas(train_data)
     
     if args.task == 'formality':
-        train_dataset = train_dataset.rename_column('score', 'labels')
+        # train_dataset = train_dataset.rename_column('score', 'labels')
         train_dataset = train_dataset.map(scale_labels_pt16)
     elif args.task == 'sentiment':
         pass
@@ -257,7 +257,7 @@ def main(args):
     valid_dataset = Dataset.from_pandas(valid_data)
    
     if args.task == 'formality':
-        valid_dataset = valid_dataset.rename_column('score', 'labels')
+        # valid_dataset = valid_dataset.rename_column('score', 'labels')
         valid_dataset = valid_dataset.map(scale_labels_pt16)
     elif args.task == 'sentiment':
         pass
