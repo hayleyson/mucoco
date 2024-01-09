@@ -6,8 +6,11 @@ import argparse
 import logging
 import json
 from operator import itemgetter
-sys.path.append("/home/s3/hyeryung/mucoco")
-os.chdir("/home/s3/hyeryung/mucoco")
+# sys.path.append("/home/s3/hyeryung/mucoco")
+# os.chdir("/home/s3/hyeryung/mucoco")
+sys.path.append(".")
+os.chdir(".")
+os.environ["CUDA_VISIBLE_DEVICES"] = "5,6,7"
             
 from numpy import std
 from tqdm import tqdm
@@ -20,7 +23,9 @@ from transformers import get_linear_schedule_with_warmup, AutoModelForSequenceCl
 from torch.optim import AdamW
 import torch.nn as nn
 
-from notebooks.utils.load_ckpt import define_model
+# from notebooks.utils.load_ckpt import define_model
+from new_module.utils.load_ckpt import define_model
+from accelerate import Accelerator
 
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s", 
@@ -134,7 +139,13 @@ def validate_model(model, valid_loader, val_loss_type, ranking_loss_fct, device)
                 outputs = model(input_ids = batch['input_ids'].to(device),
                                 labels = batch['labels'].to(device),
                                 attention_mask = batch['attention_mask'].to(device))
-                loss = outputs.loss
+                mse_loss_fct = nn.MSELoss()
+                if (outputs.logits.shape[1] == 1) and (batch['labels'].shape[1] == 1):
+                    metrics = mse_loss_fct(outputs.logits, batch['labels'].to(device))
+                elif (outputs.logits.shape[1] == 2) and (batch['labels'].shape[1] == 2):
+                    metrics = mse_loss_fct(outputs.logits[:, 1], batch['labels'][:, 1].to(device))
+                
+                loss = metrics # outputs.loss
             
             valid_loss += (loss.item()*len(batch['labels']))
     return valid_loss/len(valid_loader)
@@ -160,6 +171,8 @@ def main(args):
     wandb_entity = args.wandb_entity
     wandb_project = args.wandb_project  
     num_validate_steps = args.num_validate_steps
+    training_loss_type = args.training_loss_type
+    model_type = args.model_type
     
     config = {'batch_size': batch_size, 
               'num_epochs': num_epochs, 
@@ -178,33 +191,17 @@ def main(args):
     if ranking_loss_type == "scaled_ranking_loss":
         del config['margin']
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    run = wandb.init(project=wandb_project, entity=wandb_entity, config=config, notes=ckpt_save_path)
 
-    ### data load
-    # data= pd.read_csv('data/formality/PT16/answers', delimiter='\t', names=['score', 'individual scores', 'na', 'text'])
-    # data = data.sample(frac=1,random_state=999).reset_index(drop=True)#shuffle
-    # train_size = math.ceil(len(data) * 0.9)
 
-    # train_data = data.iloc[:train_size,:].copy()
-    # valid_data = data.iloc[train_size:, :].copy()
-
-    # if filtering: #only filter training data
-    #     train_data['std'] = train_data['individual scores'].apply(lambda x: std([float(i) for i in str(x).split(',')]))
-    #     train_data = train_data.loc[train_data['std'] < 1.5].copy()
-    #     del train_data['std']
-
-    # del train_data['individual scores']
-    # del train_data['na']
-    # del valid_data['individual scores']
-    # del valid_data['na']
-
-    # ## save train/valid data for reproducibility
-    # if filtering:
-    #     train_data.to_csv('data/formality/PT16/train_filtered.tsv', sep='\t', index=False)
-    # else:
-    #     train_data.to_csv('data/formality/PT16/train.tsv', sep='\t', index=False)
-    # valid_data.to_csv('data/formality/PT16/valid.tsv', sep='\t', index=False)
+    accelerator = Accelerator(log_with="wandb")
+    device = accelerator.device
+    
+    #device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    # run = wandb.init(project=wandb_project, entity=wandb_entity, config=config, )
+    accelerator.init_trackers(project_name=wandb_project, 
+    config=config,
+    init_kwargs={"wandb": {"entity": wandb_entity, "notes": ckpt_save_path}})
+    run = accelerator.get_tracker("wandb")
 
     if train_data_path.endswith('.tsv'):
         train_data = pd.read_csv(train_data_path, sep='\t')
@@ -218,60 +215,83 @@ def main(args):
         
     os.makedirs(ckpt_save_path, exist_ok=True)
     with open(f'{ckpt_save_path}/config.txt', 'w') as f:
-        config.update({'run_path': f'{run.entity}/{run.project}/{run.id}',
-                       'run_name': run.name})
+        # config.update({'run_path': f'{run.entity}/{run.project}/{run.id}',
+        #                'run_name': run.name})
         f.write(json.dumps(config))
 
-    model, tokenizer = define_model(num_classes=1, device=device)
+    num_classes = 2 if training_loss_type == "cross_entropy" else 1
+        
+    if model_type == "RobertaCustomForSequenceClassification": 
+        model, tokenizer = define_model(num_classes=num_classes, device=device)
+    elif model_type == "AutoModelForSequenceClassification":
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_classes)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     def collate_fn_default(batch):
         outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
         outputs['labels'] = torch.Tensor([example['labels'] for example in batch])
         return outputs
     
+    def collate_fn_bce(batch):
+        outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
+        outputs['labels'] = torch.Tensor([[1-example['labels'], example['labels']] for example in batch])
+        return outputs
+    
     collate_fn = collate_fn_default
     if (ranking_loss_type == "margin_ranking_loss") and (weight_ranking != 0.0):
         collate_fn = MyCollator(margin, tokenizer)
+    if (training_loss_type == "cross_entropy"):
+        collate_fn = collate_fn_bce
     
     train_dataset = Dataset.from_pandas(train_data)
-    #train_dataset = train_dataset.rename_column('score', 'labels')
+    
     if args.task == 'formality':
+        train_dataset = train_dataset.rename_column('score', 'labels')
         train_dataset = train_dataset.map(scale_labels_pt16)
     elif args.task == 'sentiment':
-        train_dataset = train_dataset.map(scale_labels_yelp)
+        pass
+        # train_dataset = train_dataset.map(scale_labels_yelp) # update: 23/01/06: I rescaled the data labels to 0~1 range and saved it.
     train_loader = DataLoader(train_dataset, shuffle=True,batch_size=batch_size,collate_fn=collate_fn,drop_last=True)
 
     valid_dataset = Dataset.from_pandas(valid_data)
-    #valid_dataset = valid_dataset.rename_column('score', 'labels')
+   
     if args.task == 'formality':
+        valid_dataset = valid_dataset.rename_column('score', 'labels')
         valid_dataset = valid_dataset.map(scale_labels_pt16)
     elif args.task == 'sentiment':
-        valid_dataset = valid_dataset.map(scale_labels_yelp)
+        pass
+        # valid_dataset = valid_dataset.map(scale_labels_yelp) # update: 23/01/06: I rescaled the data labels to 0~1 range and saved it.
 
-    if val_loss_type == 'margin_ranking_loss':
-        valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size*2,collate_fn=collate_fn,drop_last=True) 
-        #c.f. batch_size*2 to avoid 1 sample in the last batch
-    elif val_loss_type == 'scaled_ranking_loss':
-        valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn) 
-    elif val_loss_type == 'mse_loss':
-        valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn_default)
+    # update: 23/01/09: noticed that collate_fn most likely go with the train collate_fn. 
+    # will take care of edge case later.
+    valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn) 
+    # if val_loss_type == 'margin_ranking_loss':
+    #     valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size*2,collate_fn=collate_fn,drop_last=True) 
+    #     #c.f. batch_size*2 to avoid 1 sample in the last batch
+    # elif val_loss_type == 'scaled_ranking_loss':
+    #     valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn) 
+    # elif val_loss_type == 'mse_loss':
+    #     valid_loader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn_default)
 
     optimizer = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 
     num_warmup_steps = len(train_loader)*num_epochs*0.1
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_loader)*num_epochs)
 
+    model, optimizer, train_loader, valid_loader, scheduler = accelerator.prepare(
+            model, optimizer, train_loader, valid_loader, scheduler
+    )
+
     if ranking_loss_type == "margin_ranking_loss":
         ranking_loss_fct = nn.MarginRankingLoss(margin=1)
     elif ranking_loss_type == "scaled_ranking_loss":
         ranking_loss_fct = NegativeLogOddsLoss()
         
-    mse_loss_fct = nn.MSELoss()
     # loss(x1,x2,y)=max(0,−y∗(x1−x2)+margin)
 
-    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / batch_size)
+    # n_steps_per_epoch = math.ceil(len(train_loader.dataset) / batch_size)
     if num_validate_steps == -1:
-        num_validate_steps = n_steps_per_epoch
+        num_validate_steps = len(train_loader)
 
     step=0
     best_val_loss = float("inf")
@@ -281,48 +301,28 @@ def main(args):
         model.train()
         train_loss = 0
         for batch in tqdm(train_loader, total=len(train_loader)):
-            if weight_ranking == 0:
-                outputs = model(input_ids = batch['input_ids'].to(device),
-                            labels = batch['labels'].to(device),
-                            attention_mask = batch['attention_mask'].to(device))
-                mse_loss = outputs.loss
+            # outputs = model(input_ids = batch['input_ids'].to(device),
+            #                 labels = batch['labels'].to(device),
+            #                 attention_mask = batch['attention_mask'].to(device))
+            outputs = model(input_ids = batch['input_ids'],
+                            labels = batch['labels'],
+                            attention_mask = batch['attention_mask'])
+            loss = outputs.loss
+            if ("ranking" in training_loss_type) and (weight_ranking > 0.0):
                 ranking_loss = -1.
-            else:
-                if ranking_loss_type == "margin_ranking_loss":
-                    less_xx_logits = model(input_ids = batch['less_xx_input_ids'].to(device),
-                                        labels = batch['less_xx_labels'].to(device),
-                                        attention_mask = batch['less_xx_attention_mask'].to(device)).logits
-
-                    more_xx_logits = model(input_ids = batch['more_xx_input_ids'].to(device),
-                                        labels = batch['more_xx_labels'].to(device),
-                                        attention_mask = batch['more_xx_attention_mask'].to(device)).logits
-
-                    
-                    ranking_loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
-
-                    all_logits = torch.cat([less_xx_logits.squeeze(), more_xx_logits.squeeze()], dim=0).to(device)
-                    all_labels = torch.cat([batch['less_xx_labels'].squeeze(), batch['more_xx_labels'].squeeze()], dim=0).to(device)
-
-                    mse_loss = mse_loss_fct(all_logits, all_labels)
-                    
-                elif ranking_loss_type == "scaled_ranking_loss":
-                    outputs = model(input_ids = batch['input_ids'].to(device),
-                            labels = batch['labels'].to(device),
-                            attention_mask = batch['attention_mask'].to(device))
-
-                    mse_loss = outputs.loss
-
-                    ## create pairs for ranking loss
+                if (ranking_loss_type == "margin_ranking_loss"):
                     more_xx_logits, less_xx_logits = create_pairs_for_ranking(batch['labels'], outputs.logits)
-
-                    # ranking_loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+                    ranking_loss = ranking_loss_fct( more_xx_logits, less_xx_logits, torch.ones_like(more_xx_logits, dtype=torch.long))
+                elif (ranking_loss_type == "margin_ranking_loss"):
+                    more_xx_logits, less_xx_logits = create_pairs_for_ranking(batch['labels'], outputs.logits)
                     ranking_loss = ranking_loss_fct(more_xx_logits, less_xx_logits)
 
-            logger.debug(f"mse_loss: {mse_loss}, ranking_loss: {ranking_loss}")
-            logger.debug(f"weight_mse *  mse_loss: {weight_mse *  mse_loss}, weight_ranking * ranking_loss: {weight_ranking * ranking_loss}")
-            loss = weight_mse *  mse_loss + weight_ranking * ranking_loss
+                logger.debug(f"mse_loss: {loss}, ranking_loss: {ranking_loss}")
+                logger.debug(f"weight_mse *  mse_loss: {weight_mse *  loss}, weight_ranking * ranking_loss: {weight_ranking * ranking_loss}")
+                loss = weight_mse *  loss + weight_ranking * ranking_loss
                 
-            loss.backward()
+            # loss.backward()
+            accelerator.backward(loss)
             train_loss += loss.item()
             
             train_metrics = {'step':step, 'train_loss': loss.item(), 'learning_rate': scheduler.get_last_lr()[0]}
@@ -336,7 +336,8 @@ def main(args):
                 
                 valid_loss = validate_model(model, valid_loader, val_loss_type, ranking_loss_fct, device) ## also check correlation?
                 valid_metrics = {'epoch':epoch, 'valid_loss': valid_loss}
-                wandb.log({**train_metrics, **valid_metrics})
+                # wandb.log({**train_metrics, **valid_metrics})
+                accelerator.log({**train_metrics, **valid_metrics}, step=step)
                 
                 # avg_val_loss = valid_loss/len(valid_loader)
                 avg_val_loss = valid_loss
@@ -347,7 +348,7 @@ def main(args):
                     # tokenizer.save_pretrained(f"{ckpt_save_path}/epoch_{epoch}")
                     # model.save_pretrained(f"{ckpt_save_path}/epoch_{epoch}")
                     tokenizer.save_pretrained(f"{ckpt_save_path}/step_{step}")
-                    model.save_pretrained(f"{ckpt_save_path}/step_{step}")
+                    model.module.save_pretrained(f"{ckpt_save_path}/step_{step}")
                     torch.save({"optimizer": optimizer.state_dict(),
                                 "scheduler": scheduler.state_dict(),}, f"{ckpt_save_path}/step_{step}/optimizer_scheduler.pt")
 
@@ -372,36 +373,39 @@ def main(args):
                             os.system('rm -r ' + one_folder_name)
                     logger.info('-----------------------------------')
             else:
-                wandb.log(train_metrics)
+                # wandb.log(train_metrics)
+                accelerator.log(train_metrics, step=step)
 
     logger.info(f"best_val_loss: {best_val_loss}, best_val_step: {best_val_step}")
-    os.rename(f"{ckpt_save_path}/step_{step}", f"{ckpt_save_path}/step_{step}_best_checkpoint")
-        
+    os.rename(f"{ckpt_save_path}/step_{best_val_step}", f"{ckpt_save_path}/step_{best_val_step}_best_checkpoint")
+    accelerator.end_training()
     
 
 if __name__ == "__main__":
 
-    args = argparse.ArgumentParser(description='Training a ranking model')
-    args.add_argument('--model', type=str, default='roberta-large-ranker', help='model name')
-    args.add_argument('--batch_size', type=int, default=16, help='batch size')
-    args.add_argument('--num_epochs', type=int, default=3, help='number of epochs')
-    args.add_argument('--max_lr', type=float, default=5e-5, help='maximum learning rate')
-    args.add_argument('--weight_decay', type=float, default=0.01, help='weight decay')
-    #args.add_argument('--filtering', action='store_true', help='filtering training data')
-    args.add_argument('--margin', type=float, default=0.16666666666666666, help='margin for MarginRankingLoss & constructing batches')
-    args.add_argument('--checkpoint_path', type=str, help='path to save checkpoints')
-    args.add_argument('--max_save_num', type=int, default=1, help='maximum number of checkpoints to save')
-    args.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss', 'mse_loss'], help='type of validation loss')
-    args.add_argument('--loss_weight_mse', type=float, default=0., help='weight for mse loss')
-    args.add_argument('--loss_weight_ranking', type=float, default=1., help='weight for ranking loss')
-    args.add_argument('--ranking_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss'], help='type of ranking loss')
-    args.add_argument('--train_data_path', type=str, help='training data path')
-    args.add_argument('--valid_data_path', type=str, help='validation data path')
-    args.add_argument('--wandb_entity', type=str, default='hayleyson', help='wandb entity')
-    args.add_argument('--wandb_project', type=str, default='formality', help='wandb project')
-    args.add_argument('--task', type=str, default='formality', choices=['formality', 'sentiment'], help='task name')
-    args.add_argument('--num_validate_steps', type=int, default=-1, help='number of steps until validate & save checkpoint. -1: only validate & save checkpoint at the end of each epoch')
+    parser = argparse.ArgumentParser(description='Training a ranking model')
+    parser.add_argument('--model', type=str, default='roberta-base', help='model name')
+    parser.add_argument('--model_type', type=str, help='type of model', choices=['AutoModelForSequenceClassification', 'RobertaCustomForSequenceClassification'])
+    parser.add_argument('--batch_size', type=int, default=16, help='batch size')
+    parser.add_argument('--num_epochs', type=int, default=3, help='number of epochs')
+    parser.add_argument('--max_lr', type=float, default=5e-5, help='maximum learning rate')
+    parser.add_argument('--weight_decay', type=float, default=0.01, help='weight decay')
+    #parser.add_argument('--filtering', action='store_true', help='filtering training data')
+    parser.add_argument('--margin', type=float, default=0.16666666666666666, help='margin for MarginRankingLoss & constructing batches')
+    parser.add_argument('--checkpoint_path', type=str, help='path to save checkpoints')
+    parser.add_argument('--max_save_num', type=int, default=1, help='maximum number of checkpoints to save')
+    parser.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss', 'mse_loss'], help='type of validation loss')
+    parser.add_argument('--loss_weight_mse', type=float, default=0., help='weight for mse loss')
+    parser.add_argument('--loss_weight_ranking', type=float, default=1., help='weight for ranking loss')
+    parser.add_argument('--ranking_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss'], help='type of ranking loss')
+    parser.add_argument('--train_data_path', type=str, help='training data path')
+    parser.add_argument('--valid_data_path', type=str, help='validation data path')
+    parser.add_argument('--wandb_entity', type=str, default='hayleyson', help='wandb entity')
+    parser.add_argument('--wandb_project', type=str, default='formality', help='wandb project')
+    parser.add_argument('--task', type=str, default='formality', choices=['formality', 'sentiment'], help='task name')
+    parser.add_argument('--num_validate_steps', type=int, default=100, help='number of steps until validate & save checkpoint. -1: only validate & save checkpoint at the end of each epoch')
+    parser.add_argument('--training_loss_type', type=str, choices=['cross_entropy', 'mse', 'ranking', 'mse+ranking'])
     
-    args = args.parse_args()
+    args = parser.parse_args()
     
     main(args)
