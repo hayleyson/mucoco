@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import logging
+import argparse
 from collections import namedtuple
 project_dir = "/home/s3/hyeryung/mucoco"
 sys.path.append(project_dir)
@@ -458,49 +459,80 @@ if __name__ == "__main__":
     # tokenized_test_sent = tokenizer.encode(test_sent, return_tensors="pt")
     # output = model(input_ids=tokenized_test_sent)
     # print(output)
+    parser = argparse.ArgumentParser(description='Locally Editing Text Generation')
+    parser.add_argument('--task', type=str, help='task name', choices=['toxicity', 'formality'])
+    parser.add_argument('--source_data', type=str, default='data/formality/GYAFC_Corpus/Entertainment_Music/test/informal', help='source data path')
+    parser.add_argument('--source_style', type=str, default="informal", help='source style')
+    parser.add_argument('--target_style', type=str, default="formal", help='target style')
+    parser.add_argument('--target_label_ids', nargs='+', type=int, default=[1,1], help='a list of indices of target label used in each of models. e.g. [1,1]')
+    parser.add_argument('--model_paths', nargs='+', type=str, default=['gpt2-large', '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'], help='model paths')
+    parser.add_argument('--tokenizer_paths', nargs='+', type=str, default=['gpt2-large', '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'], help='tokenizer paths')
+    parser.add_argument('--model_types', nargs='+', type=str, default=['AutoModelForCausalLM', 'RobertaCustomForSequenceClassification'], help='model types')
+    parser.add_argument('--output_dir_prefix', type=str, help='output directory prefix. e.g. outputs/formality/mlm-reranking')
+    parser.add_argument('--early_stopping_patience', type=int, default=-1, help='early stopping patience')
+    parser.add_argument('--method', type=str, default="mlm-beamsearch", help='method name', choices=['mlm-beamsearch', 'mlm-reranking'])
+    parser.add_argument('--locate_unit', type=str, default="token", help='unit to locate')
+    parser.add_argument('--min_epsilons', nargs='+', type=float, default=[0.75], help='min epsilons')
+    parser.add_argument('--num_samples', type=int, default=1, help='number of samples to edit per prompt')
+    parser.add_argument('--device', type=str, default="cuda", help='device')
+    parser.add_argument('--target_type', type=str, default='embeds', help="target type (embeds, simplex, probability) from prior work's code")
+    parser.add_argument('--cache_dir', type=str, default='hf_cache', help='cache directory')
+    parser.add_argument('--jsonl_primary_key', type=str, default="prompt", help='jsonl primary key')
+    parser.add_argument('--jsonl_secondary_key', type=str, default="text", help='jsonl secondary key')
+    parser.add_argument('--losses', nargs='+', type=str, default=['gpt2', 'classification_no_prefix'], help='losses')
+    parser.add_argument('--build_loss_dict', type=json.loads, default='{"coeff_steps": 200, "coeff_pattern": "constant", "loss_type": "xentropy", "length_normalize": false, "AR_temperature": 1.0, "AR_top_k": 0, "AR_top_p": 0.96, "max_output_length": 20}', help='build loss dict')
+    parser.add_argument('--num_edit_token_per_step', type=int, default=5, help='number of edit tokens per step')
+    parser.add_argument('--k_per_location', type=int, default=15, help='k per location')
+    parser.add_argument('--n_iter', type=int, default=3, help='number of iterations')
+    parser.add_argument('--selection_criteria', type=str, default="weighted_sum", help='selection criteria')
+    parser.add_argument('--closs_weight', type=float, default=0.32, help='closs weight')
+    parser.add_argument('--beam_size', type=int, default=5, help='beam size')    
+
+    args = parser.parse_args()
+    config = vars(args)
         
-    config = dict(
-        task='formality',
-        output_dir_prefix='outputs/formality/mlm-reranking',
-        early_stopping_patience=-1,
-        method='mlm-beamsearch',
-        locate_unit = "token",
-        min_epsilons = [0.75],
-        num_samples = 1,
-        device = "cuda",
-        target_type='embeds',
-        cache_dir='hf_cache',
-        jsonl_primary_key = "prompt",
-        jsonl_secondary_key = "text",
-        losses = ['gpt2', 'classification_no_prefix'],
-        build_loss_dict={'coeff_steps': 200, 
-                        'coeff_pattern': 'constant',
-                        'loss_type': 'xentropy',#'dotplusplus',
-                        'length_normalize': False,
-                        'AR_temperature': 1.0,
-                        'AR_top_k': 0,
-                        'AR_top_p': 0.96,
-                        'max_output_length': 20},
-        model_paths=['gpt2-large',
-                    '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'],
-        tokenizer_paths=['gpt2-large',
-                        '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'],
-        model_types=['AutoModelForCausalLM',
-                    'RobertaCustomForSequenceClassification'],
-        source_data = 'data/formality/GYAFC_Corpus/Entertainment_Music/test/informal',
-        source_style = "informal",
-        target_style = "formal",
-        target_label_ids = [1,1]
-    )
+    # config = dict(
+    #     task='formality',
+    #     output_dir_prefix='outputs/formality/mlm-reranking',
+    #     early_stopping_patience=-1,
+    #     method='mlm-beamsearch',
+    #     locate_unit = "token",
+    #     min_epsilons = [0.75],
+    #     num_samples = 1,
+    #     device = "cuda",
+    #     target_type='embeds',
+    #     cache_dir='hf_cache',
+    #     jsonl_primary_key = "prompt",
+    #     jsonl_secondary_key = "text",
+    #     losses = ['gpt2', 'classification_no_prefix'],
+    #     build_loss_dict={'coeff_steps': 200, 
+    #                     'coeff_pattern': 'constant',
+    #                     'loss_type': 'xentropy',#'dotplusplus',
+    #                     'length_normalize': False,
+    #                     'AR_temperature': 1.0,
+    #                     'AR_top_k': 0,
+    #                     'AR_top_p': 0.96,
+    #                     'max_output_length': 20},
+    #     model_paths=['gpt2-large',
+    #                 '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'],
+    #     tokenizer_paths=['gpt2-large',
+    #                     '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'],
+    #     model_types=['AutoModelForCausalLM',
+    #                 'RobertaCustomForSequenceClassification'],
+    #     source_data = 'data/formality/GYAFC_Corpus/Entertainment_Music/test/informal',
+    #     source_style = "informal",
+    #     target_style = "formal",
+    #     target_label_ids = [1,1]
+    # )
     
-    config = {**config,
-            **{"num_edit_token_per_step": 5, 
-            "k_per_location": 15,
-            "n_iter": 3,
-            "selection_criteria": "weighted_sum",
-            "closs_weight": 0.32,
-            "beam_size":5}
-    }
+    # config = {**config,
+    #         **{"num_edit_token_per_step": 5, 
+    #         "k_per_location": 15,
+    #         "n_iter": 3,
+    #         "selection_criteria": "weighted_sum",
+    #         "closs_weight": 0.32,
+    #         "beam_size":5}
+    # }
     # print(config)
         
     main(config)

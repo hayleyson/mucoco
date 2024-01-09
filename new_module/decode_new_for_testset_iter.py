@@ -18,6 +18,10 @@ from tqdm import tqdm
 import pdb
 from torch import linalg as LA
 ##
+project_dir = '/home/hyeryung/mucoco' # "/home/s3/hyeryung/mucoco"
+sys.path.append(project_dir)
+os.chdir(project_dir)
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 from transformers import AutoTokenizer, AutoConfig
 from sentence_transformers import SentenceTransformer, util
@@ -1541,7 +1545,9 @@ def cli_main():
 
 if __name__ == "__main__":
     
-    args = joblib.load('/home/hyeryung_son/mucoco/outputs/toxicity/locate-edit-gpt2-loc-6toks--1steps-project-5steps-mrr_allsat/outputs_epsilon-3.txt.pkl')
-    args.optim_steps = 10
-    args.num_project_steps = 2
-    main(args)
+    # args = joblib.load('/home/hyeryung_son/mucoco/outputs/toxicity/locate-edit-gpt2-loc-6toks--1steps-project-5steps-mrr_allsat/outputs_epsilon-3.txt.pkl')
+    # args.optim_steps = 10
+    # args.num_project_steps = 2
+    # main(args)
+    
+    cli_main()

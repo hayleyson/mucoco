@@ -31,16 +31,20 @@ def main():
     
     data = data.rename(columns={'stars': 'labels'})
     
+    print(f'labels min: {data.labels.min()}, labels max: {data.labels.max()}')
+    data['labels'] = data['labels'].apply(lambda x: (x - 1.)/4. )
+    print(f'labels min: {data.labels.min()}, labels max: {data.labels.max()}')
+        
     ## stratified split, small valid set
     train_data, test_data = train_test_split(data, test_size=0.05, random_state=999,stratify=data['labels'])
     train_data, valid_data = train_test_split(train_data, test_size=5000, random_state=999,stratify=train_data['labels'])
 
     ## save train/valid data for reproducibility
-    os.makedirs('../data/yelp',exist_ok=True)
-    train_data.to_json('../data/yelp/train.jsonl', lines=True, orient='records')
-    valid_data.to_json('../data/yelp/valid.jsonl', lines=True, orient='records')
-    test_data.to_json('../data/yelp/test.jsonl', lines=True, orient='records')
-
+    data_dir='../data/yelp'
+    os.makedirs(data_dir,exist_ok=True)
+    train_data.to_json(f'{data_dir}/train.jsonl', lines=True, orient='records')
+    valid_data.to_json(f'{data_dir}/valid.jsonl', lines=True, orient='records')
+    test_data.to_json(f'{data_dir}/test.jsonl', lines=True, orient='records')
     
 
 if __name__ == "__main__":
