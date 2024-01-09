@@ -148,3 +148,4 @@ outputs
 .vscode
 notes_on_dev_env_setting.txt
 *.pkl
+*.out

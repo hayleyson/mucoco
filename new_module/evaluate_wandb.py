@@ -80,7 +80,7 @@ def evaluate(run_path, outfile, metrics, **kwargs):
         
     if 'formality-int' in metricset:
         logger.debug("formality-internal")
-        avg_formality, formal_proba = formality_score_int(formality_model_path,
+        avg_formality, formal_proba = formality_score_int(kwargs['formality_model_path'],
                                                           generations_df, output_dir / (output_file+".formality_int"), device)
         wandb.log({'avg_formality_int': avg_formality, 'formal_proba_int': formal_proba})
 

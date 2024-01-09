@@ -477,19 +477,20 @@ def get_parser():
         help="Number of steps for which once in the number to project updated embeddings to nearest embeddings defined in the vocabulary.",
     )
     
-    parser.add_argument(
-        "--input_ids_path",
-        default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
-        type=str,
-        help="Path to load input ids for test data.",
-    )
+    ## deprecated 24/01/09
+    # parser.add_argument(
+    #     "--input_ids_path",
+    #     default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
+    #     type=str,
+    #     help="Path to load input ids for test data.",
+    # )
     
-    parser.add_argument(
-        "--texts_path",
-        default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
-        type=str,
-        help="Path to load texts for test data.",
-    )
+    # parser.add_argument(
+    #     "--texts_path",
+    #     default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
+    #     type=str,
+    #     help="Path to load texts for test data.",
+    # )
     
     parser.add_argument(
         "--locate_unit",
