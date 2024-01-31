@@ -378,8 +378,8 @@ def main(args):
                 logger.debug(last_output_dir)
                 os.system('rm -r ' + last_output_dir)
 
-            if (time.time() - start_time) >= 60*60*47:
-                logger.info(f"Stopping training due to time limit. Stopping at step: {step}")
+            if (time.time() - start_time) >= 60*60*args.hours_limit:
+                logger.info(f"Stopping training due to time limit. Stopping at step: {overall_step}")
                 accelerator.end_training()
                  
 
@@ -418,6 +418,7 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_project', type=str, default='formality', help='wandb project')    
     parser.add_argument('--resume_from_checkpoint', type=str, help='directory of checkpoint to resume training from')
     parser.add_argument('--resume_wandb_id', type=str, help='wandb id to resume training from')
+    parser.add_argument('--hours_limit', type=int, default=47, help='number of hours at which voluntarily stop the training considering the time limit in the servers the script is run.')
     
     args = parser.parse_args()
     if (args.training_loss_type == "cross_entropy"):
