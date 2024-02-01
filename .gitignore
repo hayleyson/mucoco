@@ -145,5 +145,6 @@ outputs
 **/*.png
 examples/training_constraint_models/**/*.txt
 new_module/em_training/**/*.txt
+new_module/_old
 notebooks/evaluate/**/*.xlsx
 marot

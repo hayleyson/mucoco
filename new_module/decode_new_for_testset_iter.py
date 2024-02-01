@@ -17,11 +17,12 @@ import time
 from tqdm import tqdm
 import pdb
 from torch import linalg as LA
-##
-project_dir = '/home/hyeryung/mucoco' # "/home/s3/hyeryung/mucoco"
+project_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../" )
 sys.path.append(project_dir)
 os.chdir(project_dir)
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+print("project_dir: ", project_dir)
+print("current_dir: ", os.getcwd())
+# os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 from transformers import AutoTokenizer, AutoConfig
 from sentence_transformers import SentenceTransformer, util
@@ -65,6 +66,8 @@ def main(args):
     logger.setLevel(logging.DEBUG)
     logger.info(args)
 
+    logger.info("output saving directory: %s",os.path.dirname(args.outfile))
+    os.makedirs(os.path.dirname(args.outfile), exist_ok=True)
     if args.outfile is not None:
         if args.resume_index == 0:
             outf = open(args.outfile, "w")
@@ -301,6 +304,7 @@ def main(args):
                 for row in reader:
                     context_dataset.append(row)
             additional_dataset = [l.strip() for l in open(additional_data)]
+            generation_dataset = source_dataset
         elif args.datastyle == "jsonl": #for some prompts datasets
             if args.task_type == "prompted_generation":
                 source_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(source_data)]
