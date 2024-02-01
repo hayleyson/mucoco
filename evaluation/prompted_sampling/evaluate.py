@@ -364,56 +364,94 @@ def perplexity(generations_df, model, tokenizer, device='cuda', write_file=None)
         
     return np.exp(total_nll/total_tokens)
 
-def fluency_classify(generations_df, output_file, batch_size=32):
-    from fairseq.models.roberta import RobertaModel
-    from fairseq.data.data_utils import collate_tokens
+def fluency_classify(generations_df, output_file=None):
 
-    model = RobertaModel.from_pretrained(
-            '/projects/tir5/users/sachink/embed-style-transfer/evaluation_models/cola_classifier_fluency/',
-            checkpoint_file='checkpoint_best.pt',
-            data_name_or_path='./cola-bin'
-        )
-    model.cuda()
-
-    def label_fn(label):
-        return model.task.label_dictionary.string(
-            [label + model.task.target_dictionary.nspecial]
-        )
+    # score generations and write to sentiment.jsonl
+    print("jajaja")
+    classifier = pipeline(model='textattack/roberta-base-CoLA', device=0)
+    # classifier.cuda()
+    print("jajaja2")
+    # classifier = pipeline(model='siebert/sentiment-roberta-large-english')
+    print("writing outputs to ", str(output_file))
     
-    def predict_batch(batch):
-        batch = collate_tokens([model.task.source_dictionary.encode_line("<s> " + sd + " </s>", append_eos=False) for sd in batch], pad_idx=1)
-        batch = batch[:, :512]
-
-        with torch.no_grad():
-            predictions = model.predict('sentence_classification_head', batch.long())
-            # prediction_probs = [torch.exp(x).max(axis=0)[0].item() for x in predictions]
-            prediction_labels = [label_fn(x.argmax(axis=0).item()) for x in predictions]
-        
-        return prediction_labels
-            
-    batch = []
+    accuracies = []
     all_prediction_labels = []
-    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating CoLA fluency'):
+    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation fluency'):
         prompt = row.prompt['text']
         generations = [gen['text'] for gen in row['generations']]
-        for j, gen in enumerate(generations):
-            batch.append(model.bpe.encode(f'{prompt}{gen}'))
-            if len(batch) == batch_size:
-                prediction_labels = predict_batch(batch)
-                all_prediction_labels += prediction_labels
-                batch = []
+        sentences_for_prompt= []
+        for gen in generations:
+            sentences_for_prompt.append(f'{prompt}{gen}')
+            
+        # print(sentences_for_prompt)
         
-        if len(batch) != 0:
-            prediction_labels = predict_batch(batch)
-            all_prediction_labels += prediction_labels
-            batch = []
-    
+        try:
+            predictions_for_prompt = classifier(sentences_for_prompt)
+        except IndexError: # sometimes the generation is too long?
+            print("exception occured, please check")
+            predictions_for_prompt = [{'label': "", 'score': float('nan')}] * len(sentences_for_prompt)
+
+        prediction_labels = [prediction["label"] for prediction in predictions_for_prompt]
+        all_prediction_labels += prediction_labels
+        
     with open(output_file, "w") as fout:
         fout.write("\n".join(all_prediction_labels))
 
-    accuracy = np.array(all_prediction_labels) == "acceptable"
+    accuracy = np.array(all_prediction_labels) == "LABEL_1" ## LABEL_1 is acceptable
     accuracy = np.nanmean(accuracy.astype("float32"))
+        
     return accuracy
+
+# def fluency_classify(generations_df, output_file, batch_size=32):
+#     from fairseq.models.roberta import RobertaModel
+#     from fairseq.data.data_utils import collate_tokens
+
+#     model = RobertaModel.from_pretrained(
+#             '/projects/tir5/users/sachink/embed-style-transfer/evaluation_models/cola_classifier_fluency/',
+#             checkpoint_file='checkpoint_best.pt',
+#             data_name_or_path='./cola-bin'
+#         )
+#     model.cuda()
+
+#     def label_fn(label):
+#         return model.task.label_dictionary.string(
+#             [label + model.task.target_dictionary.nspecial]
+#         )
+    
+#     def predict_batch(batch):
+#         batch = collate_tokens([model.task.source_dictionary.encode_line("<s> " + sd + " </s>", append_eos=False) for sd in batch], pad_idx=1)
+#         batch = batch[:, :512]
+
+#         with torch.no_grad():
+#             predictions = model.predict('sentence_classification_head', batch.long())
+#             # prediction_probs = [torch.exp(x).max(axis=0)[0].item() for x in predictions]
+#             prediction_labels = [label_fn(x.argmax(axis=0).item()) for x in predictions]
+        
+#         return prediction_labels
+            
+#     batch = []
+#     all_prediction_labels = []
+#     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating CoLA fluency'):
+#         prompt = row.prompt['text']
+#         generations = [gen['text'] for gen in row['generations']]
+#         for j, gen in enumerate(generations):
+#             batch.append(model.bpe.encode(f'{prompt}{gen}'))
+#             if len(batch) == batch_size:
+#                 prediction_labels = predict_batch(batch)
+#                 all_prediction_labels += prediction_labels
+#                 batch = []
+        
+#         if len(batch) != 0:
+#             prediction_labels = predict_batch(batch)
+#             all_prediction_labels += prediction_labels
+#             batch = []
+    
+#     with open(output_file, "w") as fout:
+#         fout.write("\n".join(all_prediction_labels))
+
+#     accuracy = np.array(all_prediction_labels) == "acceptable"
+#     accuracy = np.nanmean(accuracy.astype("float32"))
+#     return accuracy
 
 
 def morpho_syntactic(generations_df, morpho_file=None):
@@ -560,6 +598,7 @@ def sentiment_classify_big(generations_df, sentiment_file=None):
         fo = open(sentiment_file, 'w')
     
     accuracies = []
+    positive_proba = []
     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation sentiments'):
         prompt = row.prompt['text']
         generations = [gen['text'] for gen in row['generations']]
@@ -579,75 +618,133 @@ def sentiment_classify_big(generations_df, sentiment_file=None):
         # print(predictions_for_prompt)
         for prediction in predictions_for_prompt:
             positive_proportion += float(prediction["label"] == "POSITIVE")
-        positive_proportion = positive_proportion / len(predictions_for_prompt)
-        # print(positive_proportion)
-        accuracies.append(positive_proportion)
-        # input()
-        # print(predictions_for_prompt)
-        if sentiment_file is not None:
-            for res in predictions_for_prompt:  
-                fo.write(json.dumps(res) + '\n')
-        
-    return np.nanmean(accuracies), np.std(accuracies)
-
-def sentiment_classify_yelp(generations_df, sentiment_file=None):
-
-    # score generations and write to sentiment.jsonl
-    print("jajaja")
-    classifier = pipeline(model='textattack/bert-base-uncased-yelp-polarity', device=0)
-    # classifier.cuda()
-    print("jajaja2")
-    # classifier = pipeline(model='siebert/sentiment-roberta-large-english')
-    print("writing outputs to ", str(sentiment_file))
-    if sentiment_file is not None:
-        fo = open(sentiment_file, 'w')
-    
-    accuracies = []
-    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation sentiments'):
-        prompt = row.prompt['text']
-        generations = [gen['text'] for gen in row['generations']]
-        sentences_for_prompt= []
-        for gen in generations:
-            sentences_for_prompt.append(f'{prompt}{gen}')
             
-        # print(sentences_for_prompt)
-        
-
-        positive_proportion = 0
-        try:
-            predictions_for_prompt = classifier(sentences_for_prompt)
-        except IndexError: # sometimes the generation is too long?
-            print("exception occured, please check")
-            predictions_for_prompt = [{'label': "", 'score': float('nan')}] * len(sentences_for_prompt)
-        # print(predictions_for_prompt)
-        for prediction in predictions_for_prompt:
-            positive_proportion += float(prediction["label"] == "LABEL_1")
+            if prediction["label"] == "POSITIVE":
+                positive_proba.append(prediction["score"])
+            else:
+                positive_proba.append(1.0-prediction["score"])
+                
         positive_proportion = positive_proportion / len(predictions_for_prompt)
         # print(positive_proportion)
         accuracies.append(positive_proportion)
         # input()
         # print(predictions_for_prompt)
+        
         if sentiment_file is not None:
             for res in predictions_for_prompt:  
                 fo.write(json.dumps(res) + '\n')
         
-    return np.nanmean(accuracies), np.std(accuracies)
+    # prompt별 accuracy의 평균, prompt별 accuracy의 표준편차, 모든 generation 기준 accuracy, 모든 generation의 positive_proba의 평균
+    return np.nanmean(accuracies), np.std(accuracies), np.nanmean(positive_proba)
 
-def sentiment_classify_own(generations_df, sentiment_file=None):
+# def sentiment_classify_yelp(generations_df, sentiment_file=None):
+
+#     # score generations and write to sentiment.jsonl
+#     print("jajaja")
+#     classifier = pipeline(model='textattack/bert-base-uncased-yelp-polarity', device=0)
+#     # classifier.cuda()
+#     print("jajaja2")
+#     # classifier = pipeline(model='siebert/sentiment-roberta-large-english')
+#     print("writing outputs to ", str(sentiment_file))
+#     if sentiment_file is not None:
+#         fo = open(sentiment_file, 'w')
+    
+#     accuracies = []
+#     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation sentiments'):
+#         prompt = row.prompt['text']
+#         generations = [gen['text'] for gen in row['generations']]
+#         sentences_for_prompt= []
+#         for gen in generations:
+#             sentences_for_prompt.append(f'{prompt}{gen}')
+            
+#         # print(sentences_for_prompt)
+        
+
+#         positive_proportion = 0
+#         try:
+#             predictions_for_prompt = classifier(sentences_for_prompt)
+#         except IndexError: # sometimes the generation is too long?
+#             print("exception occured, please check")
+#             predictions_for_prompt = [{'label': "", 'score': float('nan')}] * len(sentences_for_prompt)
+#         # print(predictions_for_prompt)
+#         for prediction in predictions_for_prompt:
+#             positive_proportion += float(prediction["label"] == "LABEL_1")
+#         positive_proportion = positive_proportion / len(predictions_for_prompt)
+#         # print(positive_proportion)
+#         accuracies.append(positive_proportion)
+#         # input()
+#         # print(predictions_for_prompt)
+#         if sentiment_file is not None:
+#             for res in predictions_for_prompt:  
+#                 fo.write(json.dumps(res) + '\n')
+        
+#     return np.nanmean(accuracies), np.std(accuracies)
+
+# def sentiment_classify_own(generations_df, sentiment_file=None):
+
+#     # score generations and write to sentiment.jsonl
+#     # classifier = pipeline('sentiment-analysis')
+#     # model_path="/projects/tir5/users/sachink/embed-style-transfer/models/gpt2-sentiment-binary-classifier/checkpoint_best"
+#     model_path = "/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-textattack-sst-2-with-gpt2-large-embeds/checkpoint_best"
+#     config = AutoConfig.from_pretrained(model_path)
+#     tokenizer = AutoTokenizer.from_pretrained(model_path)
+#     classifier_model = GPT2CustomForSequenceClassification.from_pretrained(model_path, config=config)
+#     classifier = TextClassificationPipeline(task="text-classification", model=classifier_model, tokenizer=tokenizer, device=0)
+#     print("writing outputs to ", str(sentiment_file))
+#     if sentiment_file is not None:
+#         fo = open(sentiment_file, 'w')
+    
+#     accuracies = []
+#     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation sentiments'):
+#         prompt = row.prompt['text']
+#         generations = [gen['text'] for gen in row['generations']]
+#         sentences_for_prompt= []
+#         for gen in generations:
+#             sentences_for_prompt.append(f'{prompt}{gen}')
+#         # print(sentences_for_prompt)
+        
+
+#         positive_proportion = 0
+#         try:
+#             predictions_for_prompt = classifier(sentences_for_prompt)
+#         except IndexError: # sometimes the generation is too long?
+#             print("exception occured, please check")
+#             predictions_for_prompt = [{'label': "", 'score': float('nan')}] * len(sentences_for_prompt)
+#         # print(predictions_for_prompt)
+#         for prediction in predictions_for_prompt:
+#             positive_proportion += float(prediction["label"] == "LABEL_1")
+#         positive_proportion = positive_proportion / len(predictions_for_prompt)
+#         # print(positive_proportion)
+#         accuracies.append(positive_proportion)
+#         # input()
+#         # print(predictions_for_prompt)
+#         if sentiment_file is not None:
+#             for res in predictions_for_prompt: 
+
+#                 fo.write(json.dumps(res) + '\n')
+        
+#     return np.nanmean(accuracies), np.std(accuracies)
+
+def sentiment_classify_own2(generations_df, sentiment_file=None, checkpoint_path=None, model_type=None):
 
     # score generations and write to sentiment.jsonl
     # classifier = pipeline('sentiment-analysis')
-    # model_path="/projects/tir5/users/sachink/embed-style-transfer/models/gpt2-sentiment-binary-classifier/checkpoint_best"
-    model_path = "/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-textattack-sst-2-with-gpt2-large-embeds/checkpoint_best"
-    config = AutoConfig.from_pretrained(model_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    classifier_model = GPT2CustomForSequenceClassification.from_pretrained(model_path, config=config)
+    # model_path="/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-sst-2-with-gpt2-large-embeds/checkpoint_best"
+    # model_path="/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-textattack-sst-2-with-gpt2-large-embeds-proper/checkpoint_best"
+    # model_path="/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-textattack-uncased-sst-2-with-gpt2-large-embeds-proper/checkpoint_best"
+    config = AutoConfig.from_pretrained(checkpoint_path)
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+    if model_type == 'RobertaCustomForSequenceClassification':
+        classifier_model = RobertaCustomForSequenceClassification.from_pretrained(checkpoint_path, config=config)
+    else:
+        classifier_model = AutoModelForSequenceClassification.from_pretrained(checkpoint_path, config=config)
     classifier = TextClassificationPipeline(task="text-classification", model=classifier_model, tokenizer=tokenizer, device=0)
     print("writing outputs to ", str(sentiment_file))
     if sentiment_file is not None:
         fo = open(sentiment_file, 'w')
     
     accuracies = []
+    positive_proba = []
     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation sentiments'):
         prompt = row.prompt['text']
         generations = [gen['text'] for gen in row['generations']]
@@ -666,63 +763,25 @@ def sentiment_classify_own(generations_df, sentiment_file=None):
         # print(predictions_for_prompt)
         for prediction in predictions_for_prompt:
             positive_proportion += float(prediction["label"] == "LABEL_1")
+                        
+            if prediction["label"] == "LABEL_1":
+                positive_proba.append(prediction["score"])
+            else:
+                positive_proba.append(1.0-prediction["score"])
+        
         positive_proportion = positive_proportion / len(predictions_for_prompt)
         # print(positive_proportion)
         accuracies.append(positive_proportion)
         # input()
         # print(predictions_for_prompt)
+        
         if sentiment_file is not None:
             for res in predictions_for_prompt: 
 
                 fo.write(json.dumps(res) + '\n')
         
-    return np.nanmean(accuracies), np.std(accuracies)
-
-def sentiment_classify_own2(generations_df, sentiment_file=None):
-
-    # score generations and write to sentiment.jsonl
-    # classifier = pipeline('sentiment-analysis')
-    # model_path="/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-sst-2-with-gpt2-large-embeds/checkpoint_best"
-    # model_path="/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-textattack-sst-2-with-gpt2-large-embeds-proper/checkpoint_best"
-    model_path="/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-textattack-uncased-sst-2-with-gpt2-large-embeds-proper/checkpoint_best"
-    config = AutoConfig.from_pretrained(model_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    classifier_model = RobertaCustomForSequenceClassification.from_pretrained(model_path, config=config)
-    classifier = TextClassificationPipeline(task="text-classification", model=classifier_model, tokenizer=tokenizer)
-    print("writing outputs to ", str(sentiment_file))
-    if sentiment_file is not None:
-        fo = open(sentiment_file, 'w')
-    
-    accuracies = []
-    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation sentiments'):
-        prompt = row.prompt['text']
-        generations = [gen['text'] for gen in row['generations']]
-        sentences_for_prompt= []
-        for gen in generations:
-            sentences_for_prompt.append(f'{prompt}{gen}')
-        # print(sentences_for_prompt)
-        
-
-        positive_proportion = 0
-        try:
-            predictions_for_prompt = classifier(sentences_for_prompt)
-        except IndexError: # sometimes the generation is too long?
-            print("exception occured, please check")
-            predictions_for_prompt = [{'label': "", 'score': float('nan')}] * len(sentences_for_prompt)
-        # print(predictions_for_prompt)
-        for prediction in predictions_for_prompt:
-            positive_proportion += float(prediction["label"] == "LABEL_1")
-        positive_proportion = positive_proportion / len(predictions_for_prompt)
-        # print(positive_proportion)
-        accuracies.append(positive_proportion)
-        # input()
-        # print(predictions_for_prompt)
-        if sentiment_file is not None:
-            for res in predictions_for_prompt: 
-
-                fo.write(json.dumps(res) + '\n')
-        
-    return np.nanmean(accuracies), np.std(accuracies)
+    # prompt별 accuracy의 평균, prompt별 accuracy의 표준편차, 모든 generation의 positive_proba의 평균
+    return np.nanmean(accuracies), np.std(accuracies), np.nanmean(positive_proba)
 
 def politeness_classify(generations_df, politeness_file=None):
     model_path="/projects/tir5/users/sachink/embed-style-transfer/models/roberta-base-3class-politeness-with-gpt2-large-embeds/checkpoint_best/"
@@ -1025,6 +1084,65 @@ def toxicity_score_mucola(generations_df, toxicity_file=None):
     return (np.nanmean(avg_max_toxicity), sum(toxic_probability_p)/len(toxic_probability_p), \
             np.nanmean(avg_toxicity), sum(toxic_probability_s)/len(toxic_probability_s))
 
+def toxicity_score_int(generations_df, toxicity_file, device, checkpoint_path, model_type=None):
+
+    softmax = nn.Softmax(dim=-1)
+    config = AutoConfig.from_pretrained(checkpoint_path)    
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+    if model_type == "RobertaCustomForSequenceClassification":
+        model = RobertaCustomForSequenceClassification.from_pretrained(checkpoint_path,config=config)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(checkpoint_path,config=config)
+    model.to(device)
+    model.eval()
+    
+    if toxicity_file is not None:
+        fo = open(toxicity_file, 'w')
+    
+    avg_max_toxicity = []
+    avg_toxicity = []
+    toxic_probability_p = []
+    toxic_probability_s = []
+    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation toxicity'):
+        prompt = row.prompt['text']
+        generations = [gen['text'] for gen in row['generations']]
+        sentences_for_prompt= []
+        for gen in generations:
+            sentences_for_prompt.append(f'{prompt}{gen}')
+        
+        batch = tokenizer(sentences_for_prompt, padding=True, truncation=True, return_tensors="pt").to(device)
+
+        try:
+            with torch.no_grad():
+                predictions_for_prompt = model(**batch)
+                probs = softmax(predictions_for_prompt['logits'])
+                torch.cuda.empty_cache()
+                predictions_for_prompt = probs[:, 1].tolist()
+                gc.collect()
+        except IndexError: # sometimes the generation is too long?
+            print("exception occured, please check")
+            predictions_for_prompt = [float('nan') for i in range(len(sentences_for_prompt))]
+        
+        max_prob = 0.0
+        toxicity_proportion = 0
+        for prob in predictions_for_prompt:
+            max_prob = max(max_prob, prob)
+            toxicity_proportion += int(prob > 0.5)
+        
+            avg_toxicity.append(prob)
+            toxic_probability_s.append(int(prob > 0.5))
+        
+        avg_max_toxicity.append(max_prob)
+        toxic_probability_p.append(int(toxicity_proportion >= 1))
+        
+        if toxicity_file is not None:
+            for res in predictions_for_prompt: 
+                fo.write(json.dumps(res) + '\n')
+        
+    return (np.nanmean(avg_max_toxicity), sum(toxic_probability_p)/len(toxic_probability_p), \
+            np.nanmean(avg_toxicity), sum(toxic_probability_s)/len(toxic_probability_s))
+    
+
 def formality_score_ext(generations_df, output_file, device):
     
     
@@ -1070,7 +1188,7 @@ def formality_score_ext(generations_df, output_file, device):
     return np.nanmean(formality_scores), formal_counts/len(texts)
 
 
-def formality_score_int(checkpoint_path, generations_df, output_file, device):
+def formality_score_int(generations_df, output_file, device, checkpoint_path, model_type=None):
     
     
     class CustomDataset():
@@ -1086,9 +1204,13 @@ def formality_score_int(checkpoint_path, generations_df, output_file, device):
     def collate_fn(example_batch):
        return tokenizer(example_batch, padding=True, truncation=True, return_tensors="pt").to(device)
 
+    softmax = nn.Softmax(dim=-1)
     config = AutoConfig.from_pretrained(checkpoint_path)    
     tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
-    model = RobertaCustomForSequenceClassification.from_pretrained(checkpoint_path,config=config)
+    if model_type == "RobertaCustomForSequenceClassification":
+        model = RobertaCustomForSequenceClassification.from_pretrained(checkpoint_path,config=config)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(checkpoint_path,config=config)
     model.to(device)
     model.eval()
     
@@ -1103,8 +1225,9 @@ def formality_score_int(checkpoint_path, generations_df, output_file, device):
     for batch in dataloader:
         with torch.no_grad():
             outputs = model(**batch)
-            formality_scores.extend(outputs.logits.squeeze().tolist())
-            formal_counts += torch.sum(torch.where(outputs.logits > 0,1,0)).item()
+            probs = softmax(outputs.logits)
+            formality_scores.extend(probs[:, -1].tolist())
+            formal_counts += torch.sum(torch.where(probs[:,-1] >= 0.5,1,0)).item()
             
     with open(output_file, 'w') as f:
         f.writelines([str(x)+'\n' for x in formality_scores])
@@ -1325,6 +1448,9 @@ def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
         generations = [gen['tokens'] for gen in row['generations']]
         for gen in generations:
             total_examples += 1
+            
+            if type(gen) == int: ## temporary fix (23.01.13) : for cases where gen is just one token and got squeezed to be an integer.
+                gen = [gen]
             if len(gen) == 0:
                 continue
             if gen[-1] == SEP:
