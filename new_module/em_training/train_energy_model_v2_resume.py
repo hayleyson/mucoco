@@ -384,7 +384,8 @@ def main(args):
                  
 
     logger.info(f"best_val_loss: {best_val_loss}, best_val_step: {best_val_step}")
-    os.rename(f"{ckpt_save_path}/step_{best_val_step}", f"{ckpt_save_path}/step_{best_val_step}_best_checkpoint")
+    if accelerator.is_main_process:
+        os.rename(f"{ckpt_save_path}/step_{best_val_step}", f"{ckpt_save_path}/step_{best_val_step}_best_checkpoint")
     accelerator.end_training()
     
 
