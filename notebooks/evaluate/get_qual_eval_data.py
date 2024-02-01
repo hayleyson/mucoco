@@ -24,8 +24,11 @@ def merge_xlsx_results():
     
 def get_qual_eval_data():
     
-    my_method_data = pd.read_excel(os.path.join(cur_dir,'xlsx_outputs/locate-unit-gpt2-word-netps3-nls4-nps1-modelenergy_result.xlsx'),index_col=0)
+    # my_method_data = pd.read_excel(os.path.join(cur_dir,'xlsx_outputs/locate-unit-gpt2-word-netps3-nls4-nps1-modelenergy_result.xlsx'),index_col=0)
     # my_method_data = pd.read_excel(os.path.join(cur_dir, 'xlsx_outputs/mlm-beamsearch-v1-token-nps5-k10-beam3-allsat_primary-closs0.43-t7w3q9xu_result.xlsx'), index_col=0)
+    # my_method_data = pd.read_excel(os.path.join(cur_dir,'xlsx_outputs/sweep-mlm-beamsearch-v1.1-token-nps5-k10-beam3-weighted_sum-f67kbovx-wandb-wandb_result.xlsx'),index_col=0)
+    my_method_data = pd.read_excel(os.path.join(cur_dir,'xlsx_outputs/sweep-mlm-beamsearch-v0.1-token-nps5-k10-beam3-weighted_sum-k9ot5vd7-wandb_result.xlsx'),index_col=0)
+    
     mucola_data = pd.read_excel(os.path.join(cur_dir, 'xlsx_outputs/mucola_result.xlsx'), index_col=0)
     gpt2_data = pd.read_excel(os.path.join(cur_dir, 'xlsx_outputs/gpt2_result.xlsx'), index_col=0)
     
@@ -49,8 +52,9 @@ def get_qual_eval_data():
 
     fin_df = fin_df.sort_values(by=['index', 'nickname'], ascending=[True, True])
     fin_df = fin_df.reset_index(drop=True)
-    fin_df.to_excel(os.path.join(cur_dir, 'qual_eval_data2.xlsx'))
+    fin_df.to_excel(os.path.join(cur_dir, 'qual_eval_data_beamsearch-v0.1.xlsx'))
     
 
 if __name__ == "__main__":
+    # merge_xlsx_results()
     get_qual_eval_data()
