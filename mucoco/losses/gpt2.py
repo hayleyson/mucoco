@@ -693,7 +693,7 @@ class GPT2VarLengthLoss(GPT2Loss):
         # max_output_length = np.random.normal(loc=max_output_length_mean, scale=10, size=None)
         # max_output_length = int(min(max(max_output_length, max_output_length_mean-10), max_output_length_mean+10))
         max_output_length = int(np.random.uniform(low = max_output_length_mean-10, high=max_output_length_mean+10, size=None))
-        print(max_output_length)
+        print(f"max_output_length: {max_output_length}")
         
         batch_size = input_ids.size(0)
         #batch size is 1, padding and stuff needs to be modified for this to work for larger batches

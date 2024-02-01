@@ -94,7 +94,8 @@ class ClassificationLoss(BaseLoss):
         label_id=kwargs.get("label_id", 1)
         # loss = -lm_logprobs[:, label_id] #label_id = 1
         if lm_logits.shape[1] == 2:
-            loss = lm_logits[:, 1-label_id] - lm_logits[:, label_id]
+            loss = -lm_logprobs[:, label_id] #label_id = 1
+            # loss = lm_logits[:, 1-label_id] - lm_logits[:, label_id]
         elif lm_logits.shape[1] == 1:
             loss = lm_logits
         label_prediction = lm_logprobs.argmax(dim=-1).item()
