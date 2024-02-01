@@ -8,13 +8,16 @@ import sys
 import json
 import logging
 import argparse
+import time 
 from collections import namedtuple
 from typing import List
 
-project_dir = '/home/hyeryung/mucoco' # "/home/s3/hyeryung/mucoco"
+project_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../" )
 sys.path.append(project_dir)
 os.chdir(project_dir)
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+print("project_dir: ", project_dir)
+print("current_dir: ", os.getcwd())
+# os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 # installed packages
 from tqdm import tqdm
@@ -33,27 +36,46 @@ import mucoco.options as options
 import mucoco.utils as utils
 from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon, locate
 from new_module.evaluate_wandb import evaluate
-from new_module.utils import score_hypotheses, constrained_beam_search_v0, constrained_beam_search, editing_beam_search
+from new_module.decode_utils import score_hypotheses, constrained_beam_search_v0, constrained_beam_search, editing_beam_search
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get('LOGGING_LEVEL', logging.DEBUG))
-logger.setLevel(logging.INFO)
+# logger.setLevel(logging.INFO)
 
 def main(config):
-    run = wandb.init(project=config['wandb_project'], config=config)
+    
+    main_start_time = time.time()
+    
+    if not config.get('model_tag', None):
+        if 'energy-training' in config['model_paths'][1]:
+            config['model_tag'] = "em"
+        else:
+            config['model_tag'] = "clsf"
+            
+        if (config['task'] == 'formality') and ('gyafc' in config['model_paths'][1]):
+            config['model_tag']+="-gyafc"
+    
+    if config['resume']:
+        logger.info("resuming from a previous run")
+        run = wandb.init(project=config['wandb_project'], entity=config['wandb_entity'], id=config['wandb_run_id'], resume='must')
+    else:
+        run = wandb.init(project=config['wandb_project'], entity=config['wandb_entity'], config=config)
      
     run_id=run.path.split('/')[-1]
     display_name = f"{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-k{wandb.config.k_per_location}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}-{run_id}"
-    if config['task'] == 'formality':
-        display_name += f"-{config['source_style']}-to-{config['target_style']}"
+    display_name += f"-{config['source_style']}-to-{config['target_style']}"
+    # if config['task'] == 'formality':
+    #     display_name += f"-{config['source_style']}-to-{config['target_style']}"
+    # elif config['task'] == 'sentiment':
+    #     display_name += f"-{config['target_style']}"
     
     outdir = os.path.join(config['output_dir_prefix'], display_name)
     os.makedirs(outdir, exist_ok=True)
     outfile = f"{outdir}/outputs_epsilon{config['min_epsilons'][0]}.txt"
-    outf = open(outfile, "w")
-    
+    run.summary['outfile_path'] = outfile
+   
     class dummyArgs:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
@@ -61,13 +83,34 @@ def main(config):
     build_loss_args=dummyArgs(**config['build_loss_dict'])
     
     ## load data
-    if config['task'] == 'toxicity':
+    if (config['task'] == 'toxicity') or (config['task'] == 'sentiment'):
         source_dataset = [json.loads(l)[config['jsonl_primary_key']][config['jsonl_secondary_key']] for l in open(config['source_data'])]
         generation_dataset = [json.loads(l)["generations"] for l in open(config['source_data'])]
-    elif config['task'] == 'formality':
+    elif (config['task'] == 'formality') or (config['task']=='sentiment-lewis-compr'):
         with open(config['source_data'],'r') as f:
             generation_dataset = f.readlines()
         source_dataset = ["" for l in generation_dataset] 
+    
+    
+    #check if outfile exists
+    if (config['resume']) and (os.path.exists(outfile)):
+    # if os.path.exists(outfile):
+        
+        with open(outfile, "r") as f:
+            existing_gens = [x.rstrip('\n') for x in f.readlines()]
+        resume_idx = len(existing_gens)
+        if resume_idx == len(source_dataset):
+            logger.debug(f"output file is already complete. skipping this run.")
+            return
+        elif resume_idx < len(source_dataset):
+            logger.info(f"output file already exists but is incomplete. resuming from index: {resume_idx}")
+            outf = open(outfile, "a")
+        else:
+            logger.critical(f"output file seems to be corrupted. The file length is {resume_idx}, where the size of source_dataset is {len(source_dataset)}")
+            return
+    else:
+        resume_idx = 0
+        outf = open(outfile, "w")
     
     ## load tokenizer, models, define losses
     name2tokenizer = {}
@@ -147,20 +190,29 @@ def main(config):
         primary_tokenizer.add_special_tokens({'mask_token':mlm_tokenizer.mask_token})
         primary_mask_token_id = primary_tokenizer.mask_token_id
         
+    run.summary['prep_time'] = time.time() - main_start_time
     ## beginning of main logic
-    text_id = 0
-    for text_id in range(len(source_dataset)):
+    decode_start_time = time.time()
+    # text_id = 0
+    if config['resume']:
+        num_skipped = run.summary.get('num_skipped', 0)
+        num_edited = run.summary.get('num_edited',0)
+    else:
+        num_skipped = 0
+        num_edited = 0
+        
+    for text_id in range(len(source_dataset))[resume_idx:]:
         source_text = source_dataset[text_id]
         if source_text == "":
             source_text = primary_tokenizer.bos_token
         source_indices = primary_tokenizer.encode(source_text, return_tensors="pt").to(config['device']).long()
         source_batch = torch.cat([source_indices], dim=0).to(config['device'])
         
-        if config['task'] == 'toxicity':
+        if (config['task'] == 'toxicity') or (config['task'] == 'sentiment'):
             predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
             predicted_batches = [torch.tensor([x], dtype=torch.long, device=config['device']) for x in predicted_batches]
             AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
-        elif config['task'] == 'formality':
+        elif (config['task'] == 'formality') or (config['task']=='sentiment-lewis-compr'):
             predicted_batches = primary_tokenizer.encode(generation_dataset[text_id], return_tensors="pt", add_special_tokens=False).to(config['device']).unsqueeze(0)
             AR_prediction_all = [generation_dataset[text_id]]
         
@@ -169,7 +221,8 @@ def main(config):
             predicted_batch = predicted_batches[sample_idx].cuda()
             AR_prediction = AR_prediction_all[sample_idx]
             
-            logger.critical(f"text_id {text_id} sample_id {sample_idx} \n[text] {AR_prediction} \n[input_ids] {predicted_batch}")
+            logger.debug(f"text_id {text_id} sample_id {sample_idx} \n[prompt] {source_text} [text] {AR_prediction}")# \n[input_ids] {predicted_batch}")
+            # logger.critical(f"text_id {text_id} sample_id {sample_idx} \n[text] {AR_prediction} \n[input_ids] {predicted_batch}")
             # logger.critical(predicted_batch.shape)
             # logger.critical(source_batch.shape)
             
@@ -201,12 +254,17 @@ def main(config):
                 gold_losses.append(lossvalue.squeeze().item())
                 
                 if (lossid >= 1):
-                    if (label_ids[lossid] == 0) and (gold_losses[lossid] > config['min_epsilons'][lossid - 1]): ## loss must be less than epsilon
+                    if gold_losses[lossid] > -np.log(config['min_epsilons'][lossid - 1]):
                         allsat = False
-                    elif (label_ids[lossid] == 1) and (gold_losses[lossid] < config['min_epsilons'][lossid - 1]): ## loss must be greater than epsilon
-                        allsat = False
+                    # # if (label_ids[lossid] == 0) and (gold_losses[lossid] > config['min_epsilons'][lossid - 1]): ## loss must be less than epsilon
+                    # if (label_ids[lossid] == 0) and (gold_losses[lossid] < -np.log(config['min_epsilons'][lossid - 1])): ## loss must be less than epsilon
+                    #     allsat = False
+                    # # elif (label_ids[lossid] == 1) and (gold_losses[lossid] < config['min_epsilons'][lossid - 1]): ## loss must be greater than epsilon
+                    # elif (label_ids[lossid] == 1) and (gold_losses[lossid] > -np.log(config['min_epsilons'][lossid - 1])): ## loss must be greater than epsilon
+                    #     allsat = False
             if allsat:
                 logger.info(f"skipping this sample since it already satisfies constraint. {gold_losses}")
+                num_skipped += 1
                 if sample_idx == 0:
                     output = {
                         "prompt":{
@@ -240,7 +298,8 @@ def main(config):
                     outf.flush()
                 
             else:
-                    
+                
+                num_edited += 1
                 es_patience_count = 0
                 original_sequence = None
                 best_ix, best_prediction, best_text, best_allsat, best_losses, best_weighted_loss = None, None, None, None, None, None
@@ -412,8 +471,10 @@ def main(config):
                         for losses_for_backward in candidate_losses_for_loggings:
                             allsat = True
                             for lossid, lossvalue in enumerate(losses_for_backward):
-                                if (lossid >= 1) and (losses_for_backward[lossid] > config['min_epsilons'][lossid - 1]):
+                                # if (lossid >= 1) and (losses_for_backward[lossid] > config['min_epsilons'][lossid - 1]):
+                                if (lossid >= 1) and (losses_for_backward[lossid] > -np.log(config['min_epsilons'][lossid - 1])):
                                     allsat = False
+                                    
                             candidate_allsats.append(allsat)
                         
                         if wandb.config.selection_criteria == "weighted_sum":
@@ -550,7 +611,7 @@ def main(config):
                             
                     if _iter == 0: 
                         ## save the best prediction in a format compatible with mucola outputs
-                        best_prediction = hypotheses[best_ix].squeeze().tolist()
+                        best_prediction = hypotheses[best_ix].squeeze(0).tolist()
                         # if config['method'] == "mlm-reranking":
                         #     predicted_batch = hypotheses[best_ix]
                         # else:
@@ -584,7 +645,7 @@ def main(config):
                                     update = True
                         if update:
                             ## save the best prediction in a format compatible with mucola outputs
-                            best_prediction = hypotheses[best_ix].squeeze().tolist()
+                            best_prediction = hypotheses[best_ix].squeeze(0).tolist()
                             # if config['method'] == "mlm-reranking":
                             #     predicted_batch = hypotheses[best_ix]
                             # else:
@@ -608,6 +669,7 @@ def main(config):
                             if config['early_stopping_patience'] == -1:
                                 continue
                             if es_patience_count > config['early_stopping_patience']:
+                                logger.info(f"early stopping at iter {_iter}")
                                 break
                 
                 if sample_idx == 0:
@@ -646,18 +708,36 @@ def main(config):
 
         
     outf.close()
+
+    
+    if config['resume']:
+        run.summary["decode_time"] += (time.time() - decode_start_time)
+    else:
+        run.summary["decode_time"] = (time.time() - decode_start_time)
+    run.summary["num_skipped"] = num_skipped
+    run.summary["num_edited"] = num_edited
+    
+    run.finish()
     
     if config['task'] == 'toxicity':
         # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
-        evaluate(run.path, outfile, 'toxicity-energy,toxicity-mucola,ppl-big,dist-n,repetition') # 시간 문제로, perspective api 제외
+        evaluate(run.path, outfile, 'toxicity-int,ppl-big,dist-n,repetition,fluency',
+                 toxicity_model_path=config['model_paths'][1], toxicity_model_type=config['model_types'][1]) # 시간 문제로, perspective api 제외
     elif config['task'] == 'formality':
-        evaluate(run.path, outfile, 'formality-int,formality-ext,ppl-big,dist-n,repetition', formality_model_path=config['model_paths'][1])
+        evaluate(run.path, outfile, 'formality-int,formality-ext,ppl-big,dist-n,repetition,fluency', 
+                 formality_model_path=config['model_paths'][1],formality_model_type=config['model_types'][1])
+    elif config['task'] == 'sentiment':
+        evaluate(run.path, outfile, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency',
+                 sentiment_model_path=config['model_paths'][1],sentiment_model_type=config['model_types'][1])
+    elif config['task'] == 'sentiment-lewis-compr':
+        evaluate(run.path, outfile, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency',
+                 sentiment_model_path=config['model_paths'][1],sentiment_model_type=config['model_types'][1])
     
     
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Locally Editing Text Generation')
-    parser.add_argument('--task', type=str, help='task name', choices=['toxicity', 'formality'])
+    parser.add_argument('--task', type=str, help='task name', choices=['toxicity', 'formality', 'sentiment', 'sentiment-lewis-compr'])
     parser.add_argument('--source_data', type=str, default='data/formality/GYAFC_Corpus/Entertainment_Music/test/informal', help='source data path')
     parser.add_argument('--source_style', type=str, default="informal", help='source style')
     parser.add_argument('--target_style', type=str, default="formal", help='target style')
@@ -684,7 +764,12 @@ if __name__ == "__main__":
     parser.add_argument('--selection_criteria', type=str, default="weighted_sum", help='selection criteria')
     parser.add_argument('--closs_weight', type=float, default=0.32, help='closs weight')
     parser.add_argument('--beam_size', type=int, default=5, help='beam size')   
-    parser.add_argument('--wandb_project', type=str, default='mlm_reranking', help='wandb project name')    
+    parser.add_argument('--wandb_project', type=str, default='mlm_reranking', help='wandb project name')   
+    parser.add_argument('--wandb_entity', type=str, default='hayleyson', help='wandb entity name')
+    parser.add_argument('--wandb_run_id', type=str, help='wandb run name')
+    parser.add_argument('--resume', action='store_true', help='whether to resume from a previous run')
+    parser.add_argument('--slurm_job_id',  type=str, help='slurm job id (for debugging)')
+ 
 
     args = parser.parse_args()
     config = vars(args)
