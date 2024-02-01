@@ -17,6 +17,7 @@ wandb # <- added on 31/03/23 to log
 evaluate # 05/05/23 for evaluation
 seaborn
 jupyter # 8/8/23 for dev 
+accelerate # 2/1/24 for distrib. training
 
 
 ## 아래: gcp (A100) 환경에서 torch, cuda 설치방법
