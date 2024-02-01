@@ -437,15 +437,13 @@ def get_parser():
     
     parser.add_argument(
         "--baselm-gen-online",
-        default=True,
-        type=bool,
+        action="store_true",
         help="Whether to generate Base LM generations when running decoding script (True), or to read generations from a file (False).",
     )
     
     parser.add_argument(
         "--locate-edit",
-        default=True,
-        type=bool,
+        action="store_true",
         help="Whether to first locate tokens to edit and edit only the tokens.",
     )
     

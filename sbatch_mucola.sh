@@ -19,9 +19,9 @@ conda activate mucola
 
 # srun bash examples/training_constraint_models/train_toxicity_classifier.sh  || echo "!!! error occurred"
 # srun python -m notebooks.resume_run  || echo "!!! error occurred"
-# srun bash examples/prompt/toxicity-all/mucola-disc.sh
+srun bash examples/prompt/toxicity-all/mucola-disc.sh
 # srun bash examples/prompt/toxicity-all/locate-edit-disc.sh
-srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset.sh
+# srun bash examples/prompt/toxicity-all/locate-edit-disc-for-testset.sh
 # srun bash examples/prompt/toxicity-all/mucola-disc-save-init-gen.sh
 # srun bash examples/prompt/evaluate_only.sh
 
