@@ -13,7 +13,7 @@ DATA_DIR=data/
 PRIMARYMODEL=$3
 
 #for mucola-disc and mucola-two-disc setups
-SENTIMENTMODELSST2UNCASED=models/sst2-classifier-disc
+SENTIMENTMODELSST2UNCASED=models/sst2-classifier-disc/checkpoint_best
 SENTIMENTMODELYELPUNCASED=models/yelp-classifier-disc
 
 #for mucola-gedi setup
@@ -67,10 +67,12 @@ MAXLR=${28}
 LRUPDATESIZE=${29}
 RESTARTS=${30}
 OUTPUTLEN=${31}
-RANDOMEXAMPLE=${32}
+# RANDOMEXAMPLE=${32}
+RANDOMEXAMPLE="false"
 STARTIDX=${33}
 ENDIDX=${34}
-SENTIMENTMODELID=${35}
+SENTIMENTMODELID="SST2"
+#SENTIMENTMODELID=${35}
 USECONTEXT="false"
 DAMPNESS=${36}
 custom_epsilons="none"
@@ -205,7 +207,8 @@ then
     DATASTYLE="text"
     DATAFILE=$DATA_DIR/control-prompts/pplm-discrim-prompts/prompts.txt
     NUM_SAMPLES=20  
-    OUTPUTLEN=$OUTPUTLEN
+    OUTPUTLEN=30
+    # OUTPUTLEN=$OUTPUTLEN
     MAXLEN=$OUTPUTLEN
     sentmodel=SENTIMENTMODEL${SENTIMENTMODELID}UNCASED
     echo "model",${!sentmodel}
@@ -213,10 +216,11 @@ then
     tokenizer=$PRIMARYMODEL:${!sentmodel}
     model_types=AutoModelForCausalLM:RobertaCustomForSequenceClassification
     betas=0.8:0.2
-    loss=gpt2:classificationlogits
+    loss=gpt2-var-length:classificationlogits
     label_id=0:$LABELID
     lossabbr="pyx:binary"
-    selection_criterion="mrr_allsat"
+    # selection_criterion="mrr_allsat"
+    selection_criterion="allsat"
     epsilons=$CLASSLOGPROB
     min_epsilons=$CLASSLOGPROB
     epsilon_warmup_steps=0
