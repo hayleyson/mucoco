@@ -27,7 +27,7 @@ python -u examples/training_constraint_models/train_classifier.py\
     test\
     roberta-base\
     models/$1-classifier-disc\
-    gpt2-roberta full gpt2-large freeze-vecmap dontbinarize jsonl
+    gpt2-roberta full gpt2-large freeze-vecmap dontbinarize txt
 
 # ## uncomment this to train gedi classifiers
 # python -u examples/training_constraint_models/train_generative_classifier.py\
