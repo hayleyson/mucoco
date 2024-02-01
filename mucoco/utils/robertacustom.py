@@ -3,6 +3,7 @@ from transformers.models.roberta.modeling_roberta import RobertaClassificationHe
 
 from transformers.modeling_outputs import SequenceClassifierOutput
 
+from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 import torch.nn as nn
 import torch
 
