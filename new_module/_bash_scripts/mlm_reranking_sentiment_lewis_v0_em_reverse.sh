@@ -58,4 +58,5 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --output_dir_prefix 'outputs/sentiment/mlm-reranking/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/lewis-compr/' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
---dont_skip_allsat
+--dont_skip_allsat \
+--locate_method 'grad_norm'

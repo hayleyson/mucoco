@@ -25,10 +25,10 @@ import logging
 ###############################################################################################################
 
 import os
-# os.chdir('/home/hyeryungson/mucoco/notebooks/energy-model-retrain')
+# 
 from mucoco.notebooks.utils.load_ckpt import define_model
 from notebooks.energy_model_retrain.customTrainer import CustomTrainer
-# os.chdir('/home/hyeryungson/mucoco')
+# 
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOG_LEVEL", "DEBUG"))
 formatter = '%(asctime)s:%(module)s:%(levelname)s:%(message)s'
