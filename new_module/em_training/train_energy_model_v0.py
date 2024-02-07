@@ -25,8 +25,8 @@ import logging
 ###############################################################################################################
 
 import os
-# os.chdir('/home/hyeryungson/mucoco/notebooks/energy-model-retrain')
-os.chdir('/home/hyeryungson/mucoco')
+# 
+
 from notebooks.utils.load_ckpt import define_model
 from notebooks.energy_model_retrain.customTrainer import CustomTrainer
 

@@ -17,12 +17,6 @@ import time
 from tqdm import tqdm
 import pdb
 from torch import linalg as LA
-project_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../" )
-sys.path.append(project_dir)
-os.chdir(project_dir)
-print("project_dir: ", project_dir)
-print("current_dir: ", os.getcwd())
-# os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 from transformers import AutoTokenizer, AutoConfig
 from sentence_transformers import SentenceTransformer, util

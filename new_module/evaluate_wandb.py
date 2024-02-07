@@ -2,8 +2,8 @@ import logging
 import os
 import argparse
 import sys
-sys.path.append("/home/s3/hyeryung/mucoco")
-sys.path.append("/home/hyeryung_son/mucoco")
+
+
 
 import wandb
 import pandas as pd

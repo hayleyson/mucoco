@@ -4,12 +4,10 @@ import sys
 import math
 import logging
 import json
-# sys.path.append("/home/s3/hyeryung/mucoco")
-# os.chdir("/home/s3/hyeryung/mucoco")
-project_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.." )
-sys.path.append(project_dir)
-os.chdir(project_dir)
-print("project_dir: ", project_dir)
+
+
+
+
             
 import pandas as pd
 from sklearn.model_selection import train_test_split

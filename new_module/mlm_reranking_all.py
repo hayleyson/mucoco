@@ -12,12 +12,6 @@ import time
 from collections import namedtuple
 from typing import List
 
-project_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../" )
-sys.path.append(project_dir)
-os.chdir(project_dir)
-print("project_dir: ", project_dir)
-print("current_dir: ", os.getcwd())
-# os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 # installed packages
 from tqdm import tqdm
@@ -262,7 +256,7 @@ def main(config):
                     # # elif (label_ids[lossid] == 1) and (gold_losses[lossid] < config['min_epsilons'][lossid - 1]): ## loss must be greater than epsilon
                     # elif (label_ids[lossid] == 1) and (gold_losses[lossid] > -np.log(config['min_epsilons'][lossid - 1])): ## loss must be greater than epsilon
                     #     allsat = False
-            if allsat:
+            if (allsat) and (not config['dont_skip_allsat']):
                 logger.info(f"skipping this sample since it already satisfies constraint. {gold_losses}")
                 num_skipped += 1
                 if sample_idx == 0:
@@ -769,6 +763,7 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_run_id', type=str, help='wandb run name')
     parser.add_argument('--resume', action='store_true', help='whether to resume from a previous run')
     parser.add_argument('--slurm_job_id',  type=str, help='slurm job id (for debugging)')
+    parser.add_argument('--dont_skip_allsat',  action="store_true", help='if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints')
  
 
     args = parser.parse_args()

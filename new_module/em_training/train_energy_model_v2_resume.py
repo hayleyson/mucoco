@@ -1,32 +1,32 @@
 # -*- coding: utf-8 -*-
+import argparse
+import json
+import logging
+import math
 import os
 import sys
-import math
-import argparse
-import logging
-import json
 import time
 from operator import itemgetter
-# sys.path.append("/home/s3/hyeryung/mucoco")
-# os.chdir("/home/s3/hyeryung/mucoco")
-sys.path.append(".")
-os.chdir(".")
-# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-            
-from tqdm import tqdm
-import torch
-import pandas as pd
-import wandb
-from torch.utils.data import DataLoader
-from datasets import Dataset
-from transformers import get_linear_schedule_with_warmup, AutoModelForSequenceClassification, AutoTokenizer
-from torch.optim import AdamW
-import torch.nn as nn
 
+import pandas as pd
+import torch
+import torch.nn as nn
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import set_seed
+from datasets import Dataset
+from torch.optim import AdamW
+from torch.utils.data import DataLoader
 
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+from tqdm import tqdm
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    get_linear_schedule_with_warmup,
+)
+
+import wandb
 from new_module.utils.load_ckpt import define_model
 
 logger = get_logger(__name__, log_level = os.environ.get("LOGGING_LEVEL", "ERROR"))
@@ -293,10 +293,23 @@ def main(args):
             elif training_loss_type == "mse":
                 loss = outputs.loss
             elif training_loss_type == "ranking":
+                if (model.module.num_labels == 1):
+                    predictions = torch.sigmoid(outputs.logits)
+                    predictions, references = accelerator.gather_for_metrics((predictions, batch["labels"]))
+                elif (model.module.num_labels == 2):
+                    predictions = torch.softmax(outputs.logits, dim = -1)
+                    predictions, references = accelerator.gather_for_metrics((predictions[:, 1], batch["labels"][:, 1]))
                 higher_batch, lower_batch = create_pairs_for_ranking(predictions, references)
                 loss = ranking_loss_fct(higher_batch, lower_batch)
             elif training_loss_type == "mse+ranking":
                 mse_loss = outputs.loss
+                
+                if (model.module.num_labels == 1):
+                    predictions = torch.sigmoid(outputs.logits)
+                    predictions, references = accelerator.gather_for_metrics((predictions, batch["labels"]))
+                elif (model.module.num_labels == 2):
+                    predictions = torch.softmax(outputs.logits, dim = -1)
+                    predictions, references = accelerator.gather_for_metrics((predictions[:, 1], batch["labels"][:, 1]))
                 higher_batch, lower_batch = create_pairs_for_ranking(predictions, references)
                 ranking_loss = ranking_loss_fct(higher_batch, lower_batch)
                 loss = weight_mse * mse_loss + weight_ranking * ranking_loss

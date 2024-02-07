@@ -6,8 +6,8 @@ import sys
 import math
 import argparse
 import re
-sys.path.append("/home/s3/hyeryung/mucoco")
-os.chdir("/home/s3/hyeryung/mucoco")
+
+
 
 import numpy as np
 import pandas as pd

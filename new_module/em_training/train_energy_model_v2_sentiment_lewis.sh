@@ -9,7 +9,7 @@
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate loc-edit2
+conda activate loc-edit
 
 srun accelerate launch --num_processes=4 new_module/em_training/train_energy_model_v2_resume.py \
 --model=roberta-base-custom \
