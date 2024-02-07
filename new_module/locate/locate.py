@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-# os.environ["CUDA_VISIBLE_DEVICES"]="2"
-project_dir=os.path.join(os.path.join(os.path.dirname(__file__),os.pardir),os.pardir)
-os.chdir(project_dir)
-sys.path.append(project_dir)
 import string
 import argparse
 
@@ -18,6 +14,46 @@ import pandas as pd
 import numpy as np
 
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
+
+
+
+
+def get_word2tok(row: pd.Series) -> dict:
+    """
+    A function that take a list of words and a corresponding list of tokens 
+    into a mapping between each word's index and its corresponding token indexes.
+    @param row: A row from dataframe
+    @return word2char: A dictionary with word's location index as keys and tuples of corresponding token location indexes as values.
+
+    Example:
+    row=pd.Series()
+    row['words']=['wearing', 'games', 'and', 'holy', '****ing', 'shit', 'do', 'I', 'hate', 'horse', 'wearing', 'games.']
+    row['tokens']=[86, 6648, 1830, 290, 11386, 25998, 278, 7510, 466, 314, 5465, 8223, 5762, 1830, 13]
+    word2tok=get_word2tok(row)
+    word2tok
+    {0: [0, 1],
+    1: [2],
+    2: [3],
+    ...
+    10: [12],
+    11: [13, 14]}
+    """
+    global tokenizer
+    
+    jl, jr, k = 0, 0, 0
+    grouped_tokens = []
+    while jr <= len(row['tokens'])+1 and k < len(row['words']):
+        # print(f"{jl}, {jr}, {k}: {tokenizer.decode(row['tokens'][jl:jr]).strip()}")
+        if tokenizer.decode(row['tokens'][jl:jr]).strip() == row['words'][k]:
+            grouped_tokens.append(list(range(jl,jr)))
+            k += 1
+            jl = jr
+            jr += 1
+        else:
+            jr += 1
+    word2tok = dict(zip(range(len(grouped_tokens)), grouped_tokens))
+    return word2tok
+
 
 def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True):
 
@@ -44,6 +80,7 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
     # print("stopwords_ids", torch.tensor(stopwords_ids))
 
     locate_ixes=[]
+    locate_scores = []
     for i, attn in enumerate(cls_attns):
         
         print("attn.shape", attn.shape)
@@ -59,6 +96,11 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
         
         # current tokenizer does not add <s> and </s> to the sentence.
         current_attn = attn[: lengths[i]].softmax(-1) 
+        
+        current_locate_scores = torch.zeros_like(current_attn)
+        current_locate_scores[no_punc_indices] = current_attn[no_punc_indices].clone()
+        locate_scores.append(current_locate_scores.cpu().detach().tolist())
+        
         # print("current_attn", current_attn)
         current_attn = current_attn[no_punc_indices]
         # print("current_attn", current_attn)
@@ -72,6 +114,7 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
         torch.cuda.empty_cache()
         top_masks = top_masks.cpu().tolist()
         print("top_masks", top_masks)
+        
         
         # attention 값이 평균보다 큰 토큰의 수가 k개 또는 문장 전체 토큰 수의 1/3 보다 크면  
         if len(top_masks) > min((lengths[i]) // 3, max_num_tokens):
@@ -89,24 +132,26 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
         elif unit == "word":
             # word의 일부만 locate 한 경우, word 전체를 locate 한다.
             # 같은 word 안에 있는 token 끼리 묶음.
-            j, k = 0, 0
-            grouped_tokens = []
-            grouped_tokens_for_word = []
             words = tokenizer.decode(current_sent).strip().split()
             # print("words", words)
-            while j < len(current_sent):
-                if (tokenizer.decode(current_sent[j]).strip() not in stopwords):
-                    # print("tokenizer.decode(current_sent[j])", tokenizer.decode(current_sent[j]))
-                    while k < len(words):
-                        if tokenizer.decode(current_sent[j]).strip() in words[k]:
-                            grouped_tokens_for_word.append(j)
-                            break
-                        else:
-                            grouped_tokens.append(grouped_tokens_for_word)
-                            grouped_tokens_for_word = []
-                            k += 1
-                j += 1
-            grouped_tokens.append(grouped_tokens_for_word)
+            print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
+            grouped_tokens = list(get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())
+            # j, k = 0, 0
+            # grouped_tokens = []
+            # grouped_tokens_for_word = []
+            # while j < len(current_sent):
+            #     if (tokenizer.decode(current_sent[j]).strip() not in stopwords):
+            #         # print("tokenizer.decode(current_sent[j])", tokenizer.decode(current_sent[j]))
+            #         while k < len(words):
+            #             if tokenizer.decode(current_sent[j]).strip() in words[k]:
+            #                 grouped_tokens_for_word.append(j)
+            #                 break
+            #             else:
+            #                 grouped_tokens.append(grouped_tokens_for_word)
+            #                 grouped_tokens_for_word = []
+            #                 k += 1
+            #     j += 1
+            # grouped_tokens.append(grouped_tokens_for_word)
             # print("grouped_tokens", grouped_tokens)
             
             top_masks_final.sort()
@@ -125,7 +170,7 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
             locate_ixes.append(list(set(top_masks_final_final)))
 
             
-    return locate_ixes
+    return locate_ixes, locate_scores
 
 
 def locate_grad_norm(output, tokenizer, batch, label_id = 1, max_num_tokens = 6, unit="word", use_cuda=True):
@@ -218,22 +263,23 @@ def locate_grad_norm(output, tokenizer, batch, label_id = 1, max_num_tokens = 6,
         elif unit == "word":
 
             ## group token indices that belong to the same word
-            j, k = 0, 0
-            grouped_tokens = []
-            grouped_tokens_for_word = []
             words = tokenizer.decode(current_sent).strip().split()
-            while j < len(current_sent):
-                if (tokenizer.decode(current_sent[j]).strip() not in stopwords):
-                    while k < len(words):
-                        if tokenizer.decode(current_sent[j]).strip() in words[k]:
-                            grouped_tokens_for_word.append(j)
-                            break
-                        else:
-                            grouped_tokens.append(grouped_tokens_for_word)
-                            grouped_tokens_for_word = []
-                            k += 1
-                j += 1
-            grouped_tokens.append(grouped_tokens_for_word)
+            print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
+            grouped_tokens = list(get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())            # j, k = 0, 0
+            # grouped_tokens = []
+            # grouped_tokens_for_word = []
+            # while j < len(current_sent):
+            #     if (tokenizer.decode(current_sent[j]).strip() not in stopwords):
+            #         while k < len(words):
+            #             if tokenizer.decode(current_sent[j]).strip() in words[k]:
+            #                 grouped_tokens_for_word.append(j)
+            #                 break
+            #             else:
+            #                 grouped_tokens.append(grouped_tokens_for_word)
+            #                 grouped_tokens_for_word = []
+            #                 k += 1
+            #     j += 1
+            # grouped_tokens.append(grouped_tokens_for_word)
             
             ## expand located token indices to include adjacent token indices that belong to the same word as already located tokens
             top_masks.sort()
@@ -253,14 +299,14 @@ def locate_grad_norm(output, tokenizer, batch, label_id = 1, max_num_tokens = 6,
             
     return locate_ixes, locate_scores
 
-def locate_main(method, model, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True):
+def locate_main(method, model, tokenizer, batch, label_id = 1, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True):
     
-    if method == "attn":
+    if method == "attention":
         output = model(**batch, output_attentions=True)
-        return locate_attn(output.attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True)
+        return locate_attn(output.attentions, tokenizer, batch, max_num_tokens, num_layer, unit, use_cuda)
     elif method == "grad_norm":
         output = model(**batch, output_hidden_states=True)
-        return locate_grad_norm(output, tokenizer, batch, max_num_tokens = 6, unit="word", use_cuda=True)
+        return locate_grad_norm(output, tokenizer, batch, label_id, max_num_tokens, unit, use_cuda)
         
 
 if __name__ == "__main__":
@@ -269,7 +315,7 @@ if __name__ == "__main__":
 Input format: jsonl or csv with a column named "text" containing the text to be analyzed\n\
 Output format: input dataframe with a new column named "located_indices" each of which is a list of indices of tokens. e.g. [2,3,4,8,10]\n\
 """)
-    parser.add_argument("--method", type=str, help="method to use for locating tokens to edit")
+    parser.add_argument("--method", type=str, choices=["attention","grad_norm"], help="method to use for locating tokens to edit")
     parser.add_argument("--input_path", type=str, help="path to input file")
     parser.add_argument("--output_path", type=str, help="path to output file")
     parser.add_argument("--model_name_or_path", type=str, help="name of model to use or path to the checkpoint to use")
@@ -312,7 +358,7 @@ Output format: input dataframe with a new column named "located_indices" each of
         print("GPT2 in args.input_path")
         def collate_fn(batch):
             input_ids = pad_sequence([torch.LongTensor(example["tokens"]) for example in batch], padding_value=tokenizer.pad_token_id, batch_first=True) 
-            print(f"input_ids: {input_ids}")
+            # print(f"input_ids: {input_ids}")
             batch = {"input_ids": input_ids,
                     "attention_mask": (input_ids != tokenizer.pad_token_id).long()}
             return transformers.tokenization_utils_base.BatchEncoding(batch)
@@ -332,4 +378,5 @@ Output format: input dataframe with a new column named "located_indices" each of
     
     data[f'pred_indices_{args.method}'] = pred_indices
     data[f'pred_scores_{args.method}'] = pred_scores
+    os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
     data.to_json(args.output_path, lines=True, orient='records')
