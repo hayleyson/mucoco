@@ -32,9 +32,9 @@ export NFS_DIR='/shared/s3/lab07/hyeryung'
 # --target_label_ids 1 1 \
 # --min_epsilons 0.75 \
 # --wandb_project 'sentiment-decoding' \
-# --model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint' \
-# --tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint/' \
-# --output_dir_prefix 'outputs/sentiment/mlm-reranking/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/lewis-compr/' \
+# --model_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \
+# --tokenizer_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \
+# --output_dir_prefix 'outputs/sentiment/mlm-reranking/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/lewis-compr/' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0
 
@@ -53,9 +53,9 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --target_label_ids 1 1 \
 --min_epsilons 0.75 \
 --wandb_project 'sentiment-decoding' \
---model_paths 'gpt2-large' "${NFS_DIR}/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint" \
---tokenizer_paths 'gpt2-large' "${NFS_DIR}/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint" \
---output_dir_prefix 'outputs/sentiment/mlm-reranking/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/lewis-compr/' \
+--model_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \
+--tokenizer_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \
+--output_dir_prefix 'outputs/sentiment/mlm-reranking/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/lewis-compr/' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --dont_skip_allsat
