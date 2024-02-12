@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=sl_bv0_em_r
+#SBATCH --job-name=sl_bv0_em
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
-#SBATCH --output='new_module/_slurm_outs/sl_bv0_em_r_%j.out'
+#SBATCH --output='new_module/_slurm_outs/sl_bv0_em_%j.out'
 #SBATCH --partition=P1
 
 source ~/.bashrc
@@ -26,10 +26,10 @@ export NFS_DIR='/shared/s3/lab07/hyeryung'
 # --selection_criteria allsat_primary \
 # --task sentiment-lewis-compr \
 # --num_samples 1 \
-# --source_data "${NFS_DIR}/loc_edit/data/Sentiment-and-Style-Transfer/data/yelp/sentiment.test.1" \
-# --source_style 'positive' \
-# --target_style 'negative' \
-# --target_label_ids 0 0 \
+# --source_data "${NFS_DIR}/loc_edit/data/Sentiment-and-Style-Transfer/data/yelp/sentiment.test.0" \
+# --source_style 'negative' \
+# --target_style 'positive' \
+# --target_label_ids 1 1 \
 # --min_epsilons 0.75 \
 # --wandb_project 'sentiment-decoding' \
 # --model_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \
@@ -38,19 +38,20 @@ export NFS_DIR='/shared/s3/lab07/hyeryung'
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0
 
-srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
 --k_per_location 10 \
 --n_iter 3 \
---closs_weight 0.167236576878629 \
+--closs_weight 0.43454090274164 \
+--beam_size 3 \
 --selection_criteria allsat_primary \
 --task sentiment-lewis-compr \
 --num_samples 1 \
---source_data "${NFS_DIR}/loc_edit/data/Sentiment-and-Style-Transfer/data/yelp/sentiment.test.1" \
---source_style 'positive' \
---target_style 'negative' \
---target_label_ids 0 0 \
+--source_data "${NFS_DIR}/loc_edit/data/Sentiment-and-Style-Transfer/data/yelp/sentiment.test.0" \
+--source_style 'negative' \
+--target_style 'positive' \
+--target_label_ids 1 1 \
 --min_epsilons 0.75 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \
