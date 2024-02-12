@@ -148,3 +148,6 @@ new_module/em_training/**/*.txt
 new_module/_old
 notebooks/evaluate/**/*.xlsx
 marot
+explainable-qe-shared-task/
+lewis/
+new_module/locate/results/
