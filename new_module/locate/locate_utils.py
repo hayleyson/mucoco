@@ -1,58 +1,58 @@
 # -*- coding: utf-8 -*-
-import os
-import sys
-import string
 import argparse
+import os
+import string
+import sys
 
-import transformers
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from datasets import Dataset
-from torch.utils.data import DataLoader
-from torch.nn.utils.rnn import pad_sequence
-import torch
-import pandas as pd
 import numpy as np
+import pandas as pd
+import torch
+import transformers
+from datasets import Dataset
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
 
+class Processor():
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+    def get_word2tok(self, row: pd.Series) -> dict:
+        """
+        A function that take a list of words and a corresponding list of tokens 
+        into a mapping between each word's index and its corresponding token indexes.
+        @param row: A row from dataframe
+        @return word2char: A dictionary with word's location index as keys and tuples of corresponding token location indexes as values.
 
-
-def get_word2tok(row: pd.Series) -> dict:
-    """
-    A function that take a list of words and a corresponding list of tokens 
-    into a mapping between each word's index and its corresponding token indexes.
-    @param row: A row from dataframe
-    @return word2char: A dictionary with word's location index as keys and tuples of corresponding token location indexes as values.
-
-    Example:
-    row=pd.Series()
-    row['words']=['wearing', 'games', 'and', 'holy', '****ing', 'shit', 'do', 'I', 'hate', 'horse', 'wearing', 'games.']
-    row['tokens']=[86, 6648, 1830, 290, 11386, 25998, 278, 7510, 466, 314, 5465, 8223, 5762, 1830, 13]
-    word2tok=get_word2tok(row)
-    word2tok
-    {0: [0, 1],
-    1: [2],
-    2: [3],
-    ...
-    10: [12],
-    11: [13, 14]}
-    """
-    global tokenizer
-    
-    jl, jr, k = 0, 0, 0
-    grouped_tokens = []
-    while jr <= len(row['tokens'])+1 and k < len(row['words']):
-        # print(f"{jl}, {jr}, {k}: {tokenizer.decode(row['tokens'][jl:jr]).strip()}")
-        if tokenizer.decode(row['tokens'][jl:jr]).strip() == row['words'][k]:
-            grouped_tokens.append(list(range(jl,jr)))
-            k += 1
-            jl = jr
-            jr += 1
-        else:
-            jr += 1
-    word2tok = dict(zip(range(len(grouped_tokens)), grouped_tokens))
-    return word2tok
+        Example:
+        row=pd.Series()
+        row['words']=['wearing', 'games', 'and', 'holy', '****ing', 'shit', 'do', 'I', 'hate', 'horse', 'wearing', 'games.']
+        row['tokens']=[86, 6648, 1830, 290, 11386, 25998, 278, 7510, 466, 314, 5465, 8223, 5762, 1830, 13]
+        word2tok=get_word2tok(row)
+        word2tok
+        {0: [0, 1],
+        1: [2],
+        2: [3],
+        ...
+        10: [12],
+        11: [13, 14]}
+        """
+        
+        jl, jr, k = 0, 0, 0
+        grouped_tokens = []
+        while jr <= len(row['tokens'])+1 and k < len(row['words']):
+            # print(f"{jl}, {jr}, {k}: {self.tokenizer.decode(row['tokens'][jl:jr]).strip()}")
+            if self.tokenizer.decode(row['tokens'][jl:jr]).strip() == row['words'][k]:
+                grouped_tokens.append(list(range(jl,jr)))
+                k += 1
+                jl = jr
+                jr += 1
+            else:
+                jr += 1
+        word2tok = dict(zip(range(len(grouped_tokens)), grouped_tokens))
+        return word2tok
 
 
 def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True):
@@ -64,7 +64,6 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
     ## attentions : tuple of length num hidden layers
     ## attentions[i] : attention value of ith hidden layer of shape (batch, num_heads, query, value)
     lengths = [i.tolist().count(1) for i in batch["attention_mask"]]
-    print(lengths[1])
     # 보고자 하는 attention layer 만 가져옴
     attentions = attentions[
         num_layer # originally 10
@@ -134,8 +133,9 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
             # 같은 word 안에 있는 token 끼리 묶음.
             words = tokenizer.decode(current_sent).strip().split()
             # print("words", words)
+            word2tok_mapper=Processor(tokenizer)
             print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
-            grouped_tokens = list(get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())
+            grouped_tokens = list(word2tok_mapper.get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())
             # j, k = 0, 0
             # grouped_tokens = []
             # grouped_tokens_for_word = []
@@ -264,8 +264,9 @@ def locate_grad_norm(output, tokenizer, batch, label_id = 1, max_num_tokens = 6,
 
             ## group token indices that belong to the same word
             words = tokenizer.decode(current_sent).strip().split()
+            word2tok_mapper=Processor(tokenizer)
             print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
-            grouped_tokens = list(get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())            # j, k = 0, 0
+            grouped_tokens = list(word2tok_mapper.get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())            # j, k = 0, 0
             # grouped_tokens = []
             # grouped_tokens_for_word = []
             # while j < len(current_sent):

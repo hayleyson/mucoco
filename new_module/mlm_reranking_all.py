@@ -24,7 +24,7 @@ from new_module.decode_utils import (
     score_hypotheses,
 )
 from new_module.evaluate_wandb import evaluate
-from new_module.locate import locate_main
+from new_module.locate.locate_utils import locate_main
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -59,8 +59,11 @@ def main(config):
         )
 
     run_id = run.path.split("/")[-1]
-    display_name = f"{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-k{wandb.config.k_per_location}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}-{run_id}"
+    display_name = f"{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-k{wandb.config.k_per_location}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}"
     display_name += f"-{config['source_style']}-to-{config['target_style']}"
+    display_name += f"-{config['locate_method']}"
+    display_name += f"-{run_id}"
+    
 
     outdir = os.path.join(config["output_dir_prefix"], display_name)
     os.makedirs(outdir, exist_ok=True)
@@ -85,7 +88,7 @@ def main(config):
         ]
     elif (config["task"] == "formality") or (config["task"] == "sentiment-lewis-compr"):
         with open(config["source_data"], "r") as f:
-            generation_dataset = f.readlines()
+            generation_dataset = [line.rstrip('\n') for line in f.readlines()]
         source_dataset = ["" for l in generation_dataset]
 
     # check if outfile exists
@@ -96,13 +99,14 @@ def main(config):
             existing_gens = [x.rstrip("\n") for x in f.readlines()]
         resume_idx = len(existing_gens)
         if resume_idx == len(source_dataset):
-            logger.debug(f"output file is already complete. skipping this run.")
+            logger.debug("output file is already complete. skipping this run.")
             return
         elif resume_idx < len(source_dataset):
             logger.info(
                 f"output file already exists but is incomplete. resuming from index: {resume_idx}"
             )
             outf = open(outfile, "a")
+            int_outf = open(outfile+".intermediate", "a")
         else:
             logger.critical(
                 f"output file seems to be corrupted. The file length is {resume_idx}, where the size of source_dataset is {len(source_dataset)}"
@@ -111,6 +115,7 @@ def main(config):
     else:
         resume_idx = 0
         outf = open(outfile, "w")
+        int_outf = open(outfile+".intermediate", "w")
 
     ## load tokenizer, models, define losses
     name2tokenizer = {}
@@ -276,7 +281,7 @@ def main(config):
 
             logger.debug(
                 f"text_id {text_id} sample_id {sample_idx} \n[prompt] {source_text} [text] {AR_prediction}"
-            )  
+            )
             # logger.critical(predicted_batch.shape)
             # logger.critical(source_batch.shape)
 
@@ -317,8 +322,10 @@ def main(config):
                     # # elif (label_ids[lossid] == 1) and (gold_losses[lossid] < config['min_epsilons'][lossid - 1]): ## loss must be greater than epsilon
                     # elif (label_ids[lossid] == 1) and (gold_losses[lossid] > -np.log(config['min_epsilons'][lossid - 1])): ## loss must be greater than epsilon
                     #     allsat = False
-            if (allsat) and (not config['dont_skip_allsat']):
-                logger.info(f"skipping this sample since it already satisfies constraint. {gold_losses}")
+            if (allsat) and (not config["dont_skip_allsat"]):
+                logger.info(
+                    f"skipping this sample since it already satisfies constraint. {gold_losses}"
+                )
                 num_skipped += 1
                 if sample_idx == 0:
                     output = {
@@ -337,6 +344,14 @@ def main(config):
                             }
                         ],
                     }
+                    intermediate_output = {
+                        "prompt": {
+                            "text": source_text,
+                        },
+                        "generations": [
+                            {}
+                        ],
+                    }
                 else:
                     output["generations"].append(
                         {
@@ -348,6 +363,7 @@ def main(config):
                             "weighted_loss": -1,
                         }
                     )
+                    intermediate_output['generations'].append({})
 
                 if sample_idx + 1 == config["num_samples"]:
                     json.dump(output, outf)
@@ -370,7 +386,8 @@ def main(config):
                 _iter = 0
                 for _iter in range(wandb.config.n_iter):
                     ## locate tokens to edit
-                    batch = {"input_ids": predicted_batch}
+                    batch = {"input_ids": predicted_batch,
+                             "attention_mask": torch.ones_like(predicted_batch)}
                     original_sequence = predicted_batch
                     # indices = locate(
                     #     name2model[config["model_paths"][1]],
@@ -382,7 +399,7 @@ def main(config):
                     # )
 
                     indices, _ = locate_main(
-                        config['locate_method'],
+                        config["locate_method"],
                         name2model[config["model_paths"][1]],
                         name2tokenizer[config["model_paths"][1]],
                         batch,
@@ -595,7 +612,7 @@ def main(config):
                             else:  # if no candidate satisfying constraints, default to weighted_sum
                                 best_ix = np.argmin(np.array(candidate_total_losses))
 
-                    if _iter == 0:
+                    if _iter == 0:                        
                         ## save the best prediction in a format compatible with mucola outputs
                         best_prediction = hypotheses[best_ix].squeeze(0).tolist()
                         # if config['method'] == "mlm-reranking":
@@ -614,6 +631,16 @@ def main(config):
                         # logger.debug(f"best_allsat: {best_allsat}")
                         # logger.debug(f"best_losses: {best_losses}")
                         # logger.debug(f"best_weighted_loss: {best_weighted_loss}")
+                        
+                        ## intermediate output for debugging
+                        int_output = {f"iter{_iter}_indices": indices,
+                                      f"iter{_iter}_orig_tokens_at_indices": name2tokenizer[
+                                            config["model_paths"][0]
+                                        ].decode(original_sequence[:, indices].squeeze()),
+                                      f"iter{_iter}_orig_sentence": name2tokenizer[
+                                            config["model_paths"][0]
+                                        ].decode(original_sequence.squeeze()),
+                                      f"iter{_iter}_updated_text": best_text}
                     else:
                         update = False
                         if wandb.config.selection_criteria == "weighted_sum":
@@ -621,19 +648,19 @@ def main(config):
                                 update = True
                         elif wandb.config.selection_criteria == "allsat_primary":
                             if (
-                                best_allsat == False
-                                and candidate_allsats[best_ix] == True
+                                best_allsat is False
+                                and candidate_allsats[best_ix] is True
                             ):
                                 update = True
                             elif (
-                                best_allsat == False
-                                and candidate_allsats[best_ix] == False
+                                best_allsat is False
+                                and candidate_allsats[best_ix] is False
                             ):
                                 if best_weighted_loss > candidate_total_losses[best_ix]:
                                     update = True
                             elif (
-                                best_allsat == True
-                                and candidate_allsats[best_ix] == True
+                                best_allsat is True
+                                and candidate_allsats[best_ix] is True
                             ):
                                 if (
                                     best_losses[0]
@@ -661,6 +688,16 @@ def main(config):
                             # logger.debug(f"best_losses: {best_losses}")
                             # logger.debug(f"best_weighted_loss: {best_weighted_loss}")
 
+                        ## intermediate output for debugging
+                        int_output |= {f"iter{_iter}_indices": indices,
+                                      f"iter{_iter}_orig_tokens_at_indices": name2tokenizer[
+                                            config["model_paths"][0]
+                                        ].decode(original_sequence[:, indices].squeeze()),
+                                      f"iter{_iter}_orig_sentence": name2tokenizer[
+                                            config["model_paths"][0]
+                                        ].decode(original_sequence.squeeze()),
+                                      f"iter{_iter}_updated_text": best_text}
+                        
                         if best_allsat:
                             es_patience_count += 1
                             if config["early_stopping_patience"] == -1:
@@ -689,6 +726,15 @@ def main(config):
                             }
                         ],
                     }
+                    
+                    intermediate_output = {
+                        "prompt": {
+                            "text": source_text,
+                        },
+                        "generations": [
+                            int_output
+                        ],
+                    }
                 else:
                     output["generations"].append(
                         {
@@ -703,13 +749,20 @@ def main(config):
                             "weighted_loss": best_weighted_loss,
                         }
                     )
+                    
+                    intermediate_output["generations"].append(int_output)
 
                 if sample_idx + 1 == config["num_samples"]:
                     json.dump(output, outf)
                     outf.write("\n")
                     outf.flush()
+                    
+                    json.dump(intermediate_output, int_outf)
+                    int_outf.write("\n")
+                    int_outf.flush()
 
     outf.close()
+    int_outf.close()
 
     if config["resume"]:
         run.summary["decode_time"] += time.time() - decode_start_time
@@ -756,47 +809,161 @@ def main(config):
 
 
 if __name__ == "__main__":
-    
-    parser = argparse.ArgumentParser(description='Locally Editing Text Generation')
-    parser.add_argument('--task', type=str, help='task name', choices=['toxicity', 'formality', 'sentiment', 'sentiment-lewis-compr'])
-    parser.add_argument('--source_data', type=str, default='data/formality/GYAFC_Corpus/Entertainment_Music/test/informal', help='source data path')
-    parser.add_argument('--source_style', type=str, default="informal", help='source style')
-    parser.add_argument('--target_style', type=str, default="formal", help='target style')
-    parser.add_argument('--target_label_ids', nargs='+', type=int, default=[1,1], help='a list of indices of target label used in each of models. e.g. [1,1]')
-    parser.add_argument('--model_paths', nargs='+', type=str, default=['gpt2-large', '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'], help='model paths')
-    parser.add_argument('--tokenizer_paths', nargs='+', type=str, default=['gpt2-large', '/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'], help='tokenizer paths')
-    parser.add_argument('--model_types', nargs='+', type=str, default=['AutoModelForCausalLM', 'RobertaCustomForSequenceClassification'], help='model types')
-    parser.add_argument('--output_dir_prefix', type=str, help='output directory prefix. e.g. outputs/formality/mlm-reranking')
-    parser.add_argument('--early_stopping_patience', type=int, default=-1, help='early stopping patience')
-    parser.add_argument('--method', type=str, default="mlm-beamsearch-v0", help='method name', choices=['mlm-beamsearch-v0', 'mlm-beamsearch-v1', 'mlm-beamsearch-v2', 'mlm-reranking'])
-    parser.add_argument('--locate_unit', type=str, default="token", help='unit to locate')
-    parser.add_argument('--min_epsilons', nargs='+', type=float, default=[0.75], help='min epsilons')
-    parser.add_argument('--num_samples', type=int, default=1, help='number of samples to edit per prompt')
-    parser.add_argument('--device', type=str, default="cuda", help='device')
-    parser.add_argument('--target_type', type=str, default='embeds', help="target type (embeds, simplex, probability) from prior work's code")
-    parser.add_argument('--cache_dir', type=str, default='hf_cache', help='cache directory')
-    parser.add_argument('--jsonl_primary_key', type=str, default="prompt", help='jsonl primary key')
-    parser.add_argument('--jsonl_secondary_key', type=str, default="text", help='jsonl secondary key')
-    parser.add_argument('--losses', nargs='+', type=str, default=['gpt2', 'classification_no_prefix'], help='losses')
-    parser.add_argument('--build_loss_dict', type=json.loads, default='{"coeff_steps": 200, "coeff_pattern": "constant", "loss_type": "xentropy", "length_normalize": false, "AR_temperature": 1.0, "AR_top_k": 0, "AR_top_p": 0.96, "max_output_length": 20}', help='build loss dict')
-    parser.add_argument('--num_edit_token_per_step', type=int, default=5, help='number of edit tokens per step')
-    parser.add_argument('--k_per_location', type=int, default=15, help='k per location')
-    parser.add_argument('--n_iter', type=int, default=3, help='number of iterations')
-    parser.add_argument('--selection_criteria', type=str, default="weighted_sum", help='selection criteria')
-    parser.add_argument('--closs_weight', type=float, default=0.32, help='closs weight')
-    parser.add_argument('--beam_size', type=int, default=5, help='beam size')   
-    parser.add_argument('--wandb_project', type=str, default='mlm_reranking', help='wandb project name')   
-    parser.add_argument('--wandb_entity', type=str, default='hayleyson', help='wandb entity name')
-    parser.add_argument('--wandb_run_id', type=str, help='wandb run name')
-    parser.add_argument('--resume', action='store_true', help='whether to resume from a previous run')
-    parser.add_argument('--slurm_job_id',  type=str, help='slurm job id (for debugging)')
-    parser.add_argument('--dont_skip_allsat',  action="store_true", help='if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints')
+    parser = argparse.ArgumentParser(description="Locally Editing Text Generation")
+    parser.add_argument(
+        "--task",
+        type=str,
+        help="task name",
+        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr"],
+    )
+    parser.add_argument(
+        "--source_data",
+        type=str,
+        default="data/formality/GYAFC_Corpus/Entertainment_Music/test/informal",
+        help="source data path",
+    )
+    parser.add_argument(
+        "--source_style", type=str, default="informal", help="source style"
+    )
+    parser.add_argument(
+        "--target_style", type=str, default="formal", help="target style"
+    )
+    parser.add_argument(
+        "--target_label_ids",
+        nargs="+",
+        type=int,
+        default=[1, 1],
+        help="a list of indices of target label used in each of models. e.g. [1,1]",
+    )
+    parser.add_argument(
+        "--model_paths",
+        nargs="+",
+        type=str,
+        default=[
+            "gpt2-large",
+            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
+        ],
+        help="model paths",
+    )
+    parser.add_argument(
+        "--tokenizer_paths",
+        nargs="+",
+        type=str,
+        default=[
+            "gpt2-large",
+            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
+        ],
+        help="tokenizer paths",
+    )
+    parser.add_argument(
+        "--model_types",
+        nargs="+",
+        type=str,
+        default=["AutoModelForCausalLM", "RobertaCustomForSequenceClassification"],
+        help="model types",
+    )
+    parser.add_argument(
+        "--output_dir_prefix",
+        type=str,
+        help="output directory prefix. e.g. outputs/formality/mlm-reranking",
+    )
+    parser.add_argument(
+        "--early_stopping_patience",
+        type=int,
+        default=-1,
+        help="early stopping patience",
+    )
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="mlm-beamsearch-v0",
+        help="method name",
+        choices=[
+            "mlm-beamsearch-v0",
+            "mlm-beamsearch-v1",
+            "mlm-beamsearch-v2",
+            "mlm-reranking",
+        ],
+    )
+    parser.add_argument(
+        "--locate_unit", type=str, default="token", help="unit to locate"
+    )
+    parser.add_argument(
+        "--min_epsilons", nargs="+", type=float, default=[0.75], help="min epsilons"
+    )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=1,
+        help="number of samples to edit per prompt",
+    )
+    parser.add_argument("--device", type=str, default="cuda", help="device")
+    parser.add_argument(
+        "--target_type",
+        type=str,
+        default="embeds",
+        help="target type (embeds, simplex, probability) from prior work's code",
+    )
+    parser.add_argument(
+        "--cache_dir", type=str, default="hf_cache", help="cache directory"
+    )
+    parser.add_argument(
+        "--jsonl_primary_key", type=str, default="prompt", help="jsonl primary key"
+    )
+    parser.add_argument(
+        "--jsonl_secondary_key", type=str, default="text", help="jsonl secondary key"
+    )
+    parser.add_argument(
+        "--losses",
+        nargs="+",
+        type=str,
+        default=["gpt2", "classification_no_prefix"],
+        help="losses",
+    )
+    parser.add_argument(
+        "--build_loss_dict",
+        type=json.loads,
+        default='{"coeff_steps": 200, "coeff_pattern": "constant", "loss_type": "xentropy", "length_normalize": false, "AR_temperature": 1.0, "AR_top_k": 0, "AR_top_p": 0.96, "max_output_length": 20}',
+        help="build loss dict",
+    )
+    parser.add_argument(
+        "--num_edit_token_per_step",
+        type=int,
+        default=5,
+        help="number of edit tokens per step",
+    )
+    parser.add_argument("--k_per_location", type=int, default=15, help="k per location")
+    parser.add_argument("--n_iter", type=int, default=3, help="number of iterations")
+    parser.add_argument(
+        "--selection_criteria",
+        type=str,
+        default="weighted_sum",
+        help="selection criteria",
+    )
+    parser.add_argument("--closs_weight", type=float, default=0.32, help="closs weight")
+    parser.add_argument("--beam_size", type=int, default=5, help="beam size")
+    parser.add_argument(
+        "--wandb_project", type=str, default="mlm_reranking", help="wandb project name"
+    )
+    parser.add_argument(
+        "--wandb_entity", type=str, default="hayleyson", help="wandb entity name"
+    )
+    parser.add_argument("--wandb_run_id", type=str, help="wandb run name")
+    parser.add_argument(
+        "--resume", action="store_true", help="whether to resume from a previous run"
+    )
+    parser.add_argument("--slurm_job_id", type=str, help="slurm job id (for debugging)")
+    parser.add_argument(
+        "--dont_skip_allsat",
+        action="store_true",
+        help="if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints",
+    )
     parser.add_argument(
         "--locate_method",
         type=str,
         help="method to use for locating tokens",
         choices=["attention", "grad_norm"],
-        default="attention"
+        default="attention",
     )
 
     args = parser.parse_args()

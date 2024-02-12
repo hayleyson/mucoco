@@ -11,7 +11,7 @@ source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
-jobid=$(sbatch --parsable new_module/mlm_reranking_formality_v0_em.sh True)
+jobid=$(sbatch --parsable new_module/_bash_scripts/mlm_reranking_formality_v0_em.sh True)
 
 dependency="afterany:${jobid}"
-jobid=$(sbatch --parsable --dependency=$dependency new_module/mlm_reranking_formality_v0_clsf.sh True)
+jobid=$(sbatch --parsable --dependency=$dependency new_module/_bash_scripts/mlm_reranking_formality_v0_clsf.sh True)

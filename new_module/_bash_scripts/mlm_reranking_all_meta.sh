@@ -11,18 +11,18 @@ source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
-# sbatch new_module/mlm_reranking_toxicity_original_meta.sh
-# sbatch new_module/mlm_reranking_toxicity_v0_meta.sh
-sbatch new_module/mlm_reranking_toxicity_v1_meta.sh
-sbatch new_module/mlm_reranking_toxicity_v2_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_toxicity_original_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_toxicity_v0_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_toxicity_v1_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_toxicity_v2_meta.sh
 
-# sbatch new_module/mlm_reranking_formality_original_meta.sh
-# sbatch new_module/mlm_reranking_formality_v0_meta.sh
-sbatch new_module/mlm_reranking_formality_v1_meta.sh
-sbatch new_module/mlm_reranking_formality_v2_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_formality_original_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_formality_v0_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_formality_v1_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_formality_v2_meta.sh
 
-# sbatch new_module/mlm_reranking_sentiment_original_meta.sh
-# sbatch new_module/mlm_reranking_sentiment_v0_meta.sh
-sbatch new_module/mlm_reranking_sentiment_v1_meta.sh
-sbatch new_module/mlm_reranking_sentiment_v2_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_sentiment_original_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_sentiment_v0_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_sentiment_v1_meta.sh
+sbatch new_module/_bash_scripts/mlm_reranking_sentiment_v2_meta.sh
 
