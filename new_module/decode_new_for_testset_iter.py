@@ -1,32 +1,40 @@
+import gc
+import json
 import logging
 import math
 import os
-import sys
+import pdb
 import re
-import torch
-import numpy as np
-import pandas as pd
-import transformers
-import gc
+import sys
 import time
-import json
-import os
+
 ## 23/7/18 - Hayley
 import joblib
-import time 
-from tqdm import tqdm
-import pdb
-from torch import linalg as LA
-
-from transformers import AutoTokenizer, AutoConfig
-from sentence_transformers import SentenceTransformer, util
-
-from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon, locate
-import mucoco.losses as lossbuilder
-import mucoco.options as options
-import mucoco.utils as utils
+import numpy as np
+import pandas as pd
+import torch
 import torch.nn.functional as F
+import transformers
+from sentence_transformers import SentenceTransformer, util
+from torch import linalg as LA
+from tqdm import tqdm
+from transformers import AutoConfig, AutoModel, AutoTokenizer
 
+import mucoco.losses as lossbuilder
+import mucoco.utils as utils
+import new_module.options as options
+import wandb
+from mucoco.utils import (
+    Lambda,
+    Optimizer,
+    OptimizerLE,
+    TargetEmbeddings,
+    TargetProbability,
+    TargetSimplex,
+    get_epsilon,
+)
+from new_module.evaluate_wandb import evaluate
+from new_module.locate.locate_utils import locate_main
 
 # torch.autograd.set_detect_anomaly(True)
 
@@ -56,27 +64,59 @@ def main(args):
         stream=sys.stdout,
     )
     logger = logging.getLogger("mucoco")
-    # logger.setLevel(logging.INFO)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(os.environ.get("LOGGING_LEVEL", "DEBUG"))
     logger.info(args)
 
-    logger.info("output saving directory: %s",os.path.dirname(args.outfile))
-    os.makedirs(os.path.dirname(args.outfile), exist_ok=True)
-    if args.outfile is not None:
-        if args.resume_index == 0:
-            outf = open(args.outfile, "w")
-            outallsatf = open(args.outfile + ".allsat", "w")
-            outf2 = open(args.outfile + ".intermediate", "w")
+    
+    if args.resume:
+        logger.info("resuming from a previous run")
+        run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            id=args.wandb_run_id,
+            resume="must",
+        )
+    else:
+        run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            config=vars(args),
+        )
+        
+    run_id = run.path.split("/")[-1]
+    display_name = f"gbi-{args.locate_unit}-netps{wandb.config.num_edit_token_per_step}-nls{wandb.config.num_locate_steps}-os{wandb.config.optim_steps}-es{wandb.config.early_stop_steps}-{wandb.config.selection_criterion}"
+    display_name += f"-{args.source_style}-to-{args.target_style}"
+    display_name += f"-{args.locate_method}"
+    display_name += f"-{run_id}"
+    
+    outdir = os.path.join(args.output_dir_prefix, display_name)
+    os.makedirs(outdir, exist_ok=True)
+    outfile = f"{outdir}/outputs_epsilon{args.min_epsilons}.txt"
+    run.summary["outfile_path"] = outfile
+    logger.info("output saving directory: %s",os.path.dirname(outfile))
+    
+    if outfile is not None:
+        if not args.resume:
+            outf = open(outfile, "w")
+            outallsatf = open(outfile + ".allsat", "w")
+            outf2 = open(outfile + ".intermediate", "w")
             
-            outfparams = open(args.outfile + ".params", "w")
+            outfparams = open(outfile + ".params", "w")
             outfparams.write("%s\n" %args)
             outfparams.flush()
             outfparams.close()
+            
+            resume_index = 0
         else:
-            outf = open(args.outfile, "a")
-            outallsatf = open(args.outfile + ".allsat", "a")
-            outf2 = open(args.outfile + ".intermediate", "a")
-    
+            outf = open(outfile, "a")
+            outallsatf = open(outfile + ".allsat", "a")
+            outf2 = open(outfile + ".intermediate", "a")
+            
+            with open(outfile, "r") as f:
+                resume_index = len(f.readlines())
+            
+            logger.info(f"Resuming from index {resume_index}")
+        
     if args.num_locate_steps == -1:
         args.num_locate_steps = args.optim_steps + 1
 
@@ -156,15 +196,15 @@ def main(args):
     ##################################################################################################################################################################
     for i, model_path in enumerate(model_paths):
         if model_path not in name2model: #making sure we are not loading the model twice in case some constraints use the same model. 
-            name2tokenizer[model_path] = AutoTokenizer.from_pretrained(tokenizer_paths[i], cache_dir=args.cache_dir,  use_fast=True)
-            name2config[model_path] = AutoConfig.from_pretrained(model_path, cache_dir=args.cache_dir)
+            name2tokenizer[model_path] = AutoTokenizer.from_pretrained(tokenizer_paths[i],  use_fast=True)
+            name2config[model_path] = AutoConfig.from_pretrained(model_path)
 
             if model_types[i] == "sentence-transformer":
                 name2model[model_path] = lossbuilder.ModelWrapper(SentenceTransformer(model_path))
             elif "Custom" in model_types[i]:
-                name2model[model_path] = lossbuilder.ModelWrapper(getattr(utils, model_types[i]).from_pretrained(model_path, config=name2config[model_path], cache_dir=args.cache_dir))
+                name2model[model_path] = lossbuilder.ModelWrapper(getattr(utils, model_types[i]).from_pretrained(model_path, config=name2config[model_path]))
             else:
-                name2model[model_path] = lossbuilder.ModelWrapper(getattr(transformers, model_types[i]).from_pretrained(model_path, config=name2config[model_path], cache_dir=args.cache_dir))
+                name2model[model_path] = lossbuilder.ModelWrapper(getattr(transformers, model_types[i]).from_pretrained(model_path, config=name2config[model_path]))
             
             if not args.show_warnings:
                 set_global_logging_level(logging.ERROR, [name2model[model_path].__module__])
@@ -289,16 +329,24 @@ def main(args):
     if source_dataset is None:
         logger.info("Loading the dataset ...")
         if args.datastyle == "text":
-            source_dataset = [l.strip() for l in open(source_data)]
-            target_dataset = [l.strip() for l in open(target_data)]
-            context_dataset = []
-            import csv
-            with open(context_data) as csvfile: #there can be multiple contexts, for example for paraphrasing, so we allow for a list of contexts for every input
-                reader = csv.reader(csvfile, delimiter="\t")
-                for row in reader:
-                    context_dataset.append(row)
-            additional_dataset = [l.strip() for l in open(additional_data)]
-            generation_dataset = source_dataset
+            if args.task_type == "prompted_generation":
+                source_dataset = [l.rstrip('\n') for l in open(source_data)]
+                target_dataset = [l.rstrip('\n') for l in open(target_data)]
+                context_dataset = []
+                import csv
+                with open(context_data) as csvfile: #there can be multiple contexts, for example for paraphrasing, so we allow for a list of contexts for every input
+                    reader = csv.reader(csvfile, delimiter="\t")
+                    for row in reader:
+                        context_dataset.append(row)
+                additional_dataset = [l.strip() for l in open(additional_data)]
+                if args.dev_mode == "true":
+                    generation_dataset = source_dataset
+            elif args.task_type == "revision":
+                source_dataset = ["" for l in open(source_data)]
+                target_dataset = ["" for l in open(target_data)]
+                additional_dataset = ["" for l in open(additional_data)]
+                context_dataset = ["" for l in open(context_data)]
+                generation_dataset = [l.rstrip('\n') for l in open(source_data)]
         elif args.datastyle == "jsonl": #for some prompts datasets
             if args.task_type == "prompted_generation":
                 source_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(source_data)]
@@ -314,7 +362,7 @@ def main(args):
                     context_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(context_data)]
                     if args.jsonl_secondary_key is not None and args.jsonl_secondary_key != "none":
                         context_dataset = [x[args.jsonl_secondary_key] for x in context_dataset]
-                ##@
+
                 if args.dev_mode == "true":
                     generation_dataset = [json.loads(l)["generations"] for l in open(source_data)]
             elif args.task_type == "revision":
@@ -322,16 +370,8 @@ def main(args):
                 target_dataset = ["" for l in open(target_data)]
                 additional_dataset = ["" for l in open(additional_data)]
                 context_dataset = ["" for l in open(context_data)]
-                ##@
                 generation_dataset = [json.loads(l)["source"] for l in open(source_data)]
-        elif args.datastyle == "single-jsonl": #one jsonl file has all the information
-            source_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(source_data)]
-            target_dataset = [json.loads(l)[args.jsonl_secondary_key] for l in open(target_data)]
-            additional_dataset = [json.loads(l)[args.jsonl_secondary_key] for l in open(additional_data)]
-            
-            context_dataset = [None] * len(source_dataset)
-            if args.use_context:
-                context_dataset = [[json.loads(l)[args.jsonl_secondary_key]] for l in open(context_data)] #meaningful
+        
         start_idx = args.start_idx
         end_idx = (len(source_dataset) + args.end_idx) % len(source_dataset) # also works with negative end_idx
 
@@ -386,6 +426,16 @@ def main(args):
     ##################################################################################################################################################################
     ##################################################################################################################################################################
     end_program = False
+    ## beginning of main logic
+    decode_start_time = time.time()
+    
+    if args.resume:
+        num_skipped = run.summary.get("num_skipped", 0)
+        num_edited = run.summary.get("num_edited", 0)
+    else:
+        num_skipped = 0
+        num_edited = 0
+
     for text_id, source_text in enumerate(source_dataset):
         
         ## 23/7/18 - Hayley - commented it out.
@@ -405,7 +455,7 @@ def main(args):
             if not do_this_example:
                 continue
         
-        if text_id < args.resume_index:
+        if text_id < resume_index:
             continue
             
         print(text_id, "doing it! do_this_example")
@@ -552,7 +602,7 @@ def main(args):
             ##################################################################################################################################################################
             if args.task_type == "revision":
                 # assumption: args.num_samples == 1
-                AR_prediction_all = [generation_dataset[text_id]["text"]]
+                AR_prediction_all = [generation_dataset[text_id]]
                 predicted_batches = primary_tokenizer.encode(AR_prediction_all[0], return_tensors="pt", add_special_tokens=False).to(device).unsqueeze(0)
             elif args.task_type == "prompted_generation":
                 if args.dev_mode == "true":
@@ -595,15 +645,7 @@ def main(args):
                                 predicted_batches.append(AR_predicted_indices.to(device))
                             if args.time:
                                 print(time.time()-starttime)
-                    
-                    # change to read from testset file.
-                    if type(init_gen_ids[text_id]) == list:
-                        predicted_batch = torch.tensor([init_gen_ids[text_id]], dtype=torch.long, device=device)
-                    else:
-                        predicted_batch = init_gen_ids[text_id].unsqueeze(0).to(device)
-                    
-                    AR_prediction = primary_tokenizer.decode(predicted_batch[0])
-                    AR_predicted_indices = predicted_batch
+                
             
             
             ##################################################################################################################################################################
@@ -617,7 +659,7 @@ def main(args):
             # for each prompt loop over 25 samples
             ##################################################################################################################################################################
             for sample_idx in range(args.num_samples): # 25 for nontoxic
-                print("sample_idx", sample_idx)
+                logger.info(f"sample_idx: {sample_idx}")
                 for restart_idx in range(args.restarts + 1): # 0 for nontoxic. restart the optimization if the constraints are not satisfied
                     predicted_batch = predicted_batches[sample_idx * (args.restarts + 1) + restart_idx]
                     if use_cuda:
@@ -708,6 +750,7 @@ def main(args):
                     
                     if not definite_skip:
                         
+                        num_edited += 1
                         if (args.max_length is None or args.max_length == -1) and args.init not in ["source", "target"]: 
                             #since we don't know the about length, we search in a (-length_diff, length_diff) window and predict the best performing one.
                             predicted_length = predicted_batch.size(1)
@@ -721,7 +764,7 @@ def main(args):
                         elif args.init == "target":
                             length_range = [predicted_batch.size(1)]
                         elif args.init == "source":
-                            length_range = [source.size(1)]
+                            length_range = [source_batch.size(1)]
                         else: 
                             #another way to use this approach is train models which also compute loss on <pad> token and then predict the entire sentence including pad, it has shown to work in some of our experiments
                             length_range = [args.max_length]           
@@ -861,7 +904,7 @@ def main(args):
                                 lambda_.cuda()
                                 
                         ## 23/7/.. - Hayley - updated to allow locate & edit
-                        args.optim= "embedgd_le" # change option
+                        # args.optim= "embedgd_le" # change option
                         optimizer = OptimizerLE.from_opt(outputs, args)
                         optimizer.set_init_pred(predicted_batch)
                         ##
@@ -940,7 +983,6 @@ def main(args):
 
                                     for lossid, lossname in enumerate(losses):
                                         
-                                        print(lossfns[lossid])
                                         
                                         lossvalue, logging_output =\
                                             lossfns[lossid].compute_loss(
@@ -1029,17 +1071,29 @@ def main(args):
                                 ## 23/7/21 - add locate code
                                 ## 23/8/14 - moved inside for loop for gradient-based inference
                                 if step % args.num_locate_steps == 0:
-                                    batch = {"input_ids": pred_tokens}
+                                    batch = {"input_ids": predicted_batch,
+                                            "attention_mask": torch.ones_like(predicted_batch)}
                                     if args.num_edit_token_per_step == -1: 
-                                        print("Editing all tokens")
+                                        logger.debug("Editing all tokens")
                                         indices = list(range(len(pred_tokens[0])))
                                     else:
-                                        indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step, unit=args.locate_unit, use_cuda=use_cuda)
+                                        # indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch, max_num_tokens=args.num_edit_token_per_step, unit=args.locate_unit, use_cuda=use_cuda)
+                                        indices, _ = locate_main(
+                                                                args.locate_method,
+                                                                name2model[model_paths[1]],
+                                                                name2tokenizer[model_paths[1]],
+                                                                batch,
+                                                                label_id=label_ids[1],
+                                                                max_num_tokens=wandb.config.num_edit_token_per_step,
+                                                                num_layer=10,
+                                                                unit=args.locate_unit,
+                                                                use_cuda=True if device == "cuda" else False,
+                                                            )
                                     # logger.debug(f"indices: {indices}")
                                     intermediate_result.update({f"step_{step}_indices": indices}) # save indices along with update results
 
                                     if indices == [[]]:
-                                        print(f"Early stop at @{step} with a loss value of {weighted_loss} since no token is to be edited.")
+                                        print(f"Early stop at @{step} since no token is to be edited.")
                                         break
                                 
                                 # ## 08/24/23 add gradient clipping
@@ -1203,26 +1257,26 @@ def main(args):
                                 del losses_for_backward
 
                                 ## turn off early_stopping for now (23/09/04)
-                                # if args.early_stop_steps > 0: #[0] is batch index, batch size in our case in 1 always so it doesn't matter.
+                                if args.early_stop_steps > 0: #[0] is batch index, batch size in our case in 1 always so it doesn't matter.
 
-                                #     early_stop_condition =\
-                                #         ("allsat" in args.selection_criterion and best_allsat[0]) or\
-                                #         (args.selection_criterion == "weighted_sum") or\
-                                #         (args.selection_criterion == "last")
+                                    early_stop_condition =\
+                                        ("allsat" in args.selection_criterion and best_allsat[0]) or\
+                                        (args.selection_criterion == "weighted_sum") or\
+                                        (args.selection_criterion == "last")
+                                    logger.info(f"early_stop_condition: {str(early_stop_condition)}")
+                                    if prev_loss is not None and abs(weighted_loss - prev_loss) <= 1e-6:
+                                        same_loss_count += 1
+                                    else:   
+                                        same_loss_count = 0
 
-                                #     if prev_loss is not None and abs(weighted_loss - prev_loss) <= 1e-6:
-                                #         same_loss_count += 1
-                                #     else:   
-                                #         same_loss_count = 0
-
-                                #     if early_stop_condition and same_loss_count >= args.early_stop_steps:
-                                #         print(f"Early stop at @{step} with a loss value of {weighted_loss} and satisfied constraints")
-                                #         break
-                                #     elif same_loss_count >= args.early_stop_steps + 100:#2 * args.lambda_update:
-                                #         print(f"Early stop at @{step} with a loss value of {weighted_loss} and unsatisfied constraints")
-                                #         break
+                                    if early_stop_condition and same_loss_count >= args.early_stop_steps:
+                                        logger.info(f"Early stop at @{step} with a loss value of {weighted_loss} and satisfied constraints")
+                                        break
+                                    elif same_loss_count >= args.early_stop_steps + 100:#2 * args.lambda_update:
+                                        logger.info(f"Early stop at @{step} with a loss value of {weighted_loss} and unsatisfied constraints")
+                                        break
                                         
-                                #     prev_loss = weighted_loss
+                                    prev_loss = weighted_loss
 
 
 
@@ -1353,6 +1407,8 @@ def main(args):
                             
                             # if break_after:
                             #     break
+                    else:
+                        num_skipped += 1
                     
                     if end_program: # if nan occurred, end program entirely
                         break
@@ -1501,12 +1557,44 @@ def main(args):
             predicted_batch = []
             context_batch = []
 
-    if args.outfile is not None:
-        outf.close()
-        outallsatf.close()
-        outf2.close()
+    run.summary['decode_time'] = time.time() - decode_start_time
+    run.summary['num_edited'] = num_edited
+    run.summary['num_skipped'] = num_skipped
+    run.finish()
+
+    outf.close()
+    outallsatf.close()
+    outf2.close()
+    
+    if args.task == "toxicity":
+        # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
+        evaluate(
+            run.path,
+            outfile,
+            "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency",
+            toxicity_model_path=model_paths[1],
+            toxicity_model_type=model_types[1],
+        ) 
+    elif args.task == "formality":
+        evaluate(
+            run.path,
+            outfile,
+            "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency",
+            formality_model_path=model_paths[1],
+            formality_model_type=model_types[1],
+        )
+    elif args.task == "sentiment":
+        evaluate(
+            run.path,
+            outfile,
+            "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
+            sentiment_model_path=model_paths[1],
+            sentiment_model_type=model_types[1],
+        )
+        
     print("average numbers of steps to converge =", np.mean(all_stepcounts))
     print("average time = ", avg_time/c)
+    
 
 def prune(sentence):
     pass 

@@ -1,44 +1,45 @@
-import pandas as pd
-from pathlib import Path
-import os
-import numpy as np
-from tqdm import tqdm
-import click
-import math
-import torch
-from transformers import AutoModelForSequenceClassification, AutoModelForCausalLM, AutoTokenizer, pipeline, AutoConfig, TextClassificationPipeline
-import scipy
-from torch.utils.data import DataLoader, Dataset
-import numpy as np
-
 import argparse
+import gc
 import json
-import os
+import logging
+import math
 import operator
-
-from functools import partial
-from collections import Counter
-from scipy import stats
-from multiprocessing.pool import Pool
-
+import os
 import random
+from collections import Counter
+from functools import partial
+from multiprocessing.pool import Pool
+from pathlib import Path
 
+import click
+import numpy as np
+import pandas as pd
+import scipy
+import torch
+import torch.nn as nn
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
+from scipy import stats
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 # from perspective_api import PerspectiveWorker, unpack_scores
-
-from transformers import GPT2PreTrainedModel, GPT2Model
-from transformers.modeling_outputs import SequenceClassifierOutputWithPast, SequenceClassifierOutput
-
-from transformers import RobertaPreTrainedModel, RobertaModel
+from transformers import (
+    AutoConfig,
+    AutoModelForCausalLM,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    GPT2Model,
+    GPT2PreTrainedModel,
+    RobertaModel,
+    RobertaPreTrainedModel,
+    TextClassificationPipeline,
+    pipeline,
+)
+from transformers.modeling_outputs import (
+    SequenceClassifierOutput,
+    SequenceClassifierOutputWithPast,
+)
 from transformers.models.roberta.modeling_roberta import RobertaClassificationHead
-
-import torch.nn as nn
-import torch
-
-import logging
-
-import gc
 
 logger = logging.getLogger(__name__)
 
@@ -825,9 +826,10 @@ def politeness_classify(generations_df, politeness_file=None):
     return np.nanmean(accuracies), np.std(accuracies), 0
         
 def toxicity_score(generations_df, perspective_file, perspective_rate_limit=5):
+    import time
+
     from googleapiclient import discovery
     from googleapiclient.errors import HttpError
-    import time
 
     API_KEY="AIzaSyDjyaS-Iyw0nOjDjgTi645taUlp13EAs2k" ## hayley - 23/03/23
     assert API_KEY != "none", "Please set the API_KEY before proceeding"
@@ -1434,6 +1436,9 @@ def topic_eval(generations_df, category, cap=None):
     return num_match, num_unit_match, c
 
 def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
+    """
+    Proportion of examples with repeated phrases of length 3 or more.
+    """
     SEP = tokenizer.encode(tokenizer.bos_token)[0]
 
     objs = []

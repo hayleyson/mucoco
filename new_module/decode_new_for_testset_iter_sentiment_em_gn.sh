@@ -5,11 +5,17 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=P1
 #SBATCH --gres=gpu:1
-#SBATCH --output='formality_decoding_original_mlm_reranking_%j.out'
+#SBATCH --output='new_module/_slurm_outs/s_gbi_mucola_em_gn_%j.out'
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
+
+export PYTHONPATH=.
+export LOGGING_LEVEL="INFO"
+export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
+export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
+export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
 
 srun python new_module/decode_new_for_testset_iter.py \
  --AR-temperature=1.0\
@@ -25,13 +31,12 @@ srun python new_module/decode_new_for_testset_iter.py \
  --beam-size=1\
  --betas='0.8:0.2'\
  --bos\
- --cache_dir='hf-cache'\
  --coeff-pattern='constant'\
  --coeff-steps=200\
  --custom-epsilons='none'\
  --dampness=0.1\
- --data='data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'\
- --datastyle='text'\
+ --data='new_module/data/sentiment/outputs.txt.init.jsonl'\
+ --datastyle='jsonl'\
  --debug-gradients='false'\
  --decay-steps=1\
  --decode-temperature=0.1\
@@ -72,7 +77,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --keyword_topk=1\
  --keywords='none'\
  --kweight=5.0\
- --label-id='0:0'\
+ --label-id='1:1'\
  --lambda-lr=1.0\
  --lambda-update=50\
  --length-diff='0'\
@@ -81,7 +86,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --log-interval=25\
  --loss='gpt2:classification_no_prefix'\
  --loss-type='dotplusplus'\
- --lossabbr='pyx:formality'\
+ --lossabbr='pyx:sentiment'\
  --lr=0.25\
  --lr-decay=1.0\
  --lr-update-size=0.01\
@@ -94,19 +99,19 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-prefix-length=50\
  --metric='l2'\
  --min_epsilons='-3'\
- --model='gpt2-large:models/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'\
+ --model='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
- --num_edit_token_per_step=6\
+ --num_edit_token_per_step=-1\
  --num-examples=100\
  --num_locate_steps=-1\
  --num_log_steps=5\
- --num_project_steps=5\
- --num_samples=1\
+ --num_project_steps=1\
+ --num_samples=20\
  --only-mucoco='false'\
- --optim='embedgd'\
- --optim-steps=20\
- --outfile='outputs/formality/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/locate-edit-gpt2-loc-6toks--1steps-project-5steps-allsat/outputs-epsilon-3.txt'\
+ --optim='embedgd_le'\
+ --optim-steps=200\
+ --output_dir_prefix='outputs/sentiment/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training'\
  --output-style='jsonl'\
  --prefix-length=0\
  --random-example='true'\
@@ -124,11 +129,16 @@ srun python new_module/decode_new_for_testset_iter.py \
  --start-idx=0\
  --suffix-length=0\
  --target-type='embeds'\
- --tokenizer='gpt2-large:models/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17'\
+ --tokenizer='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint'\
  --topic-target='none'\
  --topic-word-lists='none'\
  --use_context='false'\
  --warmup-steps=1\
  --weight-decay=0.0\
- --task_type='revision'\
- --locate_unit 'word'
+ --task_type='prompted_generation'\
+ --locate_unit 'word'\
+ --wandb_project 'sentiment_gbi'\
+ --wandb_entity 'hayleyson'\
+ --source_style 'negative'\
+ --target_style 'positive'\
+ --locate_method='grad_norm'
