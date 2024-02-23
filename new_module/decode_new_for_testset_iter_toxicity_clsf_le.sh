@@ -142,4 +142,6 @@ srun python new_module/decode_new_for_testset_iter.py \
  --wandb_entity 'hayleyson'\
  --source_style='toxic'\
  --target_style='nontoxic'\
- --locate_method='attention'
+ --locate_method='attention'\
+ --task='toxicity'\
+ --server-time-limit=12

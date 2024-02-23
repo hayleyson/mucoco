@@ -60,7 +60,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --epsilon_cooldown_steps='1'\
  --epsilon_decay_functions='linear'\
  --epsilon_warmup_steps='0'\
- --epsilons='-3'\
+ --epsilons='-1.09861228867'\
  --evaluation_metrics='fluency'\
  --expgd-gumbel-noise-max=0.0\
  --expgd-momentum=0.0\
@@ -98,7 +98,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-output-length=20\
  --max-prefix-length=50\
  --metric='l2'\
- --min_epsilons='-3'\
+ --min_epsilons='-1.09861228867'\
  --model='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds/step_1116_best_checkpoint/'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
@@ -142,5 +142,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --source_style='informal'\
  --target_style='formal'\
  --locate_method='attention'\
- --wandb_run_id='oqhty3or'\
- --resume
+ --task='formality'\
+ --server-time-limit=12\
+ --resume\
+ --wandb_run_id='6zoyebju'

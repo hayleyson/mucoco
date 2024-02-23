@@ -141,4 +141,6 @@ srun python new_module/decode_new_for_testset_iter.py \
  --wandb_entity 'hayleyson'\
  --source_style 'negative'\
  --target_style 'positive'\
- --locate_method='grad_norm'
+ --locate_method='grad_norm'\
+ --task='sentiment'\
+ --server-time-limit=12

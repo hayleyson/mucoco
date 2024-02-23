@@ -141,4 +141,6 @@ srun python new_module/decode_new_for_testset_iter.py \
  --wandb_entity 'hayleyson'\
  --source_style 'negative'\
  --target_style 'positive'\
- --locate_method='attention'
+ --locate_method='attention'\
+ --task='sentiment'\
+ --server-time-limit=12

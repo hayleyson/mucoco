@@ -151,3 +151,5 @@ marot
 explainable-qe-shared-task/
 lewis/
 new_module/locate/results/
+new_module/*.xlsx
+BOLT/

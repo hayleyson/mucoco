@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=P2
 #SBATCH --gres=gpu:1
-#SBATCH --output='new_module/_slurm_outs/t_gbi_clsf_gn_%j.out'
+#SBATCH --output='new_module/_slurm_outs/t_gbi_clsf_%j.out'
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -142,4 +142,6 @@ srun python new_module/decode_new_for_testset_iter.py \
  --wandb_entity 'hayleyson'\
  --source_style='toxic'\
  --target_style='nontoxic'\
- --locate_method='grad_norm'
+ --locate_method='grad_norm'\
+ --task='toxicity'\
+ --server-time-limit=12

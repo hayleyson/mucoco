@@ -57,6 +57,8 @@ def set_global_logging_level(level=logging.ERROR, prefices=[""]):
             logging.getLogger(name).setLevel(level)
 
 def main(args):
+    
+    main_start_time = time.time()
     logging.basicConfig(
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -432,9 +434,13 @@ def main(args):
     if args.resume:
         num_skipped = run.summary.get("num_skipped", 0)
         num_edited = run.summary.get("num_edited", 0)
+        num_decoded_tokens = run.summary.get("num_decoded_tokens", 0)
     else:
         num_skipped = 0
         num_edited = 0
+        num_decoded_tokens = 0
+
+    interrupted = False
 
     for text_id, source_text in enumerate(source_dataset):
         
@@ -791,7 +797,9 @@ def main(args):
                         else:
                             # print("predicting a sentence length: ", sent_length)
                             pass
-                            
+                        
+                        num_decoded_tokens += sent_length
+                        
                         if args.target_type == "simplex": # use V sized real vector for each token and apply softmax before output
                             outputs = TargetSimplex(
                                 vocabsize=primary_vocab_size,
@@ -1407,85 +1415,23 @@ def main(args):
                             
                             # if break_after:
                             #     break
-                    else:
-                        num_skipped += 1
                     
-                    if end_program: # if nan occurred, end program entirely
-                        break
-                        
-                    ### RESTART HERE (check if convergence failed and restart if it failed & restart_index < restarts)
-                    b=0
-                    if lengthwise_best_prediction[b] is None or not lengthwise_best_prediction[b][2]: #constraints are not satisfied
-                        if restart_idx < args.restarts: #atleast one more restart is left
-                            continue #skip printing and loop over
-                        elif lengthwise_best_prediction[b] is None:
-                            lengthwise_best_prediction = [("", -1, False, [], -1, -1)] #just blank which didn't satisfy the constraints
-
-                    if args.debug:
-                        if not skip_printing:
-                            for b in range(batch_size):
-                                print("sample #"+str(sample_idx), f"repeat count: {lengthwise_best_prediction[b][4]}" , "best prediction for all lengths: ", lengthwise_best_prediction[b][0].strip().replace("\n", " ") + "\n")
-                    else:   
-                        if args.output_style == "text":
-                            for b in range(batch_size):
-                                outf.write(lengthwise_best_prediction[b][0].strip().replace("\n", " ") + "\n")
-                                outf.flush()
-                                outallsatf.write(str(lengthwise_best_prediction[b][2]) + "\n")
-                                outallsatf.flush()
-                        else:
-                            if sample_idx == 0:
-                                output = {
-                                    "prompt":{
-                                        "text":source_text,
-                                        "tokens":source_indices_write}, 
-                                    "generations":[{
-                                        "text": lengthwise_best_prediction[b][0],
-                                        "tokens": lengthwise_best_prediction[b][3],
-                                        "allsat": lengthwise_best_prediction[b][2],
-                                        "losses": lengthwise_best_prediction[b][5],
-                                        "weighted_loss":lengthwise_best_prediction[b][1],
-                                        "repeat_count": lengthwise_best_prediction[b][4],
-                                        "mucoco": True
-                                        }]
-                                }
-                            else:
-                                output['generations'].append(
-                                    {
-                                        "text": lengthwise_best_prediction[b][0],
-                                        "tokens": lengthwise_best_prediction[b][3],
-                                        "allsat": lengthwise_best_prediction[b][2],
-                                        "losses": lengthwise_best_prediction[b][5],
-                                        "weighted_loss":lengthwise_best_prediction[b][1],
-                                        "repeat_count": lengthwise_best_prediction[b][4],
-                                        "mucoco": True
-                                    }
-                                )
+                        if end_program: # if nan occurred, end program entirely
+                            break
                             
-                            if sample_idx + 1 == args.num_samples:
-                                json.dump(output, outf)
-                                outf.write("\n")
-                                outf.flush()
+                        ### RESTART HERE (check if convergence failed and restart if it failed & restart_index < restarts)
+                        b=0
+                        if lengthwise_best_prediction[b] is None or not lengthwise_best_prediction[b][2]: #constraints are not satisfied
+                            if restart_idx < args.restarts: #atleast one more restart is left
+                                continue #skip printing and loop over
+                            elif lengthwise_best_prediction[b] is None:
+                                lengthwise_best_prediction = [("", -1, False, [], -1, -1)] #just blank which didn't satisfy the constraints
 
-                                outallsatf.write(str(lengthwise_best_prediction[b][2]) + "\n")
-                                outallsatf.flush()
-                                #VERIFY
-                            intermediate_result.update({"time": time.time() - start_time})
-                            output2 = intermediate_result
-                            json.dump(output2, outf2)
-                            outf2.write("\n")
-                            outf2.flush()
-                    print(f"required output achieved or number of restarts ran out at attempt #{restart_idx+1}")
-                    break # don't restart if already reached here
-
-                else: # skipping mucoco and writing beam search output 
-                    lengthwise_best_prediction[0] = [(AR_prediction, total_weighted_loss, predicted_allsat, predicted_batch[0].tolist(), -1, predictedlosses)]
-                    if ask_skip != "y":
                         if args.debug:
-                            print("Skipping this example. the beam search output already satisfies all the constraints or there's no constraints")
-                            for b in range(batch_size):
-                                print("best prediction for all lengths: ", lengthwise_best_prediction[b][0].strip().replace("\n", " ") + "\n")
-                        else:
-                            print("Skipping this example. the beam search output already satisfies all the constraints or there's no constraints")
+                            if not skip_printing:
+                                for b in range(batch_size):
+                                    print("sample #"+str(sample_idx), f"repeat count: {lengthwise_best_prediction[b][4]}" , "best prediction for all lengths: ", lengthwise_best_prediction[b][0].strip().replace("\n", " ") + "\n")
+                        else:   
                             if args.output_style == "text":
                                 for b in range(batch_size):
                                     outf.write(lengthwise_best_prediction[b][0].strip().replace("\n", " ") + "\n")
@@ -1493,51 +1439,112 @@ def main(args):
                                     outallsatf.write(str(lengthwise_best_prediction[b][2]) + "\n")
                                     outallsatf.flush()
                             else:
-                                for b in range(batch_size):
-                                    if sample_idx == 0:
-                                        output = {
-                                            "prompt":{
-                                                "text":source_text,
-                                                "tokens":source_indices_write}, 
-                                            "generations":[{
-                                                "text": lengthwise_best_prediction[b][0],
-                                                "tokens": lengthwise_best_prediction[b][3],
-                                                "allsat": lengthwise_best_prediction[b][2],
-                                                "losses": lengthwise_best_prediction[b][5],
-                                                "weighted_loss":lengthwise_best_prediction[b][1],
-                                                "mucoco": False
-                                                }]
+                                if sample_idx == 0:
+                                    output = {
+                                        "prompt":{
+                                            "text":source_text,
+                                            "tokens":source_indices_write}, 
+                                        "generations":[{
+                                            "text": lengthwise_best_prediction[b][0],
+                                            "tokens": lengthwise_best_prediction[b][3],
+                                            "allsat": lengthwise_best_prediction[b][2],
+                                            "losses": lengthwise_best_prediction[b][5],
+                                            "weighted_loss":lengthwise_best_prediction[b][1],
+                                            "repeat_count": lengthwise_best_prediction[b][4],
+                                            "mucoco": True
+                                            }]
+                                    }
+                                else:
+                                    output['generations'].append(
+                                        {
+                                            "text": lengthwise_best_prediction[b][0],
+                                            "tokens": lengthwise_best_prediction[b][3],
+                                            "allsat": lengthwise_best_prediction[b][2],
+                                            "losses": lengthwise_best_prediction[b][5],
+                                            "weighted_loss":lengthwise_best_prediction[b][1],
+                                            "repeat_count": lengthwise_best_prediction[b][4],
+                                            "mucoco": True
                                         }
-                                        # print(output)
-                                    else:
-                                        output['generations'].append(
-                                            {
-                                                "text": lengthwise_best_prediction[b][0],
-                                                "tokens": lengthwise_best_prediction[b][3],
-                                                "allsat": lengthwise_best_prediction[b][2],
-                                                "losses": lengthwise_best_prediction[b][5],
-                                                "weighted_loss":lengthwise_best_prediction[b][1],
-                                                "mucoco": False
-                                            }
-                                        )
+                                    )
                                 
                                 if sample_idx + 1 == args.num_samples:
                                     json.dump(output, outf)
                                     outf.write("\n")
                                     outf.flush()
+
+                                    outallsatf.write(str(lengthwise_best_prediction[b][2]) + "\n")
+                                    outallsatf.flush()
                                     #VERIFY
-                    intermediate_result.update({"time": time.time() - start_time})
-                    output2 = intermediate_result
-                    json.dump(output2, outf2)
-                    outf2.write("\n")
-                    outf2.flush()
-                    break # don't restart
-            
-                if end_program: # if nan occurred, end program entirely
-                    break
-            
-                if args.debug and broken_skip:
-                    break
+                                intermediate_result.update({"time": time.time() - start_time})
+                                output2 = intermediate_result
+                                json.dump(output2, outf2)
+                                outf2.write("\n")
+                                outf2.flush()
+                        print(f"required output achieved or number of restarts ran out at attempt #{restart_idx+1}")
+                        break # don't restart if already reached here
+
+                    else: # skipping mucoco and writing beam search output 
+                        num_skipped += 1
+                        lengthwise_best_prediction = [(AR_prediction, total_weighted_loss, predicted_allsat, predicted_batch[0].tolist(), -1, [x.item() for x in predictedlosses])]
+                        if ask_skip != "y":
+                            if args.debug:
+                                print("Skipping this example. the beam search output already satisfies all the constraints or there's no constraints")
+                                for b in range(batch_size):
+                                    print("best prediction for all lengths: ", lengthwise_best_prediction[b][0].strip().replace("\n", " ") + "\n")
+                            else:
+                                print("Skipping this example. the beam search output already satisfies all the constraints or there's no constraints")
+                                if args.output_style == "text":
+                                    for b in range(batch_size):
+                                        outf.write(lengthwise_best_prediction[b][0].strip().replace("\n", " ") + "\n")
+                                        outf.flush()
+                                        outallsatf.write(str(lengthwise_best_prediction[b][2]) + "\n")
+                                        outallsatf.flush()
+                                else:
+                                    for b in range(batch_size):
+                                        if sample_idx == 0:
+                                            output = {
+                                                "prompt":{
+                                                    "text":source_text,
+                                                    "tokens":source_indices_write}, 
+                                                "generations":[{
+                                                    "text": lengthwise_best_prediction[b][0],
+                                                    "tokens": lengthwise_best_prediction[b][3],
+                                                    "allsat": lengthwise_best_prediction[b][2],
+                                                    "losses": lengthwise_best_prediction[b][5],
+                                                    "weighted_loss":lengthwise_best_prediction[b][1],
+                                                    "mucoco": False
+                                                    }]
+                                            }
+                                            # print(output)
+                                        else:
+                                            output['generations'].append(
+                                                {
+                                                    "text": lengthwise_best_prediction[b][0],
+                                                    "tokens": lengthwise_best_prediction[b][3],
+                                                    "allsat": lengthwise_best_prediction[b][2],
+                                                    "losses": lengthwise_best_prediction[b][5],
+                                                    "weighted_loss":lengthwise_best_prediction[b][1],
+                                                    "mucoco": False
+                                                }
+                                            )
+                                    
+                                    if sample_idx + 1 == args.num_samples:
+                                        json.dump(output, outf)
+                                        outf.write("\n")
+                                        outf.flush()
+                                        #VERIFY
+                        intermediate_result.update({"time": time.time() - start_time})
+                        output2 = intermediate_result
+                        json.dump(output2, outf2)
+                        outf2.write("\n")
+                        outf2.flush()
+                        break # don't restart
+                
+                    if end_program: # if nan occurred, end program entirely
+                        break
+                
+                    if args.debug and broken_skip:
+                        break
 
             if end_program: # if nan occurred, end program entirely
                 break
@@ -1556,8 +1563,18 @@ def main(args):
             additional_batch = []
             predicted_batch = []
             context_batch = []
+            if (time.time() - main_start_time) > args.server_time_limit * 60 * 60 * 0.9:
+                interrupted = True
+                break
+        if interrupted:
+            break
 
-    run.summary['decode_time'] = time.time() - decode_start_time
+    if args.resume:
+        run.summary['decode_time'] = run.summary.get('decode_time', 0) + (time.time() - decode_start_time)
+    else:
+        run.summary['decode_time'] = (time.time() - decode_start_time)
+    run.summary['num_decoded_tokens'] = num_decoded_tokens
+    run.summary['toks_p_sec'] = (num_decoded_tokens/run.summary['decode_time'])
     run.summary['num_edited'] = num_edited
     run.summary['num_skipped'] = num_skipped
     run.finish()
@@ -1565,36 +1582,38 @@ def main(args):
     outf.close()
     outallsatf.close()
     outf2.close()
-    
-    if args.task == "toxicity":
-        # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
-        evaluate(
-            run.path,
-            outfile,
-            "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency",
-            toxicity_model_path=model_paths[1],
-            toxicity_model_type=model_types[1],
-        ) 
-    elif args.task == "formality":
-        evaluate(
-            run.path,
-            outfile,
-            "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency",
-            formality_model_path=model_paths[1],
-            formality_model_type=model_types[1],
-        )
-    elif args.task == "sentiment":
-        evaluate(
-            run.path,
-            outfile,
-            "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
-            sentiment_model_path=model_paths[1],
-            sentiment_model_type=model_types[1],
-        )
         
-    print("average numbers of steps to converge =", np.mean(all_stepcounts))
-    print("average time = ", avg_time/c)
-    
+    if (not interrupted):
+        if (args.task == "toxicity") or (lossabbr[1] == "toxicity"):
+            # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
+            evaluate(
+                run.path,
+                outfile,
+                "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency",
+                toxicity_model_path=model_paths[1],
+                toxicity_model_type=model_types[1],
+            ) 
+        elif (args.task == "formality") or (lossabbr[1] == "formality"):
+            evaluate(
+                run.path,
+                outfile,
+                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency",
+                formality_model_path=model_paths[1],
+                formality_model_type=model_types[1],
+            )
+        elif (args.task == "sentiment") or (lossabbr[1] == "sentiment"):
+            evaluate(
+                run.path,
+                outfile,
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
+                sentiment_model_path=model_paths[1],
+                sentiment_model_type=model_types[1],
+            )
+            
+        print("average numbers of steps to converge =", np.mean(all_stepcounts))
+        print("average time = ", avg_time/c)
+        
+
 
 def prune(sentence):
     pass 

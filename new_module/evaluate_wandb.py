@@ -44,20 +44,32 @@ def evaluate(run_path, generations_file_path, metrics, **kwargs):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.debug(metricset)
     
-    if run_path != "":
+    if run_path != "": ## if wandb run path is provided.
         api = wandb.Api()
         run = api.run(run_path)
-        output_file = f"results_epsilon{run.config['min_epsilons'][0]}-test.txt"
+        min_epsilon = run.config['min_epsilons'][0] if isinstance(run.config['min_epsilons'],list) else run.config['min_epsilons']
+        output_file = f"results_epsilon{min_epsilon}-test.txt"
+        
+        if run.config.get('task', None) is not None:
+            task = run.config['task']
+        else:
+            task = run.config['lossabbr'].split(':')[1]
+            
+        if run.config.get('model_paths', None) is not None:
+            model_path = run.config['model_paths'][1]
+        else:
+            model_path = run.config['model'].split(':')[1]
+        
         if run.state != 'finished':
             try:
-                if run.config['task'] == 'toxicity':
+                if task == 'toxicity':
                     assert len(generations_df) == 250
-                elif run.config['task'] == 'formality':
+                elif task == 'formality':
                     assert len(generations_df) == 1416
-                elif run.config['task'] == 'sentiment':
+                elif task == 'sentiment':
                     assert len(generations_df) == 15
             except:
-                raise Exception(f"The number of generations is not correct. {len(generations_df)} while task is {run.config['task']}")
+                raise Exception(f"The number of generations is not correct. {len(generations_df)} while task is {task}")
             ## if the run state is not finished but the number of generations are complete -> finish the run
             run1 = wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
             run1.finish()
@@ -65,8 +77,8 @@ def evaluate(run_path, generations_file_path, metrics, **kwargs):
         ## update model_tag if it is not set
         model_tag = run.config.get('model_tag', None)
         if (model_tag is None) or (model_tag == ''):
-            run.config['model_tag'] = 'em' if ('energy-training' in run.config['model_paths'][1]) else 'clsf'
-            if (run.config['task'] == 'formality') and ('gyafc' in run.config['model_paths'][1]):
+            run.config['model_tag'] = 'em' if ('energy-training' in model_path) else 'clsf'
+            if (task == 'formality') and ('gyafc' in model_path):
                 run.config['model_tag'] += '-gyafc'
     else:
         output_file = "results.txt"

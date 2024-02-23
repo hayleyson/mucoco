@@ -143,5 +143,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --source_style='toxic'\
  --target_style='nontoxic'\
  --locate_method='attention'\
- --wandb_run_id='0w4hvcuk'\
+ --task='toxicity'\
+ --server-time-limit=12\
+ --wandb_run_id='b3l01234'\
  --resume

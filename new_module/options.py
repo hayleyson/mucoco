@@ -570,5 +570,17 @@ def get_parser():
         default="attention",
         required=True
     )
+    parser.add_argument(
+        "--task",
+        type=str,
+        help="Task to solve. toxicity for toxicity avoidance; sentiment for sentiment-controlled generation; formality for formality transfer.",
+        choices=["toxicity", "sentiment", "formality"]
+    )
+    parser.add_argument(
+        "--server-time-limit",
+        type=float,
+        help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
+        default=10000
+    )
 
     return parser

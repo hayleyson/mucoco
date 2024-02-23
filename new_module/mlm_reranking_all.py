@@ -238,9 +238,11 @@ def main(config):
     if config["resume"]:
         num_skipped = run.summary.get("num_skipped", 0)
         num_edited = run.summary.get("num_edited", 0)
+        num_decoded_tokens = run.summary.get("num_decoded_tokens", 0)
     else:
         num_skipped = 0
         num_edited = 0
+        num_decoded_tokens = 0
 
     for text_id in range(len(source_dataset))[resume_idx:]:
         source_text = source_dataset[text_id]
@@ -335,12 +337,13 @@ def main(config):
                         },
                         "generations": [
                             {
-                                "text": "",
-                                "tokens": [],
+                                "text": AR_prediction,
+                                "tokens": predicted_batch[0].tolist(),
                                 "indices": [[]],
                                 "allsat": -1,
                                 "losses": gold_losses,
                                 "weighted_loss": -1,
+                                "edited": False,
                             }
                         ],
                     }
@@ -355,13 +358,14 @@ def main(config):
                 else:
                     output["generations"].append(
                         {
-                            "text": "",
-                            "tokens": [],
+                            "text": AR_prediction,
+                            "tokens": predicted_batch[0].tolist(),
                             "indices": [[]],
                             "allsat": -1,
                             "losses": gold_losses,
                             "weighted_loss": -1,
-                        }
+                            "edited": False,
+                        }       
                     )
                     intermediate_output['generations'].append({})
 
@@ -372,6 +376,7 @@ def main(config):
 
             else:
                 num_edited += 1
+                num_decoded_tokens += predicted_batch[0].size(-1)
                 es_patience_count = 0
                 original_sequence = None
                 (
@@ -723,6 +728,7 @@ def main(config):
                                 "allsat": best_allsat,
                                 "losses": best_losses,
                                 "weighted_loss": best_weighted_loss,
+                                "edited": True,
                             }
                         ],
                     }
@@ -747,6 +753,7 @@ def main(config):
                             "allsat": best_allsat,
                             "losses": best_losses,
                             "weighted_loss": best_weighted_loss,
+                            "edited": True,
                         }
                     )
                     
@@ -768,6 +775,8 @@ def main(config):
         run.summary["decode_time"] += time.time() - decode_start_time
     else:
         run.summary["decode_time"] = time.time() - decode_start_time
+    run.summary['num_decoded_tokens'] = num_decoded_tokens
+    run.summary['toks_p_sec'] = (num_decoded_tokens/run.summary['decode_time'])
     run.summary["num_skipped"] = num_skipped
     run.summary["num_edited"] = num_edited
 
@@ -917,7 +926,7 @@ if __name__ == "__main__":
         "--losses",
         nargs="+",
         type=str,
-        default=["gpt2", "classification_no_prefix"],
+        default=["gpt2", "classification_no_prefix_logprobloss"],
         help="losses",
     )
     parser.add_argument(
