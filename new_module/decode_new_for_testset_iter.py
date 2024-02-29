@@ -1566,8 +1566,8 @@ def main(args):
             if (time.time() - main_start_time) > args.server_time_limit * 60 * 60 * 0.9:
                 interrupted = True
                 break
-        if interrupted:
-            break
+        # if interrupted:
+        #     break
 
     if args.resume:
         run.summary['decode_time'] = run.summary.get('decode_time', 0) + (time.time() - decode_start_time)

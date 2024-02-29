@@ -54,8 +54,7 @@ class Processor():
         word2tok = dict(zip(range(len(grouped_tokens)), grouped_tokens))
         return word2tok
 
-
-def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True):
+def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, unit="word", device="cuda", num_layer=10):
 
     punctuations = string.punctuation + '\n '
     punctuations = list(punctuations)
@@ -172,8 +171,7 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, num_layer=10, 
             
     return locate_ixes, locate_scores
 
-
-def locate_grad_norm(output, tokenizer, batch, label_id = 1, max_num_tokens = 6, unit="word", use_cuda=True):
+def locate_grad_norm(output, tokenizer, batch, max_num_tokens = 6, unit="word", device="cuda", label_id = 1):
 
     punctuations = string.punctuation + '\n '
     punctuations = list(punctuations)
@@ -214,10 +212,8 @@ def locate_grad_norm(output, tokenizer, batch, label_id = 1, max_num_tokens = 6,
         
         ## current_sent : (lengths[i], )
         current_sent = batch["input_ids"][i][: lengths[i]]
-        if use_cuda:
-            no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids).to(torch.device('cuda'))))[0]
-        else:
-            no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids)))[0]
+        no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids).to(device)))[0]
+        
         # print(f"current_sent: {current_sent}")
         # print(f"len(current_sent), lengths[i]: {len(current_sent), lengths[i]}")
         # print(f"no_punc_indices: {no_punc_indices}")
@@ -300,15 +296,31 @@ def locate_grad_norm(output, tokenizer, batch, label_id = 1, max_num_tokens = 6,
             
     return locate_ixes, locate_scores
 
-def locate_main(method, model, tokenizer, batch, label_id = 1, max_num_tokens = 6, num_layer=10, unit="word", use_cuda=True):
+def locate_main(prediction, method, model, tokenizer, max_num_tokens = 6, unit="word", device="cuda", **kwargs): #label_id = 1, num_layer=10):
+# def locate_main(prompt, prediction, method, model, tokenizer, max_num_tokens = 6, unit="word", device="cuda", **kwargs): #label_id = 1, num_layer=10):
+    
+#     ## prompt에 대한 처리를 어떻게 할지 고민이 필요
+#     if isinstance(prompt, list) and isinstance(prediction, list):
+#         prompt_prediction = [f"{p}{g}" for p, g in zip(prompt, prediction)]
+#     else:
+#         prompt_prediction = [f"{prompt}{prediction}"]
+#     batch = tokenizer(prompt_prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(device)
+    batch = tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(device)
     
     if method == "attention":
         output = model(**batch, output_attentions=True)
-        return locate_attn(output.attentions, tokenizer, batch, max_num_tokens, num_layer, unit, use_cuda)
+        locate_ixes, locate_scores = locate_attn(output.attentions, tokenizer, batch, max_num_tokens, unit, device, kwargs['num_layer'])
     elif method == "grad_norm":
         output = model(**batch, output_hidden_states=True)
-        return locate_grad_norm(output, tokenizer, batch, label_id, max_num_tokens, unit, use_cuda)
-        
+        locate_ixes, locate_scores = locate_grad_norm(output, tokenizer, batch, max_num_tokens, unit, device, kwargs['label_id'])
+    
+    ## assuming batch_size = 1
+    masked_sequence = batch['input_ids'].clone().detach()
+    masked_sequence[:, locate_ixes[0]] = tokenizer.mask_token_id
+    masked_sequence_text = tokenizer.batch_decode(
+        masked_sequence.tolist()
+    )
+    return masked_sequence_text
 
 if __name__ == "__main__":
     

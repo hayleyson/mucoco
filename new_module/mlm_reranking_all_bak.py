@@ -11,19 +11,20 @@ import time
 import numpy as np
 import torch
 import transformers
+from sentence_transformers import SentenceTransformer
 from transformers import AutoConfig, AutoModelForMaskedLM, AutoTokenizer
 
+import mucoco.utils as utils
 import new_module.losses as lossbuilder
 import wandb
 from new_module.decode_utils import (
-    beam_rerank_v0,
-    beam_rerank_v1,
-    beam_rerank_v2,
-    combi_rerank,
+    constrained_beam_search,
+    constrained_beam_search_v0,
+    editing_beam_search,
+    score_hypotheses,
 )
 from new_module.evaluate_wandb import evaluate
 from new_module.locate.locate_utils import locate_main
-from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -92,6 +93,7 @@ def main(config):
 
     # check if outfile exists
     if (config["resume"]) and (os.path.exists(outfile)):
+        # if os.path.exists(outfile):
 
         with open(outfile, "r") as f:
             existing_gens = [x.rstrip("\n") for x in f.readlines()]
@@ -119,9 +121,17 @@ def main(config):
     name2tokenizer = {}
     name2model = {}
     name2config = {}
+    loss2modelname = {}
     loss2tokenizer = {}
     embed_luts = []
+    embed_scales = []
+    prev_vocab_size = None
+    vocab_size = None
+    primary_vocab_size = None
+    primary_model = None
 
+
+    ## 꼭 mucola의 losses 클래스를 써야할까?
     for i, model_path in enumerate(config["model_paths"]):
         if (
             model_path not in name2model
@@ -143,9 +153,9 @@ def main(config):
                 model_path, cache_dir=config["cache_dir"]
             )
 
-            if config["model_types"][i] == "RobertaCustomForSequenceClassification":
+            if "Custom" in config["model_types"][i]:
                 name2model[model_path] = lossbuilder.ModelWrapper(
-                    RobertaCustomForSequenceClassification.from_pretrained(
+                    getattr(utils, config["model_types"][i]).from_pretrained(
                         model_path,
                         config=name2config[model_path],
                         cache_dir=config["cache_dir"],
@@ -161,6 +171,14 @@ def main(config):
                 )
             name2model[model_path].eval()
             name2model[model_path].cuda()
+            embed_lut_ = name2model[model_path].get_input_embeddings()
+            if isinstance(embed_lut_, torch.nn.Sequential):
+                new_vocab_size = embed_lut_[0].num_embeddings
+            else:
+                new_vocab_size = embed_lut_.num_embeddings
+            if prev_vocab_size is None:
+                vocab_size = new_vocab_size
+            prev_vocab_size = vocab_size
 
         input_embeds = name2model[model_path].get_input_embeddings()
         if isinstance(input_embeds, torch.nn.Sequential):
@@ -170,8 +188,19 @@ def main(config):
         if config["target_type"] == "embeds":
             embed_luts[-1].requires_grad = False
 
-    mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
-    mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base")  
+        if i == 0:
+            primary_vocab_size = vocab_size
+            primary_embed_dim = embed_luts[-1].embedding_dim
+            primary_model = name2model[model_path]
+
+        if (
+            getattr(name2model[model_path], "get_decoder", None) is None
+        ):  # this is for MarianMT models which have a weird embedding_scale parameter
+            embed_scales.append(1.0)
+        else:
+            embed_scales.append(
+                getattr(name2model[model_path].get_decoder(), "embed_scale", 1.0)
+            )
 
     lossfns = []
     for i, loss in enumerate(config["losses"]):
@@ -183,12 +212,21 @@ def main(config):
                 build_loss_args,
             )
         )
-        lossfns[i].tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
-        loss2tokenizer[loss] = lossfns[i].tokenizer
-    # lossfns[0].tokenizer = loss2tokenizer[config["losses"][0]]
-    # lossfns[1].tokenizer = loss2tokenizer[config["losses"][1]]
+        loss2modelname[loss] = config["model_paths"][i]
+        loss2tokenizer[loss] = name2tokenizer[config["model_paths"][i]]
+    primary_tokenizer = loss2tokenizer[config["losses"][0]]
+    secondary_tokenizer = loss2tokenizer[config["losses"][1]]
+    
+    model_checkpoint = "roberta-base"
+    mlm_tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+    
+    primary_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
+    primary_mask_token_id = primary_tokenizer.mask_token_id
+    secondary_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
+    secondary_mask_token_id = secondary_tokenizer.mask_token_id
 
-    label_ids = config["target_label_ids"]  # target label's ids for each loss
+    ## load model to generate candidates for editing
+    mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base")    
 
     run.summary["prep_time"] = time.time() - main_start_time
     ## beginning of main logic
@@ -207,19 +245,39 @@ def main(config):
     for text_id in range(len(source_dataset))[resume_idx:]:
         source_text = source_dataset[text_id]
         if source_text == "":
-            source_text = lossfns[0].tokenizer.bos_token
+            source_text = primary_tokenizer.bos_token
+        source_indices = (
+            primary_tokenizer.encode(source_text, return_tensors="pt")
+            .to(config["device"])
+            .long()
+        )
+        source_batch = torch.cat([source_indices], dim=0).to(config["device"])
 
         if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+            predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
+            predicted_batches = [
+                torch.tensor([x], dtype=torch.long, device=config["device"])
+                for x in predicted_batches
+            ]
             AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
-            
         elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
         ):
+            predicted_batches = (
+                primary_tokenizer.encode(
+                    generation_dataset[text_id],
+                    return_tensors="pt",
+                    add_special_tokens=False,
+                )
+                .to(config["device"])
+                .unsqueeze(0)
+            )
             AR_prediction_all = [generation_dataset[text_id]]
 
         sample_idx = 0
         for sample_idx in range(config["num_samples"])[:]:
             
+            predicted_batch = predicted_batches[sample_idx].cuda()
             AR_prediction = AR_prediction_all[sample_idx]
 
             logger.debug(
@@ -228,20 +286,31 @@ def main(config):
 
             # --------------------------------------------------------------------------------------------- #
             ## check whether initial text satisfies constraint
+            label_ids = config["target_label_ids"]  # target label's ids for each loss
             allsat = True
             gold_losses = []
             for lossid, lossname in enumerate(config["losses"]):
-                with torch.no_grad():
-                    lossvalue = lossfns[lossid].compute_gold_loss(
-                        source_text, AR_prediction,
-                        label_id=label_ids[lossid],
-                    )
+                if lossid == 0:
+                    with torch.no_grad():
+                        lossvalue, logging_output = lossfns[lossid].compute_gold_loss(
+                            (source_batch, predicted_batch)
+                        )
+                else:
+                    source_batch_secondary = secondary_tokenizer.encode(primary_tokenizer.decode(source_batch, skip_special_tokens=True), return_tensors="pt").to(config['device'])
+                    predicted_batch_secondary = secondary_tokenizer.encode(primary_tokenizer.decode(predicted_batch, skip_special_tokens=True), return_tensors="pt").to(config['device'])
+                    with torch.no_grad():
+                        lossvalue, logging_output = lossfns[lossid].compute_gold_loss(
+                            (source_batch_secondary, predicted_batch_secondary),
+                            label_id=label_ids[lossid],
+                        )
                     
                 gold_losses.append(lossvalue.squeeze().item())
-                if (lossid >= 1) and (gold_losses[lossid] > -np.log(
-                    config["min_epsilons"][lossid - 1]
-                )):
-                    allsat = False
+
+                if lossid >= 1:
+                    if gold_losses[lossid] > -np.log(
+                        config["min_epsilons"][lossid - 1]
+                    ):
+                        allsat = False
 
             if (allsat) and (not config["dont_skip_allsat"]):
                 logger.info(
@@ -252,10 +321,12 @@ def main(config):
                     output = {
                         "prompt": {
                             "text": source_text,
+                            "tokens": source_indices.tolist(),
                         },
                         "generations": [
                             {
                                 "text": AR_prediction,
+                                "tokens": predicted_batch[0].tolist(),
                                 "indices": [[]],
                                 "allsat": -1,
                                 "losses": gold_losses,
@@ -276,6 +347,7 @@ def main(config):
                     output["generations"].append(
                         {
                             "text": AR_prediction,
+                            "tokens": predicted_batch[0].tolist(),
                             "indices": [[]],
                             "allsat": -1,
                             "losses": gold_losses,
@@ -290,158 +362,239 @@ def main(config):
                     outf.write("\n")
                     outf.flush()
 
-                    json.dump(intermediate_output, int_outf)
-                    int_outf.write("\n")
-                    int_outf.flush()
-
             else:
                 num_edited += 1
-                num_decoded_tokens += name2tokenizer[config["tokenizer_paths"][0]].encode(AR_prediction, return_tensors="pt", add_special_tokens=False).size(-1)
+                num_decoded_tokens += predicted_batch[0].size(-1)
                 es_patience_count = 0
+                original_sequence = None
                 (
                     best_ix,
+                    best_prediction,
+                    best_text,
                     best_allsat,
                     best_losses,
                     best_weighted_loss,
-                ) = None, None, None, None
+                ) = None, None, None, None, None, None
                 
                 best_text = AR_prediction
 
                 _iter = 0
                 for _iter in range(wandb.config.n_iter):
                     ## locate tokens to edit
-                    masked_text  = locate_main(best_text, 
-                                            config["locate_method"], 
-                                            name2model[config["model_paths"][1]], 
-                                            name2tokenizer[config["tokenizer_paths"][1]], 
-                                            max_num_tokens = 6, 
-                                            unit=config["locate_unit"], 
-                                            device="cuda", 
-                                            label_id=config["target_label_ids"][1],
-                                            num_layer=10)
-                    logger.debug(f"iter {_iter}, sample_idx: {sample_idx}")
-                    logger.debug(f"locate result: {masked_text}")
+                    input_ids = secondary_tokenizer.encode(best_text)
                     
+                    batch = {"input_ids": input_ids,
+                             "attention_mask": torch.ones_like(input_ids)}
+                    original_sequence = input_ids
+
+                    indices, _ = locate_main(
+                        config["locate_method"],
+                        name2model[config["model_paths"][1]],
+                        secondary_tokenizer,
+                        batch,
+                        label_id=config["target_label_ids"][1],
+                        max_num_tokens=wandb.config.num_edit_token_per_step,
+                        num_layer=10,
+                        unit=config["locate_unit"],
+                        use_cuda=True,
+                    )
+                    logger.debug(f"iter {_iter}, sample_idx: {sample_idx}")
+                    logger.debug(f"located indices: {indices}")
+                    logger.debug(
+                        f"located indices: {secondary_tokenizer.decode(input_ids[:, indices].squeeze())}"
+                    )
+
                     if config["method"] == "mlm-beamsearch-v2":
                         pass
                     else:
                         ## replace tokens at the indices with mask tokens
-                        inputs = mlm_tokenizer(
-                            masked_text, return_tensors="pt"
+
+                        masked_sequence = input_ids.clone().detach()
+                        masked_sequence[:, indices[0]] = secondary_mask_token_id
+                        masked_sequence_text = secondary_tokenizer.batch_decode(
+                            masked_sequence.tolist()
                         )
-                        # inputs = mlm_tokenizer(
-                        #     source_text + ' ' + masked_text[0], return_tensors="pt", add_special_tokens=False
-                        # )
-                        
+
+                        inputs = mlm_tokenizer(
+                            masked_sequence_text, return_tensors="pt"
+                        )
+
+                        # ## c.f. check if spaces are preserved. -> preserved! checked.
+                        # logger.debug(inputs['input_ids'])
+                        # logger.debug(mlm_tokenizer.decode(inputs['input_ids'][0]))
+
                         ## make predictions for the masked indices
                         with torch.no_grad():
                             logits = mlm(**inputs).logits
                         indices_in_mlm_tokens = (
                             inputs.input_ids == mlm_tokenizer.mask_token_id
                         )[0].nonzero(as_tuple=True)[0]
-                        # print(f"indices_in_mlm_tokens: {indices_in_mlm_tokens}")
+
                         ## get top k tokens for each index
                         predicted_token_ids = torch.topk(
                             logits[0, indices_in_mlm_tokens],
                             k=wandb.config.k_per_location,
                             dim=-1,
                         )
-                        # print(f"predicted_token_ids: {predicted_token_ids}")
-                        # print(f"mlm_tokenizer.batch_decode(predicted_token_ids.indices): {mlm_tokenizer.batch_decode(predicted_token_ids.indices)}")
                         
                     if config["method"] == "mlm-beamsearch-v0":
-                        # print(config["method"])
-                        hypotheses = beam_rerank_v0(source_text,
-                                                    inputs.input_ids,
-                                                    indices_in_mlm_tokens,
-                                                    predicted_token_ids,
-                                                    mlm_tokenizer, 
-                                                    lossfns,
-                                                    config, 
-                                                    beam_size = wandb.config.beam_size)
-                    elif config["method"] == "mlm-beamsearch-v1":
-                        hypotheses = beam_rerank_v1(source_text,
-                                                    inputs.input_ids,
-                                                    indices_in_mlm_tokens,
-                                                    predicted_token_ids,
-                                                    mlm_tokenizer, 
-                                                    lossfns,
-                                                    config, 
-                                                    beam_size = wandb.config.beam_size)
-                    elif config["method"] == "mlm-beamsearch-v2":
-                        source_batch = lossfns[0].tokenizer(source_text, add_special_tokens=False, return_tensors="pt").input_ids.to(config['device'])
-                        masked_sequence = lossfns[0].tokenizer(masked_text, add_special_tokens=False, return_tensors="pt").input_ids.to(config['device'])
-                        hypotheses = beam_rerank_v2(
+                        hypotheses = constrained_beam_search_v0(
                             source_batch,
                             masked_sequence,
-                            lossfns[0].model,
-                            lossfns[0].tokenizer,
+                            torch.LongTensor(sorted(indices[0])),
+                            secondary_mask_token_id,
+                            predicted_token_ids,
+                            primary_tokenizer,
+                            secondary_tokenizer,
+                            mlm_tokenizer,
+                            lossfns,
+                            config,
+                            beam_size=wandb.config.beam_size,
+                            label_ids=label_ids,
+                            device=config["device"],
+                            loss2tokenizer=loss2tokenizer
+                        )
+                    elif config["method"] == "mlm-beamsearch-v1":
+                        hypotheses = constrained_beam_search(
+                            source_batch,
+                            masked_sequence,
+                            torch.LongTensor(sorted(indices[0])),
+                            primary_mask_token_id,
+                            predicted_token_ids,
+                            primary_tokenizer,
+                            mlm_tokenizer,
+                            primary_model,
+                            config,
+                            beam_size=wandb.config.beam_size,
+                        )
+                    elif config["method"] == "mlm-beamsearch-v2":
+                        hypotheses = editing_beam_search(
+                            source_batch,
+                            predicted_batch,
+                            torch.LongTensor(sorted(indices[0])),
+                            primary_model,
+                            primary_tokenizer,
                             config,
                             beam_size=wandb.config.beam_size,
                         )
                     elif config["method"] == "mlm-reranking":
-                        hypotheses = combi_rerank(masked_sequence, ## in mlm tokenizer's tokens
-                            indices_in_mlm_tokens,
-                            predicted_token_ids,
-                            mlm_tokenizer,
-                            config)
+                        ## get k ** num_located_indices sequences with different combinations of the top k tokens for located locations
+                        ## hypotheses will hold a list of input ids encoded with GPT2Tokenizer
+                        hypotheses = []
+                        num_located_tokens = len(indices[0])
+                        num_all_cases = config["k_per_location"] ** num_located_tokens
+                        tok_cand_combo = [0 for i in range(num_located_tokens)]
 
-                    candidate_total_losses = []
-                    candidate_primary_losses = []
-                    candidate_losses_for_loggings = []
-                    candidate_allsats = []
-                    loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
-                    for hyp in hypotheses:
-                        curr_loss = 0.0
-                        logging_loss = []
-                        allsat = True
-                        for lossid, lossname in enumerate(config["losses"]):
-                            with torch.no_grad():
-                                lossvalue = lossfns[lossid].compute_gold_loss(
-                                    source_text, hyp,
-                                    label_id=config['target_label_ids'][lossid],
-                                )
-                            curr_loss += loss_weights[lossid] * lossvalue.item()
-                            logging_loss.append(lossvalue.item())
-                            if lossid==0:
-                                candidate_primary_losses.append(lossvalue.item())
-                            elif (lossid >= 1) and (
-                                lossvalue.item()
-                                > -np.log(config["min_epsilons"][lossid - 1])
-                            ):
-                                allsat = False
-                        candidate_total_losses.append(curr_loss)
-                        candidate_losses_for_loggings.append(logging_loss)
-                        candidate_allsats.append(allsat)
+                        for case_id in range(num_all_cases):
+                            for i in range(num_located_tokens):
+                                tok_cand_combo[i] = (
+                                    case_id // (config["k_per_location"] ** i)
+                                ) % config["k_per_location"]
 
+                            tmp_seq = inputs["input_ids"].clone()
+                            for pos_id, tok_cand_id in enumerate(tok_cand_combo):
+                                tmp_seq[
+                                    0, indices_in_mlm_tokens[pos_id]
+                                ] = predicted_token_ids.indices[pos_id, tok_cand_id]
 
-                    if wandb.config.selection_criteria == "weighted_sum":
-                        best_ix = np.argmin(np.array(candidate_total_losses))
-                    elif wandb.config.selection_criteria == "allsat_primary":
-                        allsat_ix = np.where(np.array(candidate_allsats) == True)[0]
-                        if len(allsat_ix) > 0:
-                            best_ix = np.argmin(
-                                np.array(candidate_primary_losses)[allsat_ix]
-                            )  # select min primary loss among allsats
-                            best_ix = allsat_ix[best_ix]
-                        else:  # if no candidate satisfying constraints, default to weighted_sum
+                            # print("-"*50)
+                            # print(f"Candidate {case_id} in RoBERTa tokens. Length: {len(tmp_seq[0])}")
+                            # for i in range(len(tmp_seq[0])):
+                            #     print(f"{i}: {tmp_seq[0][i]} | {mlm_tokenizer.decode(tmp_seq[0][i])}", end=" ")
+                            #     if i in indices_in_mlm_tokens:
+                            #         print(" -> located")
+                            #     else:
+                            #         print()
+                            # print("-"*50)
+
+                            # need to do decode with RobertaTokenizer and encode with GPT2Tokenizer
+                            # logger.debug(mlm_tokenizer.batch_decode(tmp_seq[:, indices_in_mlm_tokens], skip_special_tokens=True))
+                            tmp_dec_seq = primary_tokenizer(
+                                mlm_tokenizer.batch_decode(
+                                    tmp_seq, skip_special_tokens=True
+                                ),
+                                return_tensors="pt",
+                            ).input_ids.cuda()
+                            hypotheses.append(tmp_dec_seq.squeeze(0))
+
+                            # print("-"*50)
+                            # print(f"Candidate {case_id} in GPT2 tokens. Length: {len(tmp_dec_seq[0])}")
+                            # for i in range(len(tmp_dec_seq[0])):
+                            #     print(f"{i}: {tmp_dec_seq[0][i]} | {primary_tokenizer.decode(tmp_dec_seq[0][i])}", end=" ")
+                            #     if i in indices[0]:
+                            #         print(" -> located")
+                            #     else:
+                            #         print()
+                            # print("-"*50)
+                    if ("beamsearch" in config["method"]) or (
+                        config["method"] == "mlm-reranking"
+                    ):
+                        (
+                            candidate_total_losses,
+                            candidate_primary_losses,
+                            candidate_losses_for_loggings,
+                        ) = score_hypotheses(
+                            source_batch,
+                            hypotheses,
+                            config,
+                            lossfns,
+                            label_ids=label_ids,
+                            loss2tokenizer=loss2tokenizer
+                        )
+                        candidate_allsats = []
+                        for losses_for_backward in candidate_losses_for_loggings:
+                            allsat = True
+                            for lossid, lossvalue in enumerate(losses_for_backward):
+                                # if (lossid >= 1) and (losses_for_backward[lossid] > config['min_epsilons'][lossid - 1]):
+                                if (lossid >= 1) and (
+                                    losses_for_backward[lossid]
+                                    > -np.log(config["min_epsilons"][lossid - 1])
+                                ):
+                                    allsat = False
+
+                            candidate_allsats.append(allsat)
+
+                        if wandb.config.selection_criteria == "weighted_sum":
                             best_ix = np.argmin(np.array(candidate_total_losses))
+                        elif wandb.config.selection_criteria == "allsat_primary":
+                            allsat_ix = np.where(np.array(candidate_allsats) == True)[0]
+                            if len(allsat_ix) > 0:
+                                best_ix = np.argmin(
+                                    np.array(candidate_primary_losses)[allsat_ix]
+                                )  # select min primary loss among allsats
+                                best_ix = allsat_ix[best_ix]
+                            else:  # if no candidate satisfying constraints, default to weighted_sum
+                                best_ix = np.argmin(np.array(candidate_total_losses))
 
-                    if _iter == 0:  
-                        ## intermediate output for debugging
-                        int_output = {f"iter{_iter}_original_sentence": best_text,
-                                      f"iter{_iter}_masked_sentence": masked_text,
-                                      f"iter{_iter}_best_text": hypotheses[best_ix],
-                                      f"iter{_iter}_update": True}                      
-                        
+                    if _iter == 0:                        
                         ## save the best prediction in a format compatible with mucola outputs
-                        best_text = hypotheses[best_ix]
+                        best_prediction = hypotheses[best_ix].squeeze(0).tolist()
+                        # if config['method'] == "mlm-reranking":
+                        #     predicted_batch = hypotheses[best_ix]
+                        # else:
+                        predicted_batch_secondary = hypotheses[best_ix].unsqueeze(0)
+                        # logger.debug(best_prediction)
+                        best_text = secondary_tokenizer.decode(best_prediction)
+                        # logger.debug(best_text)
                         best_allsat = candidate_allsats[best_ix]
                         best_losses = candidate_losses_for_loggings[best_ix]
                         best_weighted_loss = candidate_total_losses[best_ix]
 
+                        # logger.debug(f"best_prediction: {best_prediction}")
                         logger.debug(f"best_text: {best_text}")
+                        # logger.debug(f"best_allsat: {best_allsat}")
+                        # logger.debug(f"best_losses: {best_losses}")
+                        # logger.debug(f"best_weighted_loss: {best_weighted_loss}")
                         
+                        ## intermediate output for debugging
+                        int_output = {f"iter{_iter}_indices": indices,
+                                      f"iter{_iter}_orig_tokens_at_indices": name2tokenizer[
+                                            config["model_paths"][1]
+                                        ].decode(original_sequence[:, indices].squeeze()),
+                                      f"iter{_iter}_orig_sentence": name2tokenizer[
+                                            config["model_paths"][1]
+                                        ].decode(original_sequence.squeeze()),
+                                      f"iter{_iter}_updated_text": best_text}
                     else:
                         update = False
                         if wandb.config.selection_criteria == "weighted_sum":
@@ -468,27 +621,42 @@ def main(config):
                                     > candidate_losses_for_loggings[best_ix][0]
                                 ):
                                     update = True
-
-
-                        ## intermediate output for debugging
-                        int_output |= {f"iter{_iter}_original_sentence": best_text,
-                                      f"iter{_iter}_masked_sentence": masked_text,
-                                      f"iter{_iter}_best_text": hypotheses[best_ix],
-                                      f"iter{_iter}_update": update}    
-    
                         if update:
                             ## save the best prediction in a format compatible with mucola outputs
-                            best_text = hypotheses[best_ix]
+                            best_prediction = hypotheses[best_ix].squeeze(0).tolist()
+                            # if config['method'] == "mlm-reranking":
+                            #     predicted_batch = hypotheses[best_ix]
+                            # else:
+                            predicted_batch_secondary = hypotheses[best_ix].unsqueeze(0)
+                            # logger.debug(best_prediction)
+                            best_text = secondary_tokenizer.decode(best_prediction)
+                            # logger.debug(best_text)
                             best_allsat = candidate_allsats[best_ix]
                             best_losses = candidate_losses_for_loggings[best_ix]
                             best_weighted_loss = candidate_total_losses[best_ix]
 
                             logger.debug(f"iter {_iter}. Update best prediction")
+                            # logger.debug(f"best_prediction: {best_prediction}")
                             logger.debug(f"best_text: {best_text}")
+                            # logger.debug(f"best_allsat: {best_allsat}")
+                            # logger.debug(f"best_losses: {best_losses}")
+                            # logger.debug(f"best_weighted_loss: {best_weighted_loss}")
+
+                        ## intermediate output for debugging
+                        int_output |= {f"iter{_iter}_indices": indices,
+                                      f"iter{_iter}_orig_tokens_at_indices": name2tokenizer[
+                                            config["model_paths"][1]
+                                        ].decode(original_sequence[:, indices].squeeze()),
+                                      f"iter{_iter}_orig_sentence": name2tokenizer[
+                                            config["model_paths"][1]
+                                        ].decode(original_sequence.squeeze()),
+                                      f"iter{_iter}_updated_text": best_text}
                         
                         if best_allsat:
                             es_patience_count += 1
-                            if (config["early_stopping_patience"] != -1) and (es_patience_count > config["early_stopping_patience"]):
+                            if config["early_stopping_patience"] == -1:
+                                continue
+                            if es_patience_count > config["early_stopping_patience"]:
                                 logger.info(f"early stopping at iter {_iter}")
                                 break
 
@@ -496,11 +664,16 @@ def main(config):
                     output = {
                         "prompt": {
                             "text": source_text,
+                            "tokens": source_indices.tolist(),
                         },
                         "generations": [
                             {
                                 "text": best_text,
-                                "original_text": AR_prediction,
+                                "tokens": best_prediction,
+                                "indices": indices,
+                                "orig_tokens_at_indices": name2tokenizer[
+                                    config["model_paths"][1]
+                                ].decode(original_sequence[:, indices].squeeze()),
                                 "allsat": best_allsat,
                                 "losses": best_losses,
                                 "weighted_loss": best_weighted_loss,
@@ -520,12 +693,16 @@ def main(config):
                 else:
                     output["generations"].append(
                         {
-                                "text": best_text,
-                                "original_text": AR_prediction,
-                                "allsat": best_allsat,
-                                "losses": best_losses,
-                                "weighted_loss": best_weighted_loss,
-                                "edited": True,
+                            "text": best_text,
+                            "tokens": best_prediction,
+                            "indices": indices,
+                            "orig_tokens_at_indices": name2tokenizer[
+                                config["model_paths"][1]
+                            ].decode(original_sequence[:, indices].squeeze()),
+                            "allsat": best_allsat,
+                            "losses": best_losses,
+                            "weighted_loss": best_weighted_loss,
+                            "edited": True,
                         }
                     )
                     
@@ -539,7 +716,6 @@ def main(config):
                     json.dump(intermediate_output, int_outf)
                     int_outf.write("\n")
                     int_outf.flush()
-                    
         if (time.time() - main_start_time) > config['server_time_limit'] * 60 * 60 * 0.9:
             interrupted = True
             break
