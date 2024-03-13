@@ -54,10 +54,9 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
         del run
         
         if task == 'toxicity':
-            # evaluate(run_path, outfile_path, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n,repetition,fluency') # 시간 문제로, perspective api 제외
-            # evaluate(run_path, outfile_path, 'toxicity-int,dist-n,repetition,fluency',
+            # evaluate(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency', 
             #          toxicity_model_path=model_path,toxicity_model_type=model_type) # 시간 문제로, perspective api 제외
-            evaluate(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency',
+            evaluate(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency', 
                      toxicity_model_path=model_path,toxicity_model_type=model_type) # 시간 문제로, perspective api 제외
         elif task == 'formality':
             evaluate(run_path, outfile_path, 'formality-int,formality-ext,ppl-big,dist-n,repetition,fluency', 
@@ -71,7 +70,7 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
 
 if __name__ == "__main__":
 
-    run_id_list = """2j5us7cl"""
+    run_id_list = """5r9qmoze"""
 
     run_id_list = run_id_list.split('\n')
     print(run_id_list)

@@ -25,9 +25,9 @@ class GPT2Loss(BaseLoss):
         '''
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
-        prompt = self.tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
+        prompt = self.tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
         # assuming batch size of 1 (prediction is a string instance.)
-        prediction = self.tokenizer.encode(" " + prediction, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
+        prediction = self.tokenizer.encode(prediction, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
         input_tokens = torch.cat([prompt, prediction], dim=1)
         model_output = self.model(input_tokens)
 

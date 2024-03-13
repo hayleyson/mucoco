@@ -113,8 +113,8 @@ class ClassificationLogProbLoss(BaseLoss):
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
 
-        prompt = self.tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
-        prediction = self.tokenizer.encode(prediction, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
+        # prompt = self.tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
+        prediction = self.tokenizer.encode(prediction, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
         
         eos = torch.empty((prediction.size(0), 1)).long().to(self.device).fill_(self.eos_token_id)
         prediction = torch.cat([prediction, eos, eos], dim=1)

@@ -1,12 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-"""
-Prototyping code for evaluating the accuracy of locating tokens to edit against ground truth.
-For metrics, MRR (mean reciprocal rank),Average Precision,and F1 score is used.
-Other candidate metrics include AUC and Recall @ K.
-The unit of calculating the metric is "token" at the moment.
-But it will expand to "character" and "word".
-"""
 
 import argparse
 import os
@@ -33,6 +24,154 @@ def remove_label_for_pad_token(row, colname):
 
 def index2binary(row, index_colname='pred', len_colname='tokens'):
     return [1 if i in row[index_colname] else 0 for i in range(len(row[len_colname]))]
+
+def calculate_locate_metrics(predictions_labels:pd.DataFrame, args: argparse.Namespace) -> None:
+    print("22222")
+    
+    data_stats_f = open("_".join([os.path.splitext(args.pred_file_path)[0],"data_stats.txt"]), "w")
+    summary_result=dict()
+
+    if 'tokens' not in predictions_labels.columns:
+        predictions_labels['tokens']=predictions_labels['text'].apply(lambda x: tokenizer.encode(x,add_special_tokens=False))
+    # ### Token ↔︎ Word ↔︎ Char 이 가능한 mapping 정의
+    sample_text = predictions_labels[['text','tokens']].copy()
+    sample_text['char']=sample_text['text'].apply(list)
+    sample_text['char_index']=sample_text['char'].apply(lambda x: list(range(len(x))))
+    assert (sample_text['char'].apply(len) != sample_text['char_index'].apply(len)).sum() == 0
+
+    sample_text['tokens_index']=sample_text['tokens'].apply(lambda x: list(range(len(x))))
+
+    # if args.dataset_type == "gpt2":
+    #     sample_text['words']=sample_text['text'].str.split()
+    # elif args.dataset_type == "tsd":
+    #     sample_text['words']=sample_text['text'].str.split(' ')
+    sample_text['words']=sample_text['text'].str.split(' ')
+    sample_text['words_index']=sample_text['words'].apply(lambda x: list(range(len(x))))
+
+    sample_text['tok2char']=sample_text.apply(lambda x: get_tok2char(x, args.dataset_type),axis=1)
+    sample_text['word2char']=sample_text.apply(lambda x: get_word2char(x, " "),axis=1)
+    # if args.dataset_type == "gpt2":
+    #     sample_text['word2tok']=sample_text.apply(lambda x: get_word2tok(x),axis=1)
+    # elif args.dataset_type == "tsd":
+    #     sample_text['word2tok']=sample_text.apply(lambda x: get_word2tok(x, " "),axis=1)
+    sample_text['word2tok']=sample_text.apply(lambda x: get_word2tok(x, " "),axis=1)
+    sample_text['tok2word']=sample_text['word2tok'].apply(kv_swap)
+    sample_text['char2tok']=sample_text['tok2char'].apply(kv_swap)
+    sample_text['char2word']=sample_text['word2char'].apply(kv_swap)
+
+    ## predictions_labels에 다시 merge
+    predictions_labels = pd.merge(predictions_labels, sample_text[['text','words','char','tok2char', 'word2char', 'word2tok','tok2word', 'char2tok', 'char2word']],on='text',how='left')
+
+    ## convert list of indices into a list of binary labels of length len(seq)        
+    predictions_labels['pred_binary']=predictions_labels.apply(lambda x: index2binary(x, len_colname="tokens", index_colname="pred"),axis=1)
+
+    predictions_labels['pred_word']=predictions_labels.apply(get_pred_word,axis=1)
+    predictions_labels['pred_binary_word']=predictions_labels.apply(get_pred_binary_word,axis=1)
+    predictions_labels['pred_scores_word']=predictions_labels.apply(lambda x: get_pred_scores_word(x,method='max'), axis=1) 
+
+    predictions_labels['pred_char']=predictions_labels.apply(get_pred_char,axis=1)
+    predictions_labels['pred_binary_char']=predictions_labels.apply(get_pred_binary_char,axis=1)
+    predictions_labels['pred_scores_char']=predictions_labels.apply(lambda x: get_pred_scores_char(x), axis=1) 
+
+    if args.dataset_type == "gpt2":
+        ## convert list of indices into a list of binary labels of length len(seq)        
+        predictions_labels['labels_binary'] = predictions_labels['labels'].apply(lambda x: [1 if i >= 0.5 else 0 for i in x])
+        predictions_labels['labels_binary_word']=predictions_labels.apply(lambda x: get_labels_binary_word(x, dataset_type=args.dataset_type),axis=1)
+        predictions_labels['labels_binary_char']=predictions_labels.apply(get_labels_binary_char,axis=1)
+    elif args.dataset_type == "tsd":
+        predictions_labels['labels_binary_char'] = predictions_labels.apply(lambda x: index2binary(x, len_colname="char", index_colname="labels_index_char"),axis=1)
+        predictions_labels['labels_binary_word']=predictions_labels.apply(lambda x: get_labels_binary_word(x, dataset_type=args.dataset_type),axis=1)
+        predictions_labels['labels_binary']=predictions_labels.apply(lambda x: get_labels_binary_token(x, dataset_type=args.dataset_type),axis=1)
+
+    ## print stats of datasets
+    data_stats_f.write(f"# Samples: {predictions_labels.shape[0]}\n")
+    data_stats_f.write(f"Avg. # Tokens per Sample: {predictions_labels['tokens'].apply(len).mean()}\n")
+    data_stats_f.write(f"Avg. # Tokens Located per Sample: {predictions_labels['labels_binary'].apply(sum).mean()}\n")
+    data_stats_f.write(f"Avg. # Characters per Sample: {predictions_labels['char'].apply(len).mean()}\n")
+    data_stats_f.write(f"Avg. # Characters Located per Sample: {predictions_labels['labels_binary_char'].apply(sum).mean()}\n")
+    data_stats_f.write(f"Avg. # Words per Sample: {predictions_labels['words'].apply(len).mean()}\n")
+    data_stats_f.write(f"Avg. # Words Located per Sample: {predictions_labels['labels_binary_word'].apply(sum).mean()}\n")
+    data_stats_f.close()
+
+    # # ### Calculate Token-level Metrics
+    # predictions_labels['f1']=predictions_labels.apply(apply_f1,axis=1)
+    # predictions_labels['f2']=predictions_labels.apply(apply_f2,axis=1)
+    # predictions_labels['rr']=predictions_labels.apply(get_rr, axis=1)
+    # predictions_labels['ap']=predictions_labels.apply(apply_ap,axis=1)
+    # predictions_labels['precision']=predictions_labels.apply(apply_precision,axis=1)
+    # predictions_labels['recall']=predictions_labels.apply(apply_recall,axis=1)
+
+    ## Summary metric
+    ## ToDo : double check if mean F1, mean F2 is a thing. -> Not sure.. Ask Jong?
+    ## double checked what happens if true label is none. ap -> np.nan, rr -> np.nan, f1 -> np.nan, f2 -> np.nan
+    
+    # ### Calculate Word-level Metrics
+    predictions_labels['f1_word']=predictions_labels.apply(lambda x: apply_f1(x,"_word"),axis=1)
+    predictions_labels['f2_word']=predictions_labels.apply(lambda x: apply_f2(x,"_word"),axis=1)
+    predictions_labels['ap_word']=predictions_labels.apply(lambda x: get_rr(x,"_word"),axis=1)
+    predictions_labels['rr_word']=predictions_labels.apply(lambda x: apply_ap(x,"_word"),axis=1)
+    predictions_labels['precision_word']=predictions_labels.apply(lambda x: apply_precision(x,"_word"),axis=1)
+    predictions_labels['recall_word']=predictions_labels.apply(lambda x: apply_recall(x,"_word"),axis=1)
+
+    ## Summary metric
+    mf1 = predictions_labels['f1_word'].mean()
+    mf2 = predictions_labels['f2_word'].mean()
+    mrr = predictions_labels['rr_word'].mean()
+    map_score =  predictions_labels['ap_word'].mean()
+    precision = predictions_labels['precision_word'].mean()
+    recall = predictions_labels['recall_word'].mean()
+
+    summary_result.update({"mf1_word": [mf1],
+                           "mf2_word": [mf2],
+                           "mrr_word": [mrr],
+                           "map_word": [map_score],
+                           "precision_word": [precision], 
+                           "recall_word": [recall]})
+    
+    # mf1 = predictions_labels['f1'].mean()
+    # mf2 = predictions_labels['f2'].mean()
+    # mrr = predictions_labels['rr'].mean()
+    # map_score =  predictions_labels['ap'].mean()
+    # precision = predictions_labels['precision'].mean()
+    # recall = predictions_labels['recall'].mean()
+
+    # summary_result.update({"mf1_token": [mf1],
+    #                        "mf2_token": [mf2],
+    #                        "mrr_token": [mrr],
+    #                        "map_token": [map_score],
+    #                        "precision_token": [precision], 
+    #                        "recall_token": [recall]})
+
+    # ### Calculate Character-level Metrics
+    predictions_labels['f1_char']=predictions_labels.apply(lambda x: apply_f1(x,"_char"),axis=1)
+    predictions_labels['f2_char']=predictions_labels.apply(lambda x: apply_f2(x,"_char"),axis=1)
+    predictions_labels['ap_char']=predictions_labels.apply(lambda x: get_rr(x,"_char"),axis=1)
+    predictions_labels['rr_char']=predictions_labels.apply(lambda x: apply_ap(x,"_char"),axis=1)
+    predictions_labels['precision_char']=predictions_labels.apply(lambda x: apply_precision(x,"_char"),axis=1)
+    predictions_labels['recall_char']=predictions_labels.apply(lambda x: apply_recall(x,"_char"),axis=1)
+
+    ## Summary metric
+    mf1 = predictions_labels['f1_char'].mean()
+    mf2 = predictions_labels['f2_char'].mean()
+    mrr = predictions_labels['rr_char'].mean()
+    map_score =  predictions_labels['ap_char'].mean()
+    precision = predictions_labels['precision_char'].mean()
+    recall = predictions_labels['recall_char'].mean()
+
+    summary_result.update({"mf1_char": [mf1],
+                           "mf2_char": [mf2],
+                           "mrr_char": [mrr],
+                           "map_char": [map_score],
+                           "precision_char": [precision], 
+                           "recall_char": [recall]})
+
+    print("_".join([os.path.splitext(args.pred_file_path)[0],"metrics.xlsx"]))
+    print("_".join([os.path.splitext(args.pred_file_path)[0],"metrics_summary.csv"]))
+    
+    # predictions_labels.to_json("new_module/locate/results/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/testset_gpt2_2500_gn_metrics.jsonl", lines=True, orient='records')
+    predictions_labels.to_excel("_".join([os.path.splitext(args.pred_file_path)[0],"metrics.xlsx"]), index=False)
+    pd.DataFrame(summary_result).to_csv("_".join([os.path.splitext(args.pred_file_path)[0],"metrics_summary.csv"]), index=False)
+
 
 
 def apply_f1(row, suffix=''):
@@ -283,156 +422,11 @@ def get_pred_scores_word(row,method='sum'):
     return return_list
 
 
-def calculate_locate_metrics(predictions_labels:pd.DataFrame, args: argparse.Namespace) -> None:
-    
-    data_stats_f = open("_".join([os.path.splitext(args.pred_file_path)[0],"data_stats.txt"]), "w")
-    summary_result=dict()
-
-    if 'tokens' not in predictions_labels.columns:
-        predictions_labels['tokens']=predictions_labels['text'].apply(lambda x: tokenizer.encode(x,add_special_tokens=False))
-    # ### Token ↔︎ Word ↔︎ Char 이 가능한 mapping 정의
-    sample_text = predictions_labels[['text','tokens']].copy()
-    sample_text['char']=sample_text['text'].apply(list)
-    sample_text['char_index']=sample_text['char'].apply(lambda x: list(range(len(x))))
-    assert (sample_text['char'].apply(len) != sample_text['char_index'].apply(len)).sum() == 0
-
-    sample_text['tokens_index']=sample_text['tokens'].apply(lambda x: list(range(len(x))))
-
-    # if args.dataset_type == "gpt2":
-    #     sample_text['words']=sample_text['text'].str.split()
-    # elif args.dataset_type == "tsd":
-    #     sample_text['words']=sample_text['text'].str.split(' ')
-    sample_text['words']=sample_text['text'].str.split(' ')
-    sample_text['words_index']=sample_text['words'].apply(lambda x: list(range(len(x))))
-
-    sample_text['tok2char']=sample_text.apply(lambda x: get_tok2char(x, args.dataset_type),axis=1)
-    sample_text['word2char']=sample_text.apply(lambda x: get_word2char(x, " "),axis=1)
-    # if args.dataset_type == "gpt2":
-    #     sample_text['word2tok']=sample_text.apply(lambda x: get_word2tok(x),axis=1)
-    # elif args.dataset_type == "tsd":
-    #     sample_text['word2tok']=sample_text.apply(lambda x: get_word2tok(x, " "),axis=1)
-    sample_text['word2tok']=sample_text.apply(lambda x: get_word2tok(x, " "),axis=1)
-    sample_text['tok2word']=sample_text['word2tok'].apply(kv_swap)
-    sample_text['char2tok']=sample_text['tok2char'].apply(kv_swap)
-    sample_text['char2word']=sample_text['word2char'].apply(kv_swap)
-
-    ## predictions_labels에 다시 merge
-    predictions_labels = pd.merge(predictions_labels, sample_text[['text','words','char','tok2char', 'word2char', 'word2tok','tok2word', 'char2tok', 'char2word']],on='text',how='left')
-
-    ## convert list of indices into a list of binary labels of length len(seq)        
-    predictions_labels['pred_binary']=predictions_labels.apply(lambda x: index2binary(x, len_colname="tokens", index_colname="pred"),axis=1)
-
-    predictions_labels['pred_word']=predictions_labels.apply(get_pred_word,axis=1)
-    predictions_labels['pred_binary_word']=predictions_labels.apply(get_pred_binary_word,axis=1)
-    predictions_labels['pred_scores_word']=predictions_labels.apply(lambda x: get_pred_scores_word(x,method='max'), axis=1) 
-
-    predictions_labels['pred_char']=predictions_labels.apply(get_pred_char,axis=1)
-    predictions_labels['pred_binary_char']=predictions_labels.apply(get_pred_binary_char,axis=1)
-    predictions_labels['pred_scores_char']=predictions_labels.apply(lambda x: get_pred_scores_char(x), axis=1) 
-
-    if args.dataset_type == "gpt2":
-        ## convert list of indices into a list of binary labels of length len(seq)        
-        predictions_labels['labels_binary'] = predictions_labels['labels'].apply(lambda x: [1 if i >= 0.5 else 0 for i in x])
-        predictions_labels['labels_binary_word']=predictions_labels.apply(lambda x: get_labels_binary_word(x, dataset_type=args.dataset_type),axis=1)
-        predictions_labels['labels_binary_char']=predictions_labels.apply(get_labels_binary_char,axis=1)
-    elif args.dataset_type == "tsd":
-        predictions_labels['labels_binary_char'] = predictions_labels.apply(lambda x: index2binary(x, len_colname="char", index_colname="labels_index_char"),axis=1)
-        predictions_labels['labels_binary_word']=predictions_labels.apply(lambda x: get_labels_binary_word(x, dataset_type=args.dataset_type),axis=1)
-        predictions_labels['labels_binary']=predictions_labels.apply(lambda x: get_labels_binary_token(x, dataset_type=args.dataset_type),axis=1)
-
-    ## print stats of datasets
-    data_stats_f.write(f"# Samples: {predictions_labels.shape[0]}\n")
-    data_stats_f.write(f"Avg. # Tokens per Sample: {predictions_labels['tokens'].apply(len).mean()}\n")
-    data_stats_f.write(f"Avg. # Tokens Located per Sample: {predictions_labels['labels_binary'].apply(sum).mean()}\n")
-    data_stats_f.write(f"Avg. # Characters per Sample: {predictions_labels['char'].apply(len).mean()}\n")
-    data_stats_f.write(f"Avg. # Characters Located per Sample: {predictions_labels['labels_binary_char'].apply(sum).mean()}\n")
-    data_stats_f.write(f"Avg. # Words per Sample: {predictions_labels['words'].apply(len).mean()}\n")
-    data_stats_f.write(f"Avg. # Words Located per Sample: {predictions_labels['labels_binary_word'].apply(sum).mean()}\n")
-    data_stats_f.close()
-
-    # # ### Calculate Token-level Metrics
-    # predictions_labels['f1']=predictions_labels.apply(apply_f1,axis=1)
-    # predictions_labels['f2']=predictions_labels.apply(apply_f2,axis=1)
-    # predictions_labels['rr']=predictions_labels.apply(get_rr, axis=1)
-    # predictions_labels['ap']=predictions_labels.apply(apply_ap,axis=1)
-    # predictions_labels['precision']=predictions_labels.apply(apply_precision,axis=1)
-    # predictions_labels['recall']=predictions_labels.apply(apply_recall,axis=1)
-
-    ## Summary metric
-    ## ToDo : double check if mean F1, mean F2 is a thing. -> Not sure.. Ask Jong?
-    ## double checked what happens if true label is none. ap -> np.nan, rr -> np.nan, f1 -> np.nan, f2 -> np.nan
-    
-    # ### Calculate Word-level Metrics
-    predictions_labels['f1_word']=predictions_labels.apply(lambda x: apply_f1(x,"_word"),axis=1)
-    predictions_labels['f2_word']=predictions_labels.apply(lambda x: apply_f2(x,"_word"),axis=1)
-    predictions_labels['ap_word']=predictions_labels.apply(lambda x: get_rr(x,"_word"),axis=1)
-    predictions_labels['rr_word']=predictions_labels.apply(lambda x: apply_ap(x,"_word"),axis=1)
-    predictions_labels['precision_word']=predictions_labels.apply(lambda x: apply_precision(x,"_word"),axis=1)
-    predictions_labels['recall_word']=predictions_labels.apply(lambda x: apply_recall(x,"_word"),axis=1)
-
-    ## Summary metric
-    mf1 = predictions_labels['f1_word'].mean()
-    mf2 = predictions_labels['f2_word'].mean()
-    mrr = predictions_labels['rr_word'].mean()
-    map_score =  predictions_labels['ap_word'].mean()
-    precision = predictions_labels['precision_word'].mean()
-    recall = predictions_labels['recall_word'].mean()
-
-    summary_result.update({"mf1_word": [mf1],
-                           "mf2_word": [mf2],
-                           "mrr_word": [mrr],
-                           "map_word": [map_score],
-                           "precision_word": [precision], 
-                           "recall_word": [recall]})
-    
-    # mf1 = predictions_labels['f1'].mean()
-    # mf2 = predictions_labels['f2'].mean()
-    # mrr = predictions_labels['rr'].mean()
-    # map_score =  predictions_labels['ap'].mean()
-    # precision = predictions_labels['precision'].mean()
-    # recall = predictions_labels['recall'].mean()
-
-    # summary_result.update({"mf1_token": [mf1],
-    #                        "mf2_token": [mf2],
-    #                        "mrr_token": [mrr],
-    #                        "map_token": [map_score],
-    #                        "precision_token": [precision], 
-    #                        "recall_token": [recall]})
-
-    # ### Calculate Character-level Metrics
-    predictions_labels['f1_char']=predictions_labels.apply(lambda x: apply_f1(x,"_char"),axis=1)
-    predictions_labels['f2_char']=predictions_labels.apply(lambda x: apply_f2(x,"_char"),axis=1)
-    predictions_labels['ap_char']=predictions_labels.apply(lambda x: get_rr(x,"_char"),axis=1)
-    predictions_labels['rr_char']=predictions_labels.apply(lambda x: apply_ap(x,"_char"),axis=1)
-    predictions_labels['precision_char']=predictions_labels.apply(lambda x: apply_precision(x,"_char"),axis=1)
-    predictions_labels['recall_char']=predictions_labels.apply(lambda x: apply_recall(x,"_char"),axis=1)
-
-    ## Summary metric
-    mf1 = predictions_labels['f1_char'].mean()
-    mf2 = predictions_labels['f2_char'].mean()
-    mrr = predictions_labels['rr_char'].mean()
-    map_score =  predictions_labels['ap_char'].mean()
-    precision = predictions_labels['precision_char'].mean()
-    recall = predictions_labels['recall_char'].mean()
-
-    summary_result.update({"mf1_char": [mf1],
-                           "mf2_char": [mf2],
-                           "mrr_char": [mrr],
-                           "map_char": [map_score],
-                           "precision_char": [precision], 
-                           "recall_char": [recall]})
-
-    print("_".join([os.path.splitext(args.pred_file_path)[0],"metrics.xlsx"]))
-    print("_".join([os.path.splitext(args.pred_file_path)[0],"metrics_summary.csv"]))
-    
-    # predictions_labels.to_json("new_module/locate/results/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/testset_gpt2_2500_gn_metrics.jsonl", lines=True, orient='records')
-    predictions_labels.to_excel("_".join([os.path.splitext(args.pred_file_path)[0],"metrics.xlsx"]), index=False)
-    pd.DataFrame(summary_result).to_csv("_".join([os.path.splitext(args.pred_file_path)[0],"metrics_summary.csv"]), index=False)
-
 
 
 if __name__ == "__main__":
 
+    print(1)
     parser = argparse.ArgumentParser()
     parser.add_argument("--pred_file_path", type=str, default="new_module/locate/results/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/testset_gpt2_2500_gn.jsonl", required=True)
     parser.add_argument("--label_file_path", type=str, default="new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl", required=True)
@@ -442,6 +436,7 @@ if __name__ == "__main__":
     
 
     args = parser.parse_args()
+    print("@@@")
     #### Data Specific Code ####
     # ### Prepare dataset (predictions & labels)
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)

@@ -192,6 +192,8 @@ class ClassificationLogProbLoss(BaseLoss):
         eos = torch.empty((target.size(0), 1)).long().to(self.device).fill_(self.eos_token_id)
         target = torch.cat([target, eos, eos], dim=1)
     
+        print(self.tokenizer.batch_decode(target))
+    
         model_output = self.model(target)
         lm_logits = model_output[0]
         lm_logprobs = F.log_softmax(lm_logits, dim=-1)

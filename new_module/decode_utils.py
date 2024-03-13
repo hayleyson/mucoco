@@ -28,7 +28,6 @@ def beam_rerank_v0(source_text, ## text (too arbitrary?)
         if masked_sequence[0, i] != mlm_tokenizer.mask_token_id:
             hypotheses = list(torch.cat([torch.stack(hypotheses,dim=0), 
                                         masked_sequence[:, i].unsqueeze(0).repeat((len(hypotheses),1)).to(config['device'])],dim=-1))
-            print(f"{i}: hypotheses {hypotheses}")
         else:
             num_hypotheses = len(hypotheses)
             hypotheses = torch.stack(hypotheses,dim=0).unsqueeze(0)
@@ -38,16 +37,12 @@ def beam_rerank_v0(source_text, ## text (too arbitrary?)
             hypotheses_exp = torch.cat([hypotheses, candidates], dim=-1)
             hypotheses_exp = hypotheses_exp.view(-1, hypotheses_exp.shape[-1])
             hypotheses_exp = list(hypotheses_exp)
-            print(f"{i}: hypotheses_exp {hypotheses_exp}")
 
             losses = []
             loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
             for hyp in hypotheses_exp:
                 curr_loss = 0.0
                 for lossid, lossname in enumerate(config["losses"]):
-                    print(f"lossid: {lossid}")
-                    # print(f"source_text: {source_text}")
-                    print(f"mlm_tokenizer.decode(hyp): {mlm_tokenizer.decode(hyp, skip_special_tokens=True)}")
                     with torch.no_grad():
                         lossvalue = lossfns[lossid].compute_gold_loss(
                             source_text, mlm_tokenizer.decode(hyp, skip_special_tokens=True),
@@ -58,7 +53,6 @@ def beam_rerank_v0(source_text, ## text (too arbitrary?)
 
             hypotheses = sorted(zip(hypotheses_exp, losses), key=lambda x: x[1])[:beam_size]
             hypotheses = [x[0] for x in hypotheses]
-            print(f"{i}: hypotheses {hypotheses}")
             
     return [mlm_tokenizer.decode(x, skip_special_tokens=True) for x in hypotheses]
 
@@ -170,4 +164,5 @@ def combi_rerank(masked_sequence, ## in mlm tokenizer's tokens
         tmp_dec_seq = mlm_tokenizer.batch_decode(
                 tmp_seq, skip_special_tokens=True
         )
-        hypotheses.append(tmp_dec_seq)
+        hypotheses.append(tmp_dec_seq[0])
+    return hypotheses

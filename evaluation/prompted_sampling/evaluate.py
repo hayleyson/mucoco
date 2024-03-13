@@ -1450,7 +1450,10 @@ def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
     if rep_file is not None:
         fout = open(rep_file, "w")
     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating repetitions'):
-        generations = [gen['tokens'] for gen in row['generations']]
+        if 'tokens' not in row['generations'][0]:
+            generations = [tokenizer.encode(gen['text'], add_special_tokens=False) for gen in row['generations']]
+        else:
+            generations = [gen['tokens'] for gen in row['generations']]
         for gen in generations:
             total_examples += 1
             

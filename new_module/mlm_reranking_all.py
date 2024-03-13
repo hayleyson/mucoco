@@ -210,7 +210,12 @@ def main(config):
             source_text = lossfns[0].tokenizer.bos_token
 
         if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
-            AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
+            # AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
+            predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
+            predicted_batches = [
+                torch.tensor([x], dtype=torch.long, device=config["device"])
+                for x in predicted_batches
+            ]
             
         elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
@@ -220,7 +225,11 @@ def main(config):
         sample_idx = 0
         for sample_idx in range(config["num_samples"])[:]:
             
-            AR_prediction = AR_prediction_all[sample_idx]
+            if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+                predicted_batch = predicted_batches[sample_idx].cuda()
+                AR_prediction = lossfns[0].tokenizer.batch_decode(predicted_batch)[0]
+            else:
+                AR_prediction = AR_prediction_all[sample_idx]
 
             logger.debug(
                 f"text_id {text_id} sample_id {sample_idx} \n[prompt] {source_text} [text] {AR_prediction}"
@@ -380,7 +389,7 @@ def main(config):
                             beam_size=wandb.config.beam_size,
                         )
                     elif config["method"] == "mlm-reranking":
-                        hypotheses = combi_rerank(masked_sequence, ## in mlm tokenizer's tokens
+                        hypotheses = combi_rerank(inputs.input_ids, ## in mlm tokenizer's tokens
                             indices_in_mlm_tokens,
                             predicted_token_ids,
                             mlm_tokenizer,
