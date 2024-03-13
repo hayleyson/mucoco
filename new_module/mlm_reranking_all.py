@@ -239,6 +239,8 @@ def main(config):
             ## check whether initial text satisfies constraint
             allsat = True
             gold_losses = []
+            curr_loss = 0.0
+            loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
             for lossid, lossname in enumerate(config["losses"]):
                 with torch.no_grad():
                     lossvalue = lossfns[lossid].compute_gold_loss(
@@ -247,6 +249,7 @@ def main(config):
                     )
                     
                 gold_losses.append(lossvalue.squeeze().item())
+                curr_loss += loss_weights[lossid] * lossvalue.squeeze().item()
                 if (lossid >= 1) and (gold_losses[lossid] > -np.log(
                     config["min_epsilons"][lossid - 1]
                 )):
@@ -266,9 +269,9 @@ def main(config):
                             {
                                 "text": AR_prediction,
                                 "indices": [[]],
-                                "allsat": -1,
+                                "allsat": allsat,
                                 "losses": gold_losses,
-                                "weighted_loss": -1,
+                                "weighted_loss": curr_loss,
                                 "edited": False,
                             }
                         ],
@@ -286,9 +289,9 @@ def main(config):
                         {
                             "text": AR_prediction,
                             "indices": [[]],
-                            "allsat": -1,
+                            "allsat": allsat,
                             "losses": gold_losses,
-                            "weighted_loss": -1,
+                            "weighted_loss": curr_loss,
                             "edited": False,
                         }       
                     )
@@ -307,14 +310,12 @@ def main(config):
                 num_edited += 1
                 num_decoded_tokens += name2tokenizer[config["tokenizer_paths"][0]].encode(AR_prediction, return_tensors="pt", add_special_tokens=False).size(-1)
                 es_patience_count = 0
-                (
-                    best_ix,
-                    best_allsat,
-                    best_losses,
-                    best_weighted_loss,
-                ) = None, None, None, None
-                
+                best_ix = None
+                best_allsat = allsat
+                best_losses = gold_losses
+                best_weighted_loss = curr_loss
                 best_text = AR_prediction
+                int_output = {}
 
                 _iter = 0
                 for _iter in range(wandb.config.n_iter):
@@ -399,7 +400,7 @@ def main(config):
                     candidate_primary_losses = []
                     candidate_losses_for_loggings = []
                     candidate_allsats = []
-                    loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+                    
                     for hyp in hypotheses:
                         curr_loss = 0.0
                         logging_loss = []
@@ -435,71 +436,55 @@ def main(config):
                             best_ix = allsat_ix[best_ix]
                         else:  # if no candidate satisfying constraints, default to weighted_sum
                             best_ix = np.argmin(np.array(candidate_total_losses))
-
-                    if _iter == 0:  
-                        ## intermediate output for debugging
-                        int_output = {f"iter{_iter}_original_sentence": best_text,
-                                      f"iter{_iter}_masked_sentence": masked_text,
-                                      f"iter{_iter}_best_text": hypotheses[best_ix],
-                                      f"iter{_iter}_update": True}                      
                         
+                    update = False
+                    if wandb.config.selection_criteria == "weighted_sum":
+                        if best_weighted_loss > candidate_total_losses[best_ix]:
+                            update = True
+                    elif wandb.config.selection_criteria == "allsat_primary":
+                        if (
+                            best_allsat is False
+                            and candidate_allsats[best_ix] is True
+                        ):
+                            update = True
+                        elif (
+                            best_allsat is False
+                            and candidate_allsats[best_ix] is False
+                        ):
+                            if best_weighted_loss > candidate_total_losses[best_ix]:
+                                update = True
+                        elif (
+                            best_allsat is True
+                            and candidate_allsats[best_ix] is True
+                        ):
+                            if (
+                                best_losses[0]
+                                > candidate_losses_for_loggings[best_ix][0]
+                            ):
+                                update = True
+
+
+                    ## intermediate output for debugging
+                    int_output |= {f"iter{_iter}_original_sentence": best_text,
+                                    f"iter{_iter}_masked_sentence": masked_text,
+                                    f"iter{_iter}_best_text": hypotheses[best_ix],
+                                    f"iter{_iter}_update": update}    
+
+                    if update:
                         ## save the best prediction in a format compatible with mucola outputs
                         best_text = hypotheses[best_ix]
                         best_allsat = candidate_allsats[best_ix]
                         best_losses = candidate_losses_for_loggings[best_ix]
                         best_weighted_loss = candidate_total_losses[best_ix]
 
+                        logger.debug(f"iter {_iter}. Update best prediction")
                         logger.debug(f"best_text: {best_text}")
-                        
-                    else:
-                        update = False
-                        if wandb.config.selection_criteria == "weighted_sum":
-                            if best_weighted_loss > candidate_total_losses[best_ix]:
-                                update = True
-                        elif wandb.config.selection_criteria == "allsat_primary":
-                            if (
-                                best_allsat is False
-                                and candidate_allsats[best_ix] is True
-                            ):
-                                update = True
-                            elif (
-                                best_allsat is False
-                                and candidate_allsats[best_ix] is False
-                            ):
-                                if best_weighted_loss > candidate_total_losses[best_ix]:
-                                    update = True
-                            elif (
-                                best_allsat is True
-                                and candidate_allsats[best_ix] is True
-                            ):
-                                if (
-                                    best_losses[0]
-                                    > candidate_losses_for_loggings[best_ix][0]
-                                ):
-                                    update = True
-
-
-                        ## intermediate output for debugging
-                        int_output |= {f"iter{_iter}_original_sentence": best_text,
-                                      f"iter{_iter}_masked_sentence": masked_text,
-                                      f"iter{_iter}_best_text": hypotheses[best_ix],
-                                      f"iter{_iter}_update": update}    
-    
-                        if update:
-                            ## save the best prediction in a format compatible with mucola outputs
-                            best_text = hypotheses[best_ix]
-                            best_allsat = candidate_allsats[best_ix]
-                            best_losses = candidate_losses_for_loggings[best_ix]
-                            best_weighted_loss = candidate_total_losses[best_ix]
-
-                            logger.debug(f"iter {_iter}. Update best prediction")
-                            logger.debug(f"best_text: {best_text}")
-                        
-                        if best_allsat:
-                            es_patience_count += 1
-                            if (config["early_stopping_patience"] != -1) and (es_patience_count > config["early_stopping_patience"]):
-                                logger.info(f"early stopping at iter {_iter}")
-                                break
+                    
+                    if best_allsat:
+                        es_patience_count += 1
+                        if (config["early_stopping_patience"] != -1) and (es_patience_count > config["early_stopping_patience"]):
+                            logger.info(f"early stopping at iter {_iter}")
+                            break
 
                 if sample_idx == 0:
                     output = {
