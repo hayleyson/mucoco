@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=t_bv0_em
+#SBATCH --job-name=t_bv0_clsf
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
-#SBATCH --output='new_module/_slurm_outs/t_bv0_em_%j.out'
+#SBATCH --output='new_module/_slurm_outs/t_bv0_clsf_%j.out'
 #SBATCH --partition=P1
 
 source ~/.bashrc
@@ -23,7 +23,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --locate_unit word \
 --k_per_location 10 \
 --n_iter 3 \
---closs_weight 0.9 \
+--closs_weight 0.167236576878629 \
 --selection_criteria allsat_primary \
 --task toxicity \
 --num_samples 10 \
@@ -33,9 +33,9 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --target_label_ids 0 0 \
 --min_epsilons 0.75 \
 --wandb_project 'toxicity-decoding' \
---model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/' \
---tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/' \
---output_dir_prefix 'outputs/toxicity/mlm-reranking/roberta-base-jigsaw-toxicity-classifier-energy-training/re/' \
+--model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier/step_500_best_checkpoint/' \
+--tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier/step_500_best_checkpoint/' \
+--output_dir_prefix 'outputs/toxicity/mlm-reranking/roberta-base-jigsaw-toxicity-classifier/re/' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --locate_method 'grad_norm'
