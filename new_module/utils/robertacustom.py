@@ -1,14 +1,15 @@
-from transformers import RobertaPreTrainedModel, RobertaModel
-from transformers.models.roberta.modeling_roberta import RobertaClassificationHead, RobertaLMHead
-
-from transformers.modeling_outputs import SequenceClassifierOutput, MaskedLMOutput
-
-import torch.nn as nn
-import torch
-from torch.nn import MSELoss
-
 import logging
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
+
+import torch
+import torch.nn as nn
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
+from transformers import RobertaModel, RobertaPreTrainedModel
+from transformers.modeling_outputs import MaskedLMOutput, SequenceClassifierOutput
+from transformers.models.roberta.modeling_roberta import (
+    RobertaClassificationHead,
+    RobertaLMHead,
+)
 
 logger = logging.getLogger(__name__)
 

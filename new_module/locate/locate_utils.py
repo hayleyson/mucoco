@@ -67,10 +67,10 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, unit="word", d
     attentions = attentions[
         num_layer # originally 10
     ]
-    print(attentions.shape)
-    print(attentions.max(1)[0].shape)
-    print( batch["input_ids"].shape)
-    print( batch["attention_mask"][0,:])
+    # print(attentions.shape)
+    # print(attentions.max(1)[0].shape)
+    # print( batch["input_ids"].shape)
+    # print( batch["attention_mask"][0,:])
     cls_attns = attentions.max(1)[0][:, 0]
     
     stopwords = [" and", " of", " or", " so"] + punctuations + [token for token in tokenizer.special_tokens_map.values()]
@@ -81,16 +81,16 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, unit="word", d
     locate_scores = []
     for i, attn in enumerate(cls_attns):
         
-        print("attn.shape", attn.shape)
+        # print("attn.shape", attn.shape)
         current_sent = batch["input_ids"][i][: lengths[i]]
-        print("current_sent", current_sent)
-        if use_cuda:
+        # print("current_sent", current_sent)
+        if device == "cuda":
             no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids).to(torch.device('cuda'))))[0]
         else:
             no_punc_indices = torch.where(~torch.isin(current_sent, torch.tensor(stopwords_ids)))[0]
-        print("no_punc_indices", no_punc_indices)
-        print(f"current_sent[no_punc_indices]: {current_sent[no_punc_indices]}")
-        print(f"tokenizer.decode(current_sent[no_punc_indices]): {tokenizer.decode(current_sent[no_punc_indices])}")
+        # print("no_punc_indices", no_punc_indices)
+        # print(f"current_sent[no_punc_indices]: {current_sent[no_punc_indices]}")
+        # print(f"tokenizer.decode(current_sent[no_punc_indices]): {tokenizer.decode(current_sent[no_punc_indices])}")
         
         # current tokenizer does not add <s> and </s> to the sentence.
         current_attn = attn[: lengths[i]].softmax(-1) 
@@ -111,7 +111,7 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, unit="word", d
         top_masks = ((current_attn >= avg_value).nonzero().view(-1)) 
         torch.cuda.empty_cache()
         top_masks = top_masks.cpu().tolist()
-        print("top_masks", top_masks)
+        # print("top_masks", top_masks)
         
         
         # attention 값이 평균보다 큰 토큰의 수가 k개 또는 문장 전체 토큰 수의 1/3 보다 크면  
@@ -133,7 +133,7 @@ def locate_attn(attentions, tokenizer, batch, max_num_tokens = 6, unit="word", d
             words = tokenizer.decode(current_sent).strip().split()
             # print("words", words)
             word2tok_mapper=Processor(tokenizer)
-            print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
+            # print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
             grouped_tokens = list(word2tok_mapper.get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())
             # j, k = 0, 0
             # grouped_tokens = []
@@ -261,7 +261,7 @@ def locate_grad_norm(output, tokenizer, batch, max_num_tokens = 6, unit="word", 
             ## group token indices that belong to the same word
             words = tokenizer.decode(current_sent).strip().split()
             word2tok_mapper=Processor(tokenizer)
-            print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
+            # print(f"input to word2tok: {pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})}")
             grouped_tokens = list(word2tok_mapper.get_word2tok(pd.Series({'words':words, 'tokens':current_sent.cpu().tolist()})).values())            # j, k = 0, 0
             # grouped_tokens = []
             # grouped_tokens_for_word = []

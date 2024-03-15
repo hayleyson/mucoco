@@ -313,18 +313,18 @@ def main(config):
                 best_ix = None
                 best_allsat = allsat
                 best_losses = gold_losses
-                best_weighted_loss = curr_loss
-                best_text = AR_prediction
+                best_weighted_loss = curr_loss                
+                running_text = best_text = AR_prediction
                 int_output = {}
 
                 _iter = 0
                 for _iter in range(wandb.config.n_iter):
                     ## locate tokens to edit
-                    masked_text  = locate_main(best_text, 
+                    masked_text  = locate_main(running_text, 
                                             config["locate_method"], 
                                             name2model[config["model_paths"][1]], 
                                             name2tokenizer[config["tokenizer_paths"][1]], 
-                                            max_num_tokens = 6, 
+                                            max_num_tokens = wandb.config.num_edit_token_per_step, 
                                             unit=config["locate_unit"], 
                                             device="cuda", 
                                             label_id=config["target_label_ids"][1],
@@ -351,6 +351,11 @@ def main(config):
                         )[0].nonzero(as_tuple=True)[0]
                         # print(f"indices_in_mlm_tokens: {indices_in_mlm_tokens}")
                         ## get top k tokens for each index
+                        
+                        ## make logits for special tokens -inf.
+                        special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
+                        logits[:, :, special_token_ids] = -np.inf
+                        
                         predicted_token_ids = torch.topk(
                             logits[0, indices_in_mlm_tokens],
                             k=wandb.config.k_per_location,
@@ -465,11 +470,12 @@ def main(config):
 
 
                     ## intermediate output for debugging
-                    int_output |= {f"iter{_iter}_original_sentence": best_text,
+                    int_output |= {f"iter{_iter}_original_sentence": running_text,
                                     f"iter{_iter}_masked_sentence": masked_text,
                                     f"iter{_iter}_best_text": hypotheses[best_ix],
                                     f"iter{_iter}_update": update}    
-
+                    
+                    running_text = hypotheses[best_ix]
                     if update:
                         ## save the best prediction in a format compatible with mucola outputs
                         best_text = hypotheses[best_ix]
