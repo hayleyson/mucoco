@@ -5,7 +5,7 @@ from glob import glob
 import pandas as pd
 
 import wandb
-from new_module.evaluate_wandb import evaluate
+from new_module.evaluate_wandb import evaluate_main
 
 
 def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
@@ -54,25 +54,37 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
         del run
         
         if task == 'toxicity':
+            # evaluate_main(run_path, outfile_path, 'contents-preservation', 
+            evaluate_main(run_path, outfile_path, 'qual', 
+                     toxicity_model_path=model_path,toxicity_model_type=model_type,
+                     source_file_path='new_module/data/toxicity-avoidance/dev_set.jsonl') # 시간 문제로, perspective api 제외
             # evaluate(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency', 
             #          toxicity_model_path=model_path,toxicity_model_type=model_type) # 시간 문제로, perspective api 제외
-            evaluate(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency', 
-                     toxicity_model_path=model_path,toxicity_model_type=model_type) # 시간 문제로, perspective api 제외
         elif task == 'formality':
-            evaluate(run_path, outfile_path, 'formality-int,formality-ext,ppl-big,dist-n,repetition,fluency', 
-                    formality_model_path=model_path,formality_model_type=model_type)
+            evaluate_main(run_path, outfile_path, 'qual', 
+            # evaluate_main(run_path, outfile_path, 'contents-preservation', 
+                     formality_model_path=model_path,formality_model_type=model_type,
+                     source_file_path='data/formality/GYAFC_Corpus/Entertainment_Music/test/informal')
+            # evaluate_main(run_path, outfile_path, 'formality-int,formality-ext,ppl-big,dist-n,repetition,fluency', 
+            #         formality_model_path=model_path,formality_model_type=model_type)
         elif task == 'sentiment':
-            # evaluate(run_path, outfile_path, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency',
+            # evaluate_main(run_path, outfile_path, 'contents-preservation', 
+            evaluate_main(run_path, outfile_path, 'qual', 
+                     sentiment_model_path=model_path,sentiment_model_type=model_type,
+                     source_file_path='new_module/data/sentiment/dev_set.jsonl')
+            # evaluate_main(run_path, outfile_path, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency',
             #         sentiment_model_path=model_path,sentiment_model_type=model_type)
-            evaluate(run_path, outfile_path, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency',
-                    sentiment_model_path=model_path,sentiment_model_type=model_type)
     
 
 if __name__ == "__main__":
 
-    run_id_list = """5r9qmoze"""
+    run_id_list = """fs115xjd
+ahas6jl1
+cutgmg96"""
 
     run_id_list = run_id_list.split('\n')
     print(run_id_list)
-    main(run_id_list, wandb_entity="hayleyson", wandb_project="toxicity-decoding", prefix="mlm")
+    # main(run_id_list, wandb_entity="hayleyson", wandb_project="toxicity-decoding", prefix="mlm")
+    main(run_id_list, wandb_entity="hayleyson", wandb_project="formality-decoding", prefix="mlm")
+    # main(run_id_list, wandb_entity="hayleyson", wandb_project="sentiment-decoding", prefix="mlm")
         

@@ -21,7 +21,7 @@ from new_module.decode_utils import (
     beam_rerank_v2,
     combi_rerank,
 )
-from new_module.evaluate_wandb import evaluate
+from new_module.evaluate_wandb import evaluate_main
 from new_module.locate.locate_utils import locate_main
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
@@ -210,12 +210,12 @@ def main(config):
             source_text = lossfns[0].tokenizer.bos_token
 
         if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
-            # AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
-            predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
-            predicted_batches = [
-                torch.tensor([x], dtype=torch.long, device=config["device"])
-                for x in predicted_batches
-            ]
+            AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
+            # predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
+            # predicted_batches = [
+            #     torch.tensor([x], dtype=torch.long, device=config["device"])
+            #     for x in predicted_batches
+            # ]
             
         elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
@@ -223,13 +223,16 @@ def main(config):
             AR_prediction_all = [generation_dataset[text_id]]
 
         sample_idx = 0
-        for sample_idx in range(config["num_samples"])[:]:
+        curr_num_samples = len(AR_prediction_all)
+        # for sample_idx in range(config["num_samples"])[:]:
+        for sample_idx in range(curr_num_samples): ## updated (3/15)
             
-            if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
-                predicted_batch = predicted_batches[sample_idx].cuda()
-                AR_prediction = lossfns[0].tokenizer.batch_decode(predicted_batch)[0]
-            else:
-                AR_prediction = AR_prediction_all[sample_idx]
+            ## commented out (3/15) : dev set doesn't have the space problem.
+            # if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+            #     predicted_batch = predicted_batches[sample_idx].cuda()
+            #     AR_prediction = lossfns[0].tokenizer.batch_decode(predicted_batch)[0]
+            # else:
+            AR_prediction = AR_prediction_all[sample_idx]
 
             logger.debug(
                 f"text_id {text_id} sample_id {sample_idx} \n[prompt] {source_text} [text] {AR_prediction}"
@@ -297,7 +300,8 @@ def main(config):
                     )
                     intermediate_output['generations'].append({})
 
-                if sample_idx + 1 == config["num_samples"]:
+                # if sample_idx + 1 == config["num_samples"]:
+                if sample_idx + 1 == curr_num_samples:
                     json.dump(output, outf)
                     outf.write("\n")
                     outf.flush()
@@ -531,7 +535,8 @@ def main(config):
                     
                     intermediate_output["generations"].append(int_output)
 
-                if sample_idx + 1 == config["num_samples"]:
+                # if sample_idx + 1 == config["num_samples"]:
+                if sample_idx + 1 == curr_num_samples:
                     json.dump(output, outf)
                     outf.write("\n")
                     outf.flush()
@@ -561,36 +566,40 @@ def main(config):
     if (not interrupted):
         if config["task"] == "toxicity":
             # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
-            evaluate(
+            evaluate_main(
                 run.path,
                 outfile,
-                "toxicity-int,ppl-big,dist-n,repetition,fluency",
+                "toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
                 toxicity_model_path=config["model_paths"][1],
                 toxicity_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
             )  # 시간 문제로, perspective api 제외
         elif config["task"] == "formality":
-            evaluate(
+            evaluate_main(
                 run.path,
                 outfile,
-                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency",
+                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
                 formality_model_path=config["model_paths"][1],
                 formality_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
             )
         elif config["task"] == "sentiment":
-            evaluate(
+            evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
             )
         elif config["task"] == "sentiment-lewis-compr":
-            evaluate(
+            evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
             )
 
 
