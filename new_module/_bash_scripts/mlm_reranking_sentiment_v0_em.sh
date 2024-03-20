@@ -44,7 +44,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
 --k_per_location 10 \
---n_iter 3 \
+--n_iter 10 \
 --closs_weight 0.9 \
 --selection_criteria allsat_primary \
 --task sentiment \
@@ -57,8 +57,9 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint' \
 --tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint' \
---output_dir_prefix 'outputs/sentiment/mlm-reranking/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/' \
+--output_dir_prefix 'outputs/sentiment/devset' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --locate_method 'grad_norm' \
---dont_skip_allsat
+--dont_skip_allsat \
+--server_time_limit 12

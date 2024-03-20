@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=t_bv1_em
+#SBATCH --job-name=f_bv1_em
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
-#SBATCH --output='new_module/_slurm_outs/t_bv1_em_%j.out'
+#SBATCH --output='new_module/_slurm_outs/f_bv1_clsf_%j.out'
 #SBATCH --partition=P1
 
 source ~/.bashrc
@@ -26,20 +26,21 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --closs_weight 0.9 \
 --beam_size 3 \
 --selection_criteria allsat_primary \
---task toxicity \
---num_samples 10 \
---source_data 'new_module/data/toxicity-avoidance/dev_set.jsonl' \
---source_style 'toxic' \
---target_style 'nontoxic' \
---target_label_ids 0 0 \
+--task formality \
+--source_data 'data/formality/GYAFC_Corpus/Entertainment_Music/test/informal' \
+--source_style 'informal' \
+--target_style 'formal' \
+--target_label_ids 1 1 \
 --min_epsilons 0.9 \
---wandb_project 'toxicity-decoding' \
---model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/' \
---tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/' \
+--wandb_project 'formality-decoding' \
+--model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
+--tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 --model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" \
---output_dir_prefix 'outputs/toxicity/devset' \
+--output_dir_prefix 'outputs/formality/devset' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --locate_method 'grad_norm' \
+--server_time_limit 12 \
 --dont_skip_allsat \
---server_time_limit 12
+--resume \
+--wandb_run_id d1g8ysfh

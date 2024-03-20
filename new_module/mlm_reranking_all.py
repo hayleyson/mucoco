@@ -58,10 +58,11 @@ def main(config):
         )
 
     run_id = run.path.split("/")[-1]
-    display_name = f"{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-k{wandb.config.k_per_location}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}"
-    display_name += f"-{config['source_style']}-to-{config['target_style']}"
-    display_name += f"-{config['locate_method']}"
-    display_name += f"-{run_id}"
+    display_name = f"{run_id}"
+    # display_name = f"{config['method']}-{config['locate_unit']}-nps{wandb.config.num_edit_token_per_step}-k{wandb.config.k_per_location}-beam{wandb.config.beam_size}-{wandb.config.selection_criteria}"
+    # display_name += f"-{config['source_style']}-to-{config['target_style']}"
+    # display_name += f"-{config['locate_method']}"
+    # display_name += f"-{run_id}"
     
 
     outdir = os.path.join(config["output_dir_prefix"], display_name)
@@ -127,13 +128,13 @@ def main(config):
             model_path not in name2model
         ):  # making sure we are not loading the model twice in case some constraints use the same model.
             try:
-                name2tokenizer[model_path] = AutoTokenizer.from_pretrained(
+                name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
                     config["tokenizer_paths"][i],
                     cache_dir=config["cache_dir"],
                     use_fast=True,
                 )
             except:
-                name2tokenizer[model_path] = AutoTokenizer.from_pretrained(
+                name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
                     config["tokenizer_paths"][i],
                     cache_dir=config["cache_dir"],
                     use_fast=False,
@@ -179,7 +180,7 @@ def main(config):
             lossbuilder.build_loss(
                 loss,
                 name2model[config["model_paths"][i]],
-                name2tokenizer[config["model_paths"][i]],
+                name2tokenizer[config["tokenizer_paths"][i]],
                 build_loss_args,
             )
         )
@@ -225,6 +226,8 @@ def main(config):
         sample_idx = 0
         curr_num_samples = len(AR_prediction_all)
         # for sample_idx in range(config["num_samples"])[:]:
+        
+        ######### change here! instead of for loop, do a batched operation ########
         for sample_idx in range(curr_num_samples): ## updated (3/15)
             
             ## commented out (3/15) : dev set doesn't have the space problem.

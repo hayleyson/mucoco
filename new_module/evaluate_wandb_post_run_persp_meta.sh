@@ -17,7 +17,7 @@ export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
 export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
 export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
 
-myArray=("f108tpx2" "4928q9xt")
+myArray=("vchnt2w7" "dri3tp3h" "kkweyv1c" "xbuc8g1p")
 wandb_project="toxicity-decoding"
 
 ## submit multiple sbatch simultaneously
