@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -21,25 +23,33 @@ class GPT2Loss(BaseLoss):
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.model.config.pad_token_id = self.model.config.eos_token_id # to remove the warning
     
-    def compute_gold_loss(self, prompt, prediction, **kwargs):
+    def compute_gold_loss(self, prompt:str, predictions:List[str], **kwargs):
         '''
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
-        prompt = self.tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
-        # assuming batch size of 1 (prediction is a string instance.)
-        prediction = self.tokenizer.encode(prediction, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
-        input_tokens = torch.cat([prompt, prediction], dim=1)
-        model_output = self.model(input_tokens)
+        num_samples = len(predictions)
+        prompt_enc=self.tokenizer.encode_plus(prompt,add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
+        prompt_enc['input_ids']=prompt_enc['input_ids'].expand(num_samples,-1)
+        prompt_enc['attention_mask']=prompt_enc['attention_mask'].expand(num_samples,-1)
+    
+        predictions_enc=self.tokenizer.batch_encode_plus(predictions, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
 
-        lm_logits = model_output[0][:, prompt.size(1)-1:-1, :]
+        input_tokens = torch.cat([prompt_enc.input_ids, predictions_enc.input_ids], dim=1)
+        attention_masks = torch.cat([prompt_enc.attention_mask, predictions_enc.attention_mask], dim=1)
+        with torch.no_grad():
+            model_output = self.model(input_ids=input_tokens,
+                                attention_mask=attention_masks)
+        lm_logits = model_output[0][:, prompt_enc.input_ids.size(1)-1:-1, :]
         lm_logprobs = F.log_softmax(lm_logits, dim=-1)
 
-        loss = F.nll_loss(lm_logprobs.squeeze(0), prediction.squeeze(0), reduction="none").sum(dim=-1)
+        # input dimensions : (N, C, d1), (N, d1)
+        loss = F.nll_loss(lm_logprobs.permute(0,2,1), predictions_enc.input_ids, reduction="none")
+        loss = loss * predictions_enc.attention_mask # make losses for pad tokens 0.
         
+        loss = loss.sum(dim=-1)
         if self.args.length_normalize:
-            loss /= lm_logprobs.size(1)
-
-        return loss
+            loss /= predictions_enc.attention_mask.sum(dim=-1) 
+        return loss # dimensions: (N)
     
     def generate(self, input_ids, **kwargs):
         prepared_input = self._prepare_input_for_generation(input_ids, **kwargs)

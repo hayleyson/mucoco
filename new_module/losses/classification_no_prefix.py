@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -108,29 +109,14 @@ class ClassificationLogProbLoss(BaseLoss):
         self.bos_token_id = self.tokenizer.bos_token_id
         self.eos_token_id = self.tokenizer.eos_token_id    
 
-    def compute_gold_loss(self, prompt, prediction, label_id, **kwargs):
+    def compute_gold_loss(self, prompt:str, prediction:List[str], label_id, **kwargs):
         '''
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
-
-        # prompt = self.tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
-        prediction = self.tokenizer.encode(prediction, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device).long()
         
-        eos = torch.empty((prediction.size(0), 1)).long().to(self.device).fill_(self.eos_token_id)
-        prediction = torch.cat([prediction, eos, eos], dim=1)
-    
-        model_output = self.model(prediction)
+        prediction = self.tokenizer.batch_encode_plus(prediction, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)
+        model_output = self.model(**prediction)
         lm_logits = model_output[0]
         lm_logprobs = F.log_softmax(lm_logits, dim=-1)
         loss = -lm_logprobs[:, label_id]
         return loss
-        # batch_size = prediction.size(0)
-        # label_prediction = lm_logprobs.argmax(dim=-1).item()
-
-        # logging_output = {
-        #     "loss": loss.data.cpu(),
-        #     "nsentences": batch_size,
-        #     "label_prediction": label_prediction
-        # }
-        # return loss, logging_output   
-        

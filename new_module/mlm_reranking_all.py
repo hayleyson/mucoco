@@ -22,7 +22,7 @@ from new_module.decode_utils import (
     combi_rerank,
 )
 from new_module.evaluate_wandb import evaluate_main
-from new_module.locate.locate_utils import locate_main
+from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
@@ -172,7 +172,7 @@ def main(config):
             embed_luts[-1].requires_grad = False
 
     mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
-    mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base")  
+    mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base").cuda()
 
     lossfns = []
     for i, loss in enumerate(config["losses"]):
@@ -188,6 +188,9 @@ def main(config):
         loss2tokenizer[loss] = lossfns[i].tokenizer
     # lossfns[0].tokenizer = loss2tokenizer[config["losses"][0]]
     # lossfns[1].tokenizer = loss2tokenizer[config["losses"][1]]
+
+    # define an object to locate problematic phrases
+    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer)
 
     label_ids = config["target_label_ids"]  # target label's ids for each loss
 
@@ -327,13 +330,10 @@ def main(config):
                 _iter = 0
                 for _iter in range(wandb.config.n_iter):
                     ## locate tokens to edit
-                    masked_text  = locate_main(running_text, 
+                    masked_text  = locator.locate_main([running_text], 
                                             config["locate_method"], 
-                                            name2model[config["model_paths"][1]], 
-                                            name2tokenizer[config["tokenizer_paths"][1]], 
                                             max_num_tokens = wandb.config.num_edit_token_per_step, 
                                             unit=config["locate_unit"], 
-                                            device="cuda", 
                                             label_id=config["target_label_ids"][1],
                                             num_layer=10)
                     logger.debug(f"iter {_iter}, sample_idx: {sample_idx}")
@@ -344,33 +344,33 @@ def main(config):
                     else:
                         ## replace tokens at the indices with mask tokens
                         inputs = mlm_tokenizer(
-                            masked_text, return_tensors="pt"
+                            masked_text, return_tensors="pt", padding=True, truncation=True
                         )
+                        inputs = inputs.to(mlm.device) 
                         # inputs = mlm_tokenizer(
                         #     source_text + ' ' + masked_text[0], return_tensors="pt", add_special_tokens=False
                         # )
-                        
+
                         ## make predictions for the masked indices
                         with torch.no_grad():
                             logits = mlm(**inputs).logits
+
+                        special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
+                        logits[:, :, special_token_ids] = -float("inf")
+
                         indices_in_mlm_tokens = (
                             inputs.input_ids == mlm_tokenizer.mask_token_id
-                        )[0].nonzero(as_tuple=True)[0]
-                        # print(f"indices_in_mlm_tokens: {indices_in_mlm_tokens}")
+                        ).nonzero(as_tuple=True) # ((M), (M)) : tuple of indices along 0 dimension & those along 1 dimension
+
                         ## get top k tokens for each index
-                        
-                        ## make logits for special tokens -inf.
-                        special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
-                        logits[:, :, special_token_ids] = -np.inf
-                        
                         predicted_token_ids = torch.topk(
-                            logits[0, indices_in_mlm_tokens],
-                            k=wandb.config.k_per_location,
+                            logits[indices_in_mlm_tokens[0], indices_in_mlm_tokens[1], :],
+                            k=10,
                             dim=-1,
-                        )
+                        ) # (M, k)
                         # print(f"predicted_token_ids: {predicted_token_ids}")
                         # print(f"mlm_tokenizer.batch_decode(predicted_token_ids.indices): {mlm_tokenizer.batch_decode(predicted_token_ids.indices)}")
-                        
+
                     if config["method"] == "mlm-beamsearch-v0":
                         # print(config["method"])
                         hypotheses = beam_rerank_v0(source_text,
