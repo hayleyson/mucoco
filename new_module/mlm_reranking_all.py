@@ -735,7 +735,8 @@ if __name__ == "__main__":
         default="weighted_sum",
         help="selection criteria",
     )
-    parser.add_argument("--closs_weight", type=float, default=0.32, help="closs weight")
+    # parser.add_argument("--closs_weight", type=float, default=0.32, help="closs weight")
+    parser.add_argument("--loss_weights", nargs="+", type=float, default=[0.7,0.3], help="closs weight")
     parser.add_argument("--beam_size", type=int, default=5, help="beam size")
     parser.add_argument(
         "--wandb_project", type=str, default="mlm_reranking", help="wandb project name"
