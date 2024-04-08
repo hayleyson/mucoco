@@ -243,7 +243,8 @@ def main(config):
             allsat = True
             gold_losses = []
             curr_loss = 0.0
-            loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+            # loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+            loss_weights = config['loss_weights']
             for lossid, lossname in enumerate(config["losses"]):
                 with torch.no_grad():
                     lossvalue = lossfns[lossid].compute_gold_loss(
@@ -474,10 +475,10 @@ def main(config):
 
 
                     ## intermediate output for debugging
-                    int_output |= {f"iter{_iter}_original_sentence": running_text,
+                    int_output.update({f"iter{_iter}_original_sentence": running_text,
                                     f"iter{_iter}_masked_sentence": masked_text,
                                     f"iter{_iter}_best_text": hypotheses[best_ix],
-                                    f"iter{_iter}_update": update}    
+                                    f"iter{_iter}_update": update})    
                     
                     running_text = hypotheses[best_ix]
                     if update:

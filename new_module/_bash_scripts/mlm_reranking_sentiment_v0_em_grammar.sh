@@ -16,6 +16,7 @@ export PYTHONPATH=.
 export HF_HOME=/data/hyeryung/hf_cache
 export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
 export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export LOGGING_LEVEL=INFO
 
 # srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5  \
@@ -55,11 +56,12 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --target_label_ids 1 1 1 \
 --min_epsilons 0.9 0.75 \
 --wandb_project 'sentiment-decoding' \
---model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' 'cointegrated/roberta-large-cola-krishna2020'\
---tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' 'cointegrated/roberta-large-cola-krishna2020'\
+--model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' 'cointegrated/roberta-large-cola-krishna2020' \
+--tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' 'cointegrated/roberta-large-cola-krishna2020' \
 --output_dir_prefix 'outputs/sentiment/mlm-reranking/roberta-base-yelp-sentiment-classifier-energy-training/' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --locate_method 'grad_norm' \
 --losses "gpt2" "classification_no_prefix_logprobloss" "classification_logprobloss" \
---dont_skip_allsat
+--dont_skip_allsat \
+--model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" "AutoModelForSequenceClassification"

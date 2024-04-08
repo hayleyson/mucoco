@@ -39,7 +39,8 @@ def beam_rerank_v0(source_text, ## text (too arbitrary?)
             hypotheses_exp = list(hypotheses_exp)
 
             losses = []
-            loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+            # loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+            loss_weights = config['loss_weights']
             for hyp in hypotheses_exp:
                 curr_loss = 0.0
                 for lossid, lossname in enumerate(config["losses"]):
