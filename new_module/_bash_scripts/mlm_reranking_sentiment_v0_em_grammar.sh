@@ -3,7 +3,7 @@
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/s_bv0_em_%j.out'
 #SBATCH --nodelist=n02
@@ -64,4 +64,6 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --locate_method 'grad_norm' \
 --losses "gpt2" "classification_no_prefix_logprobloss" "classification_logprobloss" \
 --dont_skip_allsat \
---model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" "AutoModelForSequenceClassification"
+--model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" "AutoModelForSequenceClassification" \
+--resume \
+--wandb_run_id uvu7p0vi
