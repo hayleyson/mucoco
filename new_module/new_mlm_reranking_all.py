@@ -239,7 +239,7 @@ def main(config):
         ## check whether initial text satisfies constraint
 
         curr_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
-        logging_loss = torch.zeros((len(AR_prediction_all),2)).to(config['device'])
+        logging_loss = torch.zeros((len(AR_prediction_all),len(config["losses"]))).to(config['device'])
         edit_yn = torch.ones(len(AR_prediction_all), dtype=torch.bool).to(config['device'])
                 
         for lossid, lossname in enumerate(config["losses"]):
@@ -255,7 +255,7 @@ def main(config):
 
         allsat = logging_loss[:,1] < -math.log(config["min_epsilons"][0])
         allsat_ix = allsat.nonzero().squeeze(0)
-        edit_yn[allsat_ix] = 0
+        edit_yn[allsat_ix] = False
         edited_at_all_yn = edit_yn.detach().clone()
         
         if (edit_yn.sum().item() == 0) and (not config["dont_skip_allsat"]):
@@ -284,8 +284,8 @@ def main(config):
                                     method = config['locate_method'], 
                                     max_num_tokens = wandb.config.num_edit_token_per_step, 
                                     unit = config['locate_unit'], 
-                                    num_layer = -2, #penultimate
-                                    label_id = config['target_label_ids'][0])
+                                    num_layer = 10,#-2, #penultimate
+                                    label_id = config['target_label_ids'][1])
 
             ## replace tokens at the indices with mask tokens
             
@@ -352,17 +352,9 @@ def main(config):
                 update = (~best_allsat & new_best_allsat) | \
                         (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
                         (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) 
-
+            update = (update & edit_yn) # edit 대상인 것들만 update하기 위해서 update 조건에 edit_yn을 sum.
             
-            ## intermediate output for debugging
-            for sample_ix in range(len(AR_prediction_all)):
-                
-                int_output[sample_ix].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
-                                            f"iter{_iter}_masked_sentence": masked_text[sample_ix],
-                                            f"iter{_iter}_best_text": final_hypotheses[sample_ix],
-                                            f"iter{_iter}_update": update[sample_ix].item()})    
-            
-            
+            # update running_text, best_text, best_allsat, best_losses, best_weighted_loss
             running_text = deepcopy(final_hypotheses)
             for update_index in update.nonzero().squeeze(-1).tolist():
                 best_text[update_index] = final_hypotheses[update_index]
@@ -376,6 +368,14 @@ def main(config):
                 edit_yn[es_patience_count > config['early_stopping_patience']] = False
             if edit_yn.sum() == 0:
                 break
+            
+            ## intermediate output for debugging
+            for sample_ix in edit_yn.nonzero().squeeze(-1).tolist(): # edit 대상인 것들만 update.
+                
+                int_output[sample_ix].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
+                                            f"iter{_iter}_masked_sentence": masked_text[sample_ix],
+                                            f"iter{_iter}_best_text": final_hypotheses[sample_ix],
+                                            f"iter{_iter}_update": update[sample_ix].item()})    
 
         output = {
                     "prompt": {

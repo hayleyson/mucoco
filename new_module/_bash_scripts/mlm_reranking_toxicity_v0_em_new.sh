@@ -2,8 +2,8 @@
 #SBATCH --job-name=t_bv0_clsf
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
-#SBATCH --nodelist=n01
-#SBATCH --cpus-per-task=8
+#SBATCH --nodelist=n02
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/t_bv0_clsf_%j.out'
 
@@ -61,5 +61,5 @@ python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --early_stopping_patience 0 \
 --locate_method 'grad_norm' \
 --server_time_limit 12 \
---device 'cuda:6' \
+--device 'cuda' \
 --cache_dir '/data/hyeryung/hf_cache'
