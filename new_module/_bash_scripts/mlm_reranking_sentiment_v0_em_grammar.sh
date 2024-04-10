@@ -53,7 +53,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --source_data 'new_module/data/sentiment/dev_set.jsonl' \
 --source_style 'negative' \
 --target_style 'positive' \
---target_label_ids 1 1 1 \
+--target_label_ids 1 1 0 \
 --min_epsilons 0.9 0.75 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' 'cointegrated/roberta-large-cola-krishna2020' \
@@ -64,6 +64,4 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --locate_method 'grad_norm' \
 --losses "gpt2" "classification_no_prefix_logprobloss" "classification_logprobloss" \
 --dont_skip_allsat \
---model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" "AutoModelForSequenceClassification" \
---resume \
---wandb_run_id uvu7p0vi
+--model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" "AutoModelForSequenceClassification"

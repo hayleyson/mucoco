@@ -78,13 +78,11 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
 
 if __name__ == "__main__":
 
-    run_id_list = """fs115xjd
-ahas6jl1
-cutgmg96"""
+    run_id_list = """uvu7p0vi"""
 
     run_id_list = run_id_list.split('\n')
     print(run_id_list)
     # main(run_id_list, wandb_entity="hayleyson", wandb_project="toxicity-decoding", prefix="mlm")
-    main(run_id_list, wandb_entity="hayleyson", wandb_project="formality-decoding", prefix="mlm")
-    # main(run_id_list, wandb_entity="hayleyson", wandb_project="sentiment-decoding", prefix="mlm")
+    # main(run_id_list, wandb_entity="hayleyson", wandb_project="formality-decoding", prefix="mlm")
+    main(run_id_list, wandb_entity="hayleyson", wandb_project="sentiment-decoding", prefix="")
         
