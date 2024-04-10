@@ -113,7 +113,7 @@ class ClassificationLogProbLoss(BaseLoss):
         '''
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
-        
+        prediction = [x + self.tokenizer.eos_token + self.tokenizer.eos_token for x in prediction]
         prediction = self.tokenizer.batch_encode_plus(prediction, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)
         model_output = self.model(**prediction)
         lm_logits = model_output[0]

@@ -16,7 +16,89 @@ logging.basicConfig(level=os.environ.get('LOGGING_LEVEL', 'DEBUG').upper(),
                     format='%(message)s')
 logger = logging.getLogger(__name__)
 
-def get_beam_hypotheses(source_text:str, 
+# def get_beam_hypotheses(source_text:str, 
+#                     masked_sequence:torch.Tensor, 
+#                     indices_in_mlm_tokens:Tuple[torch.Tensor],
+#                     predicted_token_ids:torch.Tensor,
+#                     mlm_tokenizer:transformers.AutoTokenizer, 
+#                     lossfns:List[lossbuilder.BaseLoss],
+#                     config:dict) -> List[List[str]]:
+#     """
+#     A function to get hypotheses of beam size via editing beam search with reranking.
+#     Run this function if config['method'] == 'mlm-beamsearch-v0' or config['method'] == 'mlm-beamsearch-v1'
+#     If config['method'] == 'mlm-beamsearch-v1', rerank beam only with fluency energy.
+#     If config['method'] == 'mlm-beamsearch-v0', rerank beam with a weighted sum of fluency and constraint energy.
+    
+#     #ToDo
+#     #Implement mlm-beamsearch-v0 with allsat-primary and compare 
+    
+#     params: 
+#         source_text: a prompt text 
+#         masked_sequence: token ids of original generation text with located indices masked. tokenized by MLM's tokenizer.
+#         indices_in_mlm_tokens: a result of running 
+#                                     `indices_in_mlm_tokens = (
+#                                                                 inputs.input_ids == mlm_tokenizer.mask_token_id
+#                                                                 ).nonzero(as_tuple=True)`
+#         predicted_token_ids: a result of running
+#                                     `predicted_token_ids = torch.topk(
+#                                                                 logits[indices_in_mlm_tokens[0], indices_in_mlm_tokens[1], :],
+#                                                                 k=config['k_per_location'],
+#                                                                 dim=-1,).indices`
+#         mlm_tokenizer: tokenizer of MLM
+#         lossfns: a list of loss functions
+#         config: a dictionary of configurations
+    
+#     returns:
+#         hypotheses: a list of a list of the beam number of hypotheses for each sample         
+#     """
+    
+#     def repeat_interleave_unravel(arr,split_blocks):
+#         arr_ = torch.split(arr.T,1,dim=1)
+#         arr_ = [x.repeat(1,split_blocks[i]).reshape(-1,1) for i,x in enumerate(arr_)]
+#         arr_ = torch.cat(arr_,dim=0)
+#         return arr_
+    
+#     hypotheses = list(torch.split(masked_sequence,1,dim=0)) ## [torch.tensor([[a],[b],[c]]), torch.tensor([[d]])]
+#     edit_indices = sorted(list(set(indices_in_mlm_tokens[1].tolist())))
+#     for curr_edit_index in edit_indices:
+        
+#         batch_ids_to_edit = indices_in_mlm_tokens[0][indices_in_mlm_tokens[1]==curr_edit_index].tolist()
+#         num_initial_hypotheses = [len(hypotheses[i]) for i in batch_ids_to_edit] ## keep track of initial hypotheses count e.g. [3, 1]
+#         tmp_hypotheses = [hypotheses[i].repeat((config['k_per_location'],1)) for i in batch_ids_to_edit] ## [torch.tensor([[a],[b],[c],[a],[b],[c],[a],[b],[c]]), torch.tensor([[d],[d],[d]])]
+#         num_initial_tmp_hypotheses = [len(x) for x in tmp_hypotheses]
+#         tmp_hypotheses = torch.cat(tmp_hypotheses,dim=0) ## torch.tensor([[a],[b],[c],[a],[b],[c],[a],[b],[c],[d],[d],[d]])
+        
+
+#         new_func_candidates = predicted_token_ids[indices_in_mlm_tokens[1]==curr_edit_index] ## shape: (len(batch_ids_to_edit), k_per_location) e.g. [[x,y,z],[q,w,e]]
+#         new_func_candidates = repeat_interleave_unravel(new_func_candidates,num_initial_hypotheses) ## shape: (sum(num_initial_hypotheses), k_per_location) e.g. [[x],[x],[x],[y],[y],[y],[z],[z],[z],[q],[w],[e]]
+#         new_func_candidates = new_func_candidates.to(config['device'])
+        
+
+#         tmp_hypotheses = torch.cat((tmp_hypotheses[ :, :curr_edit_index], new_func_candidates),dim=-1) ## tmp_hypotheses: [(a,b,c),(a,b,c), ..., (a,b,c)], new_func_candidates: [(p,p,p), (q,q,q), ..., (v,v,v)]
+
+#         loss_weights = [1 - config['closs_weight'], config['closs_weight']]
+#         curr_loss = torch.zeros(tmp_hypotheses.shape[0]).to(config['device'])
+#         for lossid, lossname in enumerate(config["losses"]):
+#             if config['method'] == 'mlm-beamsearch-v1' and lossid > 0:
+#                 continue
+#             with torch.no_grad():
+#                 lossvalue = lossfns[lossid].compute_gold_loss(
+#                     source_text, mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True),
+#                     label_id=config['target_label_ids'][lossid],
+#                 )
+#             torch.cuda.empty_cache()
+#             curr_loss += loss_weights[lossid] * lossvalue
+#         curr_loss = torch.split(curr_loss, num_initial_tmp_hypotheses, dim=0)
+#         top_beams = [torch.topk(x, k=config['beam_size'], dim=-1, largest=False).indices for x in curr_loss]
+
+#         tmp_hypotheses = torch.split(tmp_hypotheses, num_initial_tmp_hypotheses, dim=0)
+#         for jx, ix in enumerate(batch_ids_to_edit):
+
+#             hypotheses[ix] = torch.cat([tmp_hypotheses[jx][top_beams[jx]], masked_sequence[ix][curr_edit_index+1:].unsqueeze(0).repeat(config['beam_size'],1)], dim=-1)
+            
+#     return [mlm_tokenizer.batch_decode(x, skip_special_tokens=True) for x in hypotheses]
+
+def get_beam_hypotheses_v0(source_text:str, 
                     masked_sequence:torch.Tensor, 
                     indices_in_mlm_tokens:Tuple[torch.Tensor],
                     predicted_token_ids:torch.Tensor,
@@ -25,8 +107,8 @@ def get_beam_hypotheses(source_text:str,
                     config:dict) -> List[List[str]]:
     """
     A function to get hypotheses of beam size via editing beam search with reranking.
-    Run this function if config['method'] == 'mlm-beamsearch-v0' or config['method'] == 'mlm-beamsearch-v1'
-    If config['method'] == 'mlm-beamsearch-v1', rerank beam only with fluency energy.
+    Run this function if config['method'] == 'mlm-beamsearch-v0'
+    Almost the same as get_beam_hypotheses_v1 except the scoring function during beam search.
     If config['method'] == 'mlm-beamsearch-v0', rerank beam with a weighted sum of fluency and constraint energy.
     
     #ToDo
@@ -52,27 +134,33 @@ def get_beam_hypotheses(source_text:str,
         hypotheses: a list of a list of the beam number of hypotheses for each sample         
     """
     
-    hypotheses = masked_sequence[:, None, :].repeat((1,config['beam_size'],1))
+    def repeat_interleave_unravel(arr,split_blocks):
+        arr_ = torch.split(arr.T,1,dim=1)
+        arr_ = [x.repeat(1,split_blocks[i]).reshape(-1,1) for i,x in enumerate(arr_)]
+        arr_ = torch.cat(arr_,dim=0)
+        return arr_
+    
+    hypotheses = list(torch.split(masked_sequence,1,dim=0)) ## [torch.tensor([[a],[b],[c]]), torch.tensor([[d]])]
     edit_indices = sorted(list(set(indices_in_mlm_tokens[1].tolist())))
-
-    for i in edit_indices:
+    for curr_edit_index in edit_indices:
         
-        batch_ids_to_edit = indices_in_mlm_tokens[0][indices_in_mlm_tokens[1]==i]
-
-        tmp_hypotheses = hypotheses[batch_ids_to_edit].detach().clone()
-        tmp_hypotheses=tmp_hypotheses.repeat((1,config['k_per_location'],1))
-
-        candidates = predicted_token_ids[(indices_in_mlm_tokens[1]==i).nonzero().squeeze(-1),:]
-        candidates = candidates[:, :, None].repeat((1,1, config['beam_size'])).reshape(candidates.shape[0], -1,1)
-
-        tmp_hypotheses = torch.cat((tmp_hypotheses[:, :, :i], candidates),dim=-1) ## tmp_hypotheses: [(a,b,c),(a,b,c), ..., (a,b,c)], candidates: [(p,p,p), (q,q,q), ..., (v,v,v)]
-        tmp_hypotheses = tmp_hypotheses.reshape(-1, tmp_hypotheses.shape[-1])
+        batch_ids_to_edit = indices_in_mlm_tokens[0][indices_in_mlm_tokens[1]==curr_edit_index].tolist()
+        num_initial_hypotheses = [len(hypotheses[i]) for i in batch_ids_to_edit] ## keep track of initial hypotheses count e.g. [3, 1]
+        tmp_hypotheses = [hypotheses[i].repeat((config['k_per_location'],1)) for i in batch_ids_to_edit] ## [torch.tensor([[a],[b],[c],[a],[b],[c],[a],[b],[c]]), torch.tensor([[d],[d],[d]])]
+        num_initial_tmp_hypotheses = [len(x) for x in tmp_hypotheses]
+        tmp_hypotheses = torch.cat(tmp_hypotheses,dim=0) ## torch.tensor([[a],[b],[c],[a],[b],[c],[a],[b],[c],[d],[d],[d]])
         
+
+        new_func_candidates = predicted_token_ids[indices_in_mlm_tokens[1]==curr_edit_index] ## shape: (len(batch_ids_to_edit), k_per_location) e.g. [[x,y,z],[q,w,e]]
+        new_func_candidates = repeat_interleave_unravel(new_func_candidates,num_initial_hypotheses) ## shape: (sum(num_initial_hypotheses), k_per_location) e.g. [[x],[x],[x],[y],[y],[y],[z],[z],[z],[q],[w],[e]]
+        new_func_candidates = new_func_candidates.to(config['device'])
+        
+
+        tmp_hypotheses = torch.cat((tmp_hypotheses[ :, :curr_edit_index], new_func_candidates),dim=-1) ## tmp_hypotheses: [(a,b,c),(a,b,c), ..., (a,b,c)], new_func_candidates: [(p,p,p), (q,q,q), ..., (v,v,v)]
+
         loss_weights = [1 - config['closs_weight'], config['closs_weight']]
         curr_loss = torch.zeros(tmp_hypotheses.shape[0]).to(config['device'])
         for lossid, lossname in enumerate(config["losses"]):
-            if config['method'] == 'mlm-beamsearch-v1' and lossid > 0:
-                continue
             with torch.no_grad():
                 lossvalue = lossfns[lossid].compute_gold_loss(
                     source_text, mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True),
@@ -80,17 +168,90 @@ def get_beam_hypotheses(source_text:str,
                 )
             torch.cuda.empty_cache()
             curr_loss += loss_weights[lossid] * lossvalue
-            
-        curr_loss = torch.stack(torch.split(curr_loss, config['beam_size'] * config['k_per_location'], dim=0),dim=0)
-        top_beams=torch.topk(curr_loss, k=(config['beam_size']*(config['k_per_location']-1)+1), dim=-1, largest=False).indices
+        curr_loss = torch.split(curr_loss, num_initial_tmp_hypotheses, dim=0)
+        top_beams = [torch.topk(x, k=config['beam_size'], dim=-1, largest=False).indices for x in curr_loss]
 
-        tmp_hypotheses = torch.split(tmp_hypotheses, config['beam_size'] * config['k_per_location'], dim=0) ## 아래의 작업을 더 간단히 할 수 있는 방법?
-        tmp_hypotheses = torch.stack([x[top_beams[j]] for j, x in enumerate(tmp_hypotheses)],dim=0)
-        tmp_hypotheses = torch.unique(tmp_hypotheses, dim=1)[:, :config['beam_size'], :]
-        
-        hypotheses[batch_ids_to_edit,:, i]=tmp_hypotheses[:, :, i]
+        tmp_hypotheses = torch.split(tmp_hypotheses, num_initial_tmp_hypotheses, dim=0)
+        for jx, ix in enumerate(batch_ids_to_edit):
+
+            hypotheses[ix] = torch.cat([tmp_hypotheses[jx][top_beams[jx]], masked_sequence[ix][curr_edit_index+1:].unsqueeze(0).repeat(config['beam_size'],1)], dim=-1)
             
-    return [mlm_tokenizer.batch_decode(hypotheses[j], skip_special_tokens=True) for j in range(hypotheses.shape[0])]
+    return [mlm_tokenizer.batch_decode(x, skip_special_tokens=True) for x in hypotheses]
+
+def get_beam_hypotheses_v1(source_text:str, 
+                    masked_sequence:torch.Tensor, 
+                    indices_in_mlm_tokens:Tuple[torch.Tensor],
+                    predicted_token_ids:torch.Tensor,
+                    mlm_tokenizer:transformers.AutoTokenizer, 
+                    lossfns:List[lossbuilder.BaseLoss],
+                    config:dict) -> List[List[str]]:
+    """
+    A function to get hypotheses of beam size via editing beam search with reranking.
+    Run this function if config['method'] == 'mlm-beamsearch-v1'
+    Almost the same as get_beam_hypotheses_v0 except the scoring function during beam search.
+    If config['method'] == 'mlm-beamsearch-v1', rerank beam only with fluency energy.
+    If config['method'] == 'mlm-beamsearch-v0', rerank beam with a weighted sum of fluency and constraint energy.
+    
+    params: 
+        source_text: a prompt text 
+        masked_sequence: token ids of original generation text with located indices masked. tokenized by MLM's tokenizer.
+        indices_in_mlm_tokens: a result of running 
+                                    `indices_in_mlm_tokens = (
+                                                                inputs.input_ids == mlm_tokenizer.mask_token_id
+                                                                ).nonzero(as_tuple=True)`
+        predicted_token_ids: a result of running
+                                    `predicted_token_ids = torch.topk(
+                                                                logits[indices_in_mlm_tokens[0], indices_in_mlm_tokens[1], :],
+                                                                k=config['k_per_location'],
+                                                                dim=-1,).indices`
+        mlm_tokenizer: tokenizer of MLM
+        lossfns: a list of loss functions
+        config: a dictionary of configurations
+    
+    returns:
+        hypotheses: a list of a list of the beam number of hypotheses for each sample         
+    """
+    
+    def repeat_interleave_unravel(arr,split_blocks):
+        arr_ = torch.split(arr.T,1,dim=1)
+        arr_ = [x.repeat(1,split_blocks[i]).reshape(-1,1) for i,x in enumerate(arr_)]
+        arr_ = torch.cat(arr_,dim=0)
+        return arr_
+    
+    hypotheses = list(torch.split(masked_sequence,1,dim=0)) ## [torch.tensor([[a],[b],[c]]), torch.tensor([[d]])]
+    edit_indices = sorted(list(set(indices_in_mlm_tokens[1].tolist())))
+    for curr_edit_index in edit_indices:
+        
+        batch_ids_to_edit = indices_in_mlm_tokens[0][indices_in_mlm_tokens[1]==curr_edit_index].tolist()
+        num_initial_hypotheses = [len(hypotheses[i]) for i in batch_ids_to_edit] ## keep track of initial hypotheses count e.g. [3, 1]
+        tmp_hypotheses = [hypotheses[i].repeat((config['k_per_location'],1)) for i in batch_ids_to_edit] ## [torch.tensor([[a],[b],[c],[a],[b],[c],[a],[b],[c]]), torch.tensor([[d],[d],[d]])]
+        num_initial_tmp_hypotheses = [len(x) for x in tmp_hypotheses]
+        tmp_hypotheses = torch.cat(tmp_hypotheses,dim=0) ## torch.tensor([[a],[b],[c],[a],[b],[c],[a],[b],[c],[d],[d],[d]])
+        
+
+        new_func_candidates = predicted_token_ids[indices_in_mlm_tokens[1]==curr_edit_index] ## shape: (len(batch_ids_to_edit), k_per_location) e.g. [[x,y,z],[q,w,e]]
+        new_func_candidates = repeat_interleave_unravel(new_func_candidates,num_initial_hypotheses) ## shape: (sum(num_initial_hypotheses), k_per_location) e.g. [[x],[x],[x],[y],[y],[y],[z],[z],[z],[q],[w],[e]]
+        new_func_candidates = new_func_candidates.to(config['device'])
+        
+
+        tmp_hypotheses = torch.cat((tmp_hypotheses[ :, :curr_edit_index], new_func_candidates),dim=-1) ## tmp_hypotheses: [(a,b,c),(a,b,c), ..., (a,b,c)], new_func_candidates: [(p,p,p), (q,q,q), ..., (v,v,v)]
+
+        with torch.no_grad():
+            lossvalue = lossfns[0].compute_gold_loss(
+                source_text, mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True),
+                label_id=config['target_label_ids'][0],
+            )
+        torch.cuda.empty_cache()
+        
+        curr_loss = torch.split(lossvalue, num_initial_tmp_hypotheses, dim=0)
+        top_beams = [torch.topk(x, k=config['beam_size'], dim=-1, largest=False).indices for x in curr_loss]
+
+        tmp_hypotheses = torch.split(tmp_hypotheses, num_initial_tmp_hypotheses, dim=0)
+        for jx, ix in enumerate(batch_ids_to_edit):
+
+            hypotheses[ix] = torch.cat([tmp_hypotheses[jx][top_beams[jx]], masked_sequence[ix][curr_edit_index+1:].unsqueeze(0).repeat(config['beam_size'],1)], dim=-1)
+            
+    return [mlm_tokenizer.batch_decode(x, skip_special_tokens=True) for x in hypotheses]
 
 def get_combi_hypotheses(masked_sequence:torch.Tensor, 
                  indices_in_mlm_tokens:tuple,

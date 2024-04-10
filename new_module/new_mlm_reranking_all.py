@@ -24,7 +24,7 @@ import wandb
 #     beam_rerank_v2,
 #     combi_rerank,
 # )
-from new_module.new_decode_utils import get_beam_hypotheses, get_combi_hypotheses, final_reranking
+from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking
 from new_module.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
@@ -255,18 +255,9 @@ def main(config):
 
         allsat = logging_loss[:,1] < -math.log(config["min_epsilons"][0])
         allsat_ix = allsat.nonzero().squeeze(0)
-        edit_yn[allsat_ix] = False
+        if (not config["dont_skip_allsat"]):
+            edit_yn[allsat_ix] = False
         edited_at_all_yn = edit_yn.detach().clone()
-        
-        if (edit_yn.sum().item() == 0) and (not config["dont_skip_allsat"]):
-            ## save data
-            num_edited += 0
-            num_skipped += len(AR_prediction_all)
-            num_decoded_tokens += 0
-            continue
-         
-            
-        
         
         es_patience_count = torch.zeros(len(AR_prediction_all),dtype=torch.long).to(config['device'])
         best_allsat = allsat.detach().clone()
@@ -276,123 +267,145 @@ def main(config):
         running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## 실제 고쳐야 할 sample만 가지고 있음
         int_output = [{} for _ in range(len(AR_prediction_all))]
 
-        num_edited += edit_yn.sum().item()
-        num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
-        num_decoded_tokens += sum([len(x) for x in name2tokenizer[config["tokenizer_paths"][0]](running_text, add_special_tokens=False).input_ids])       
+        if (edit_yn.sum().item() == 0) and (not config["dont_skip_allsat"]):
+            ## save data
+            num_edited += 0
+            num_skipped += len(AR_prediction_all)
+            num_decoded_tokens += 0
+            
+            
+            logger.info(
+                    f"skipping this sample since it already satisfies constraint. {best_losses}"
+                )
         
-        for _iter in range(wandb.config.n_iter):
-            ## masked_text : N (num samples to edit)
-            masked_text = locator.locate_main(running_text, 
-                                    method = config['locate_method'], 
-                                    max_num_tokens = wandb.config.num_edit_token_per_step, 
-                                    unit = config['locate_unit'], 
-                                    num_layer = 10,#-2, #penultimate
-                                    label_id = config['target_label_ids'][1])
-
-            ## replace tokens at the indices with mask tokens
+        else:
+        
             
-            inputs = mlm_tokenizer(
-                masked_text, return_tensors="pt", padding=True, truncation=True
-            )
-            inputs = inputs.to(config['device']) 
-            masked_sequence=inputs['input_ids']
-
-
-            ## make predictions for the masked indices
-            with torch.no_grad():
-                logits = mlm(**inputs).logits
-
-            special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
-            logits[:, :, special_token_ids] = -float("inf")
-
+            num_edited += edit_yn.sum().item()
+            num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
+            num_decoded_tokens += sum([len(x) for x in name2tokenizer[config["tokenizer_paths"][0]](running_text, add_special_tokens=False).input_ids])       
             
-            indices_in_mlm_tokens = (
-                inputs.input_ids == mlm_tokenizer.mask_token_id
-            ).nonzero(as_tuple=True)
+            for _iter in range(wandb.config.n_iter):
+                ## masked_text : N (num samples to edit)
+                masked_text = locator.locate_main(running_text, 
+                                        method = config['locate_method'], 
+                                        max_num_tokens = wandb.config.num_edit_token_per_step, 
+                                        unit = config['locate_unit'], 
+                                        num_layer = 10,#-2, #penultimate
+                                        label_id = config['target_label_ids'][1])
 
-            ## get top k tokens for each index
-            predicted_token_ids = torch.topk(
-                logits[indices_in_mlm_tokens[0], indices_in_mlm_tokens[1], :],
-                k=config['k_per_location'],
-                dim=-1,
-            )
+                ## replace tokens at the indices with mask tokens
+                
+                inputs = mlm_tokenizer(
+                    masked_text, return_tensors="pt", padding=True, truncation=True
+                )
+                inputs = inputs.to(config['device']) 
+                masked_sequence=inputs['input_ids']
 
-            
-            if config["method"] in ["mlm-beamsearch-v0","mlm-beamsearch-v1"] :
-                hypotheses = get_beam_hypotheses(source_text, 
-                        masked_sequence, 
-                        indices_in_mlm_tokens,
-                        predicted_token_ids.indices,
-                        mlm_tokenizer, 
-                        lossfns,
-                        config)
-            elif config["method"] == "mlm-reranking":
-                hypotheses = get_combi_hypotheses(masked_sequence, 
+
+                ## make predictions for the masked indices
+                with torch.no_grad():
+                    logits = mlm(**inputs).logits
+
+                special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
+                logits[:, :, special_token_ids] = -float("inf")
+
+                
+                indices_in_mlm_tokens = (
+                    inputs.input_ids == mlm_tokenizer.mask_token_id
+                ).nonzero(as_tuple=True)
+
+                ## get top k tokens for each index
+                predicted_token_ids = torch.topk(
+                    logits[indices_in_mlm_tokens[0], indices_in_mlm_tokens[1], :],
+                    k=config['k_per_location'],
+                    dim=-1,
+                )
+
+                
+                if config["method"] == "mlm-beamsearch-v0":
+                    hypotheses = get_beam_hypotheses_v0(source_text, 
+                            masked_sequence, 
                             indices_in_mlm_tokens,
                             predicted_token_ids.indices,
-                            mlm_tokenizer,
+                            mlm_tokenizer, 
+                            lossfns,
                             config)
+                elif config["method"] == "mlm-beamsearch-v1":
+                    hypotheses = get_beam_hypotheses_v1(source_text, 
+                            masked_sequence, 
+                            indices_in_mlm_tokens,
+                            predicted_token_ids.indices,
+                            mlm_tokenizer, 
+                            lossfns,
+                            config)
+                elif config["method"] == "mlm-reranking":
+                    hypotheses = get_combi_hypotheses(masked_sequence, 
+                                indices_in_mlm_tokens,
+                                predicted_token_ids.indices,
+                                mlm_tokenizer,
+                                config)
 
+                    
+                    
+                final_hypotheses_, new_best_weighted_loss_, new_best_allsat_, new_best_logging_loss_ = final_reranking(source_text,
+                                                                                                                    hypotheses,
+                                                                                                                    lossfns,
+                                                                                                                    config,
+                                                                                                                    batch_size=64)
+
+
+                ## final_hypotheses, new_best_weighted_loss, new_best_allsat, new_best_logging_loss 모두 N 의 길이를 가짐 
+                ## 특히 edit 대상이 iteration마다 달라지면 best_... tensor와 new_best_... tensor간에 크기가 달라서 아래 코드 실행시 에러가 날 것이다.
                 
+                new_best_weighted_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
+                new_best_weighted_loss[edit_yn] = new_best_weighted_loss_
                 
-            final_hypotheses_, new_best_weighted_loss_, new_best_allsat_, new_best_logging_loss_ = final_reranking(source_text,
-                                                                                                                hypotheses,
-                                                                                                                lossfns,
-                                                                                                                config,
-                                                                                                                batch_size=64)
+                new_best_logging_loss = torch.empty((len(AR_prediction_all), len(config['losses']))).fill_(float("inf")).to(config['device'])
+                new_best_logging_loss[edit_yn, :] = new_best_logging_loss_
+                
+                new_best_allsat = torch.zeros((len(AR_prediction_all),)).bool().to(config['device'])
+                new_best_allsat[edit_yn] = new_best_allsat_
+                edit_ixes = edit_yn.nonzero().squeeze(-1)
+                final_hypotheses = [final_hypotheses_[torch.where(edit_ixes==i)[0].item()] if edit_yn[i] else '' for i in range(len(AR_prediction_all))]
+                
+                update = torch.Tensor([]).bool().to(config['device'])
+                if wandb.config.selection_criteria == "weighted_sum":
+                    update = best_weighted_loss > new_best_weighted_loss ## edit_yn이 false 였던 곳은 무조건 false
+                elif wandb.config.selection_criteria == "allsat_primary":
+                    update = (~best_allsat & new_best_allsat) | \
+                            (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
+                            (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) 
+                            ## (~best_allsat & new_best_allsat) : edit_yn이 false였던 곳은 무조건 false
+                            ## (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) : edit_yn이 false 였던 곳은 무조건 false
+                            ## (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) : edit_yn이 false였던 곳은 무조건 false
+                update = (update & edit_yn) # edit 대상인 것들만 update하기 위해서 update 조건에 edit_yn을 sum.
 
+                ## intermediate output for debugging
+                # for sample_ix in edit_yn.nonzero().squeeze(-1).tolist(): # edit 대상인 것들만 update.
+                
+                for sample_ix in range(len(running_text)): # edit 대상인 것들만 update.
+                    int_output[edit_ixes[sample_ix]].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
+                                                            f"iter{_iter}_masked_sentence": masked_text[sample_ix],
+                                                            f"iter{_iter}_best_text": final_hypotheses[edit_ixes[sample_ix]],
+                                                            f"iter{_iter}_update": update[sample_ix].item()})    
+                
+                # update running_text, best_text, best_allsat, best_losses, best_weighted_loss
+                for update_index in update.nonzero().squeeze(-1).tolist():
+                    best_text[update_index] = final_hypotheses[update_index]
+                best_allsat[update] = new_best_allsat[update]
+                best_losses[update] = new_best_logging_loss[update]
+                best_weighted_loss[update] = new_best_weighted_loss[update]
 
-            ## final_hypotheses, new_best_weighted_loss, new_best_allsat, new_best_logging_loss 모두 N 의 길이를 가짐 
-            ## 특히 edit 대상이 iteration마다 달라지면 best_... tensor와 new_best_... tensor간에 크기가 달라서 아래 코드 실행시 에러가 날 것이다.
-            
-            new_best_weighted_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
-            new_best_weighted_loss[edit_yn] = new_best_weighted_loss_
-            
-            new_best_logging_loss = torch.empty((len(AR_prediction_all), len(config['losses']))).fill_(float("inf")).to(config['device'])
-            new_best_logging_loss[edit_yn, :] = new_best_logging_loss_
-            
-            new_best_allsat = torch.zeros((len(AR_prediction_all),)).bool().to(config['device'])
-            new_best_allsat[edit_yn] = new_best_allsat_
-            edit_ixes = edit_yn.nonzero().squeeze(-1)
-            final_hypotheses = [final_hypotheses_[torch.where(edit_ixes==i)[0].item()] if edit_yn[i] else '' for i in range(len(AR_prediction_all))]
-            
-            update = torch.Tensor([]).bool().to(config['device'])
-            if wandb.config.selection_criteria == "weighted_sum":
-                update = best_weighted_loss > new_best_weighted_loss ## edit_yn이 false 였던 곳은 무조건 false
-            elif wandb.config.selection_criteria == "allsat_primary":
-                update = (~best_allsat & new_best_allsat) | \
-                        (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
-                        (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) 
-                        ## (~best_allsat & new_best_allsat) : edit_yn이 false였던 곳은 무조건 false
-                        ## (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) : edit_yn이 false 였던 곳은 무조건 false
-                        ## (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) : edit_yn이 false였던 곳은 무조건 false
-            update = (update & edit_yn) # edit 대상인 것들만 update하기 위해서 update 조건에 edit_yn을 sum.
+                es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
 
-            ## intermediate output for debugging
-            # for sample_ix in edit_yn.nonzero().squeeze(-1).tolist(): # edit 대상인 것들만 update.
-            
-            for sample_ix in range(len(running_text)): # edit 대상인 것들만 update.
-                int_output[edit_ixes[sample_ix]].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
-                                                        f"iter{_iter}_masked_sentence": masked_text[sample_ix],
-                                                        f"iter{_iter}_best_text": final_hypotheses[edit_ixes[sample_ix]],
-                                                        f"iter{_iter}_update": update[sample_ix].item()})    
-            
-            # update running_text, best_text, best_allsat, best_losses, best_weighted_loss
-            for update_index in update.nonzero().squeeze(-1).tolist():
-                best_text[update_index] = final_hypotheses[update_index]
-            best_allsat[update] = new_best_allsat[update]
-            best_losses[update] = new_best_logging_loss[update]
-            best_weighted_loss[update] = new_best_weighted_loss[update]
-
-            es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
-
-            if (config["early_stopping_patience"] != -1):
-                edit_yn[es_patience_count > config['early_stopping_patience']] = False
-            if edit_yn.sum() == 0:
-                break
-            
-            running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
-            
+                if (config["early_stopping_patience"] != -1):
+                    edit_yn[es_patience_count > config['early_stopping_patience']] = False
+                if edit_yn.sum() == 0:
+                    break
+                
+                running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
+        
 
         output = {
                     "prompt": {
@@ -444,6 +457,45 @@ def main(config):
     run.summary["num_edited"] = num_edited
 
     run.finish()
+
+    if (not interrupted):
+        if config["task"] == "toxicity":
+            # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
+            evaluate_main(
+                run.path,
+                outfile,
+                "toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                toxicity_model_path=config["model_paths"][1],
+                toxicity_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
+            )  # 시간 문제로, perspective api 제외
+        elif config["task"] == "formality":
+            evaluate_main(
+                run.path,
+                outfile,
+                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                formality_model_path=config["model_paths"][1],
+                formality_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
+            )
+        elif config["task"] == "sentiment":
+            evaluate_main(
+                run.path,
+                outfile,
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                sentiment_model_path=config["model_paths"][1],
+                sentiment_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
+            )
+        elif config["task"] == "sentiment-lewis-compr":
+            evaluate_main(
+                run.path,
+                outfile,
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                sentiment_model_path=config["model_paths"][1],
+                sentiment_model_type=config["model_types"][1],
+                source_file_path=config["source_data"]
+            )
 
 
 
