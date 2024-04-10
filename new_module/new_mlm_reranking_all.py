@@ -388,7 +388,7 @@ def main(config):
                     int_output[edit_ixes[sample_ix]].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
                                                             f"iter{_iter}_masked_sentence": masked_text[sample_ix],
                                                             f"iter{_iter}_best_text": final_hypotheses[edit_ixes[sample_ix]],
-                                                            f"iter{_iter}_update": update[sample_ix].item()})    
+                                                            f"iter{_iter}_update": update[edit_ixes[sample_ix]].item()})    
                 
                 # update running_text, best_text, best_allsat, best_losses, best_weighted_loss
                 for update_index in update.nonzero().squeeze(-1).tolist():
