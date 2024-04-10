@@ -2,8 +2,8 @@
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --partition=P1
+#SBATCH --cpus-per-task=2
+#SBATCH --nodelist=n01
 #SBATCH --gres=gpu:0
 #SBATCH --output='new_module/em4mlm_eval_%j.out'
 
@@ -17,7 +17,7 @@ export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
 export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
 export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
 
-myArray=("vchnt2w7" "dri3tp3h" "kkweyv1c" "xbuc8g1p")
+myArray=("uxhkk3cj")
 wandb_project="toxicity-decoding"
 
 ## submit multiple sbatch simultaneously

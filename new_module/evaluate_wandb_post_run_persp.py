@@ -6,7 +6,7 @@ from glob import glob
 import pandas as pd
 
 import wandb
-from new_module.evaluate_wandb import evaluate
+from new_module.evaluate_wandb import evaluate_main
 
 
 def main(run_id_list, wandb_entity, wandb_project, prefix='mlm'):
@@ -41,7 +41,7 @@ def main(run_id_list, wandb_entity, wandb_project, prefix='mlm'):
         
         outfile_path = outfile_paths[0]    
         
-        evaluate(run_path, outfile_path, 'toxicity')
+        evaluate_main(run_path, outfile_path, 'toxicity')
     
 
 if __name__ == "__main__":
@@ -50,5 +50,5 @@ if __name__ == "__main__":
     parser.add_argument("--run_id_list", nargs='+', type=str, default=None)
     parser.add_argument("--wandb_project", type=str, default="toxicity-decoding")
     args = parser.parse_args()
-    main(args.run_id_list, wandb_entity="hayleyson", wandb_project=args.wandb_project, prefix="mlm")
+    main(args.run_id_list, wandb_entity="hayleyson", wandb_project=args.wandb_project, prefix="")
         

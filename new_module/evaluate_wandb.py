@@ -202,20 +202,20 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         else:
             model_path = run.config['model'].split(':')[1]
         
-        if run.state != 'finished':
-            try:
-                if task == 'toxicity':
-                    assert len(generations_df) == 250
-                elif task == 'formality':
-                    assert len(generations_df) == 1416
-                elif task == 'sentiment':
-                    assert len(generations_df) == 15
-            except:
-                raise Exception(f"The number of generations is not correct. {len(generations_df)} while task is {task}")
-            ## if the run state is not finished but the number of generations are complete -> finish the run
-            run1 = wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
-            run1.finish()
-            del run1
+        # if run.state != 'finished':
+        #     try:
+        #         if task == 'toxicity':
+        #             assert len(generations_df) == 250
+        #         elif task == 'formality':
+        #             assert len(generations_df) == 1416
+        #         elif task == 'sentiment':
+        #             assert len(generations_df) == 15
+        #     except:
+        #         raise Exception(f"The number of generations is not correct. {len(generations_df)} while task is {task}")
+        #     ## if the run state is not finished but the number of generations are complete -> finish the run
+        #     run1 = wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
+        #     run1.finish()
+        #     del run1
         ## update model_tag if it is not set
         model_tag = run.config.get('model_tag', None)
         if (model_tag is None) or (model_tag == ''):

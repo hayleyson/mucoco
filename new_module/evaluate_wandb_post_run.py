@@ -55,7 +55,8 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
         
         if task == 'toxicity':
             # evaluate_main(run_path, outfile_path, 'contents-preservation', 
-            evaluate_main(run_path, outfile_path, 'qual', 
+            evaluate_main(run_path, outfile_path, 'toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual', 
+            # evaluate_main(run_path, outfile_path, 'contents-preservation,qual', 
                      toxicity_model_path=model_path,toxicity_model_type=model_type,
                      source_file_path='new_module/data/toxicity-avoidance/dev_set.jsonl') # 시간 문제로, perspective api 제외
             # evaluate(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency', 
@@ -68,8 +69,8 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
             # evaluate_main(run_path, outfile_path, 'formality-int,formality-ext,ppl-big,dist-n,repetition,fluency', 
             #         formality_model_path=model_path,formality_model_type=model_type)
         elif task == 'sentiment':
-            # evaluate_main(run_path, outfile_path, 'contents-preservation', 
-            evaluate_main(run_path, outfile_path, 'qual', 
+            evaluate_main(run_path, outfile_path, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation', 
+            # evaluate_main(run_path, outfile_path, 'qual', 
                      sentiment_model_path=model_path,sentiment_model_type=model_type,
                      source_file_path='new_module/data/sentiment/dev_set.jsonl')
             # evaluate_main(run_path, outfile_path, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency',
@@ -78,13 +79,11 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
 
 if __name__ == "__main__":
 
-    run_id_list = """fs115xjd
-ahas6jl1
-cutgmg96"""
+    run_id_list = """uvu7p0vi"""
 
     run_id_list = run_id_list.split('\n')
     print(run_id_list)
-    # main(run_id_list, wandb_entity="hayleyson", wandb_project="toxicity-decoding", prefix="mlm")
-    main(run_id_list, wandb_entity="hayleyson", wandb_project="formality-decoding", prefix="mlm")
+    main(run_id_list, wandb_entity="hayleyson", wandb_project="sentiment-decoding", prefix="")
+    # main(run_id_list, wandb_entity="hayleyson", wandb_project="formality-decoding", prefix="mlm")
     # main(run_id_list, wandb_entity="hayleyson", wandb_project="sentiment-decoding", prefix="mlm")
         

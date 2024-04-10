@@ -2,10 +2,10 @@
 #SBATCH --job-name=t_bv0_clsf
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
-#SBATCH --nodelist=n01
+#SBATCH --nodelist=n02
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --output='new_module/_slurm_outs/t_bv0_clsf_%j.out'
+#SBATCH --output='new_module/_slurm_outs/t_bv1_em_%j.out'
 
 source /home/hyeryung/.bashrc
 source /home/hyeryung/miniconda3/etc/profile.d/conda.sh
@@ -39,12 +39,13 @@ export LOGGING_LEVEL=INFO
 # --early_stopping_patience 0 \
 # --locate_method 'grad_norm'
 
-python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
 --k_per_location 10 \
 --n_iter 10 \
 --closs_weight 0.9 \
+--beam_size 3 \
 --selection_criteria allsat_primary \
 --task toxicity \
 --num_samples 10 \
