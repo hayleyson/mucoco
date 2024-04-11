@@ -208,7 +208,8 @@ def main(config):
         num_edited = 0
         num_decoded_tokens = 0
 
-    loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+    # loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+    loss_weights = config['loss_weights']
     interrupted = False
     for text_id in range(len(source_dataset))[resume_idx:]:
         source_text = source_dataset[text_id]
@@ -613,6 +614,7 @@ if __name__ == "__main__":
         default=["gpt2", "classification_no_prefix_logprobloss"],
         help="losses",
     )
+    parser.add_argument("--loss_weights", nargs="+", type=float, default=[0.1,1.0], help="closs weight")
     parser.add_argument(
         "--build_loss_dict",
         type=json.loads,
