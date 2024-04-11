@@ -211,7 +211,13 @@ def main(config):
     # loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
     loss_weights = config['loss_weights']
     interrupted = False
-    for text_id in range(len(source_dataset))[resume_idx:]:
+    if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+        text_id_interval = 1
+    elif (config["task"] == "formality") or (
+            config["task"] == "sentiment-lewis-compr"
+        ):
+        text_id_interval = config['num_samples']
+    for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
         if source_text == "":
             source_text = lossfns[0].tokenizer.bos_token
@@ -227,7 +233,8 @@ def main(config):
         elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
         ):
-            AR_prediction_all = [generation_dataset[text_id]]
+            # AR_prediction_all = [generation_dataset[text_id]]
+            AR_prediction_all = generation_dataset[text_id: text_id + text_id_interval]
  
         curr_num_samples = len(AR_prediction_all)
         if curr_num_samples == 0:
