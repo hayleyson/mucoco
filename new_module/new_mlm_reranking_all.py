@@ -464,7 +464,8 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                # "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation",
                 toxicity_model_path=config["model_paths"][1],
                 toxicity_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]

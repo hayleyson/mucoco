@@ -111,9 +111,13 @@ class LocateMachine:
             raise
         
         ## avg_value만 구하면 된다고 한다면, 이렇게도 가능하다.
-        ## NOTE: softmax를 안했음
+        ## softmax 먼저 해주기
+        token_wise_scores[batch.attention_mask == 0] = -float("inf")
+        token_wise_scores = token_wise_scores.softmax(dim=-1)
+        
         token_wise_scores[torch.isin(batch.input_ids, self.stopwords_ids)]=0.0
         no_punc_len=(~torch.isin(batch.input_ids, self.stopwords_ids)).sum(dim=-1) # tensor([2, 4], device='cuda:0')
+        # no_punc_len=(~torch.isin(batch.input_ids, self.stopwords_ids)*batch.attention_mask).sum(dim=-1) # tensor([2, 4], device='cuda:0')
         avg_values=token_wise_scores.sum(dim=-1)/no_punc_len # tensor([0.5120, 0.3744], device='cuda:0', grad_fn=<DivBackward0>)
 
         ## stopwords가 아닌 부분에서만 index를 찾아야 한다.

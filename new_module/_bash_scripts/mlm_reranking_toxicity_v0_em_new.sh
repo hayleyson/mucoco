@@ -63,4 +63,5 @@ python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --server_time_limit 12 \
 --device 'cuda' \
 --dont_skip_allsat \
---cache_dir '/data/hyeryung/hf_cache'
+--cache_dir '/data/hyeryung/hf_cache' \
+--model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'

@@ -303,7 +303,8 @@ def final_reranking(source_text:str,
                     hypotheses:List[List[str]],
                     lossfns:List[lossbuilder.BaseLoss],
                     config:dict,
-                    batch_size:int=64) -> Tuple[List[str],torch.FloatTensor,torch.BoolTensor,torch.FloatTensor]:
+                    batch_size:int=64,
+                    main_constraint_loss_id:int=1) -> Tuple[List[str],torch.FloatTensor,torch.BoolTensor,torch.FloatTensor]:
     """
     
     params: 
@@ -344,7 +345,7 @@ def final_reranking(source_text:str,
     # for i in tqdm(range(len(hypotheses))):
     for i in range(len(hypotheses)):
         curr_loss = torch.zeros(len(hypotheses[i])).to(config['device'])
-        logging_loss = torch.zeros((len(hypotheses[i]),2)).to(config['device'])
+        logging_loss = torch.zeros((len(hypotheses[i]),len(lossfns))).to(config['device'])
         data_loader = DataLoader(CustomDataset(hypotheses[i]),batch_size=batch_size)
 
         for lossid, lossname in enumerate(config["losses"]):
@@ -361,10 +362,11 @@ def final_reranking(source_text:str,
             curr_loss += loss_weights[lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
             
-        allsat_ix = torch.where(logging_loss[:,1]< -math.log(config["min_epsilons"][0]))[0]
+        allsat_ix = torch.where(logging_loss[:,main_constraint_loss_id]< -math.log(config["min_epsilons"][0]))[0]
         if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
         #if (allsat_ix.shape[0] > 0) and (config['selection_criteria'] == "allsat_primary"):
-            best_ix = allsat_ix[curr_loss[allsat_ix].argmin()]
+            # best_ix = allsat_ix[curr_loss[allsat_ix].argmin()]
+            best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
         else: ## in case config['selection_criteria'] == "weighted_sum" or allsat is all False
             best_ix = torch.argmin(curr_loss)
 

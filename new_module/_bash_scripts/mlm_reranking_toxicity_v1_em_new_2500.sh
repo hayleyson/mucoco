@@ -49,7 +49,7 @@ python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --selection_criteria allsat_primary \
 --task toxicity \
 --num_samples 10 \
---source_data 'new_module/data/toxicity-avoidance/dev_set.jsonl' \
+--source_data 'new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl' \
 --source_style 'toxic' \
 --target_style 'nontoxic' \
 --target_label_ids 0 0 \
