@@ -3,7 +3,7 @@
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodelist=n01
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/t_bv0_clsf_%j.out'
 
@@ -42,13 +42,15 @@ export LOGGING_LEVEL=INFO
 python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
+--beam_size 3 \
+--loss_weights 0.1 1.0 \
 --k_per_location 10 \
 --n_iter 10 \
 --closs_weight 0.9 \
 --selection_criteria allsat_primary \
 --task toxicity \
 --num_samples 10 \
---source_data 'new_module/data/toxicity-avoidance/dev_set.jsonl' \
+--source_data 'new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl' \
 --source_style 'toxic' \
 --target_style 'nontoxic' \
 --target_label_ids 0 0 \
@@ -56,12 +58,11 @@ python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --wandb_project 'toxicity-decoding' \
 --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 --tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
---output_dir_prefix 'outputs/toxicity/devset' \
+--output_dir_prefix 'outputs/toxicity/final' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --locate_method 'grad_norm' \
 --server_time_limit 12 \
 --device 'cuda' \
---dont_skip_allsat \
 --cache_dir '/data/hyeryung/hf_cache' \
 --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'

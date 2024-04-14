@@ -139,8 +139,8 @@ srun python new_module/decode_new_for_testset_iter.py \
  --locate_unit 'word'\
  --wandb_project 'sentiment_gbi'\
  --wandb_entity 'hayleyson'\
- --source_style 'negative'\
- --target_style 'positive'\
+ --source_style 'positive'\
+ --target_style 'negative'\
  --locate_method='attention'\
  --task='sentiment'\
  --server-time-limit=12
