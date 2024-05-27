@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=s_cb_em
 #SBATCH --time=0-12:00:00
-#SBATCH --mem=20GB
+#SBATCH --mem=10GB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
@@ -52,9 +52,9 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-reranking \
 --task sentiment \
 --num_samples 20 \
 --source_data 'new_module/data/sentiment/dev_set.jsonl' \
---source_style 'positive' \
---target_style 'negative' \
---target_label_ids 1 0 \
+--source_style 'negative' \
+--target_style 'positive' \
+--target_label_ids 1 1 \
 --min_epsilons 0.9 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' "${DATA_DIR}/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint" \

@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output='new_module/_slurm_outs/f_bv1_clsf_%j.out'
+#SBATCH --output='new_module/_slurm_outs/f_bv1_em_%j.out'
 #SBATCH --nodelist=n02
 
 source ~/.bashrc
@@ -35,8 +35,8 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --target_label_ids 1 0 \
 --min_epsilons 0.9 \
 --wandb_project 'formality-decoding' \
---model_paths 'gpt2-large' "${DATA_DIR}/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint" \
---tokenizer_paths 'gpt2-large' "${DATA_DIR}/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint" \
+--model_paths 'gpt2-large' "${DATA_DIR}/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/" \
+--tokenizer_paths 'gpt2-large' "${DATA_DIR}/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/" \
 --model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" \
 --output_dir_prefix 'outputs/formality/final' \
 --slurm_job_id $SLURM_JOB_ID \

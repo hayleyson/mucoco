@@ -2,8 +2,8 @@
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=2
-#SBATCH --nodelist=n01
+#SBATCH --cpus-per-task=1
+#SBATCH --nodelist=n02
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/em4mlm_eval_%j.out'
 

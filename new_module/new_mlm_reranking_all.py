@@ -596,7 +596,7 @@ if __name__ == "__main__":
         "--num_samples",
         type=int,
         default=1,
-        help="number of samples to edit per prompt",
+        help="number of samples to edit per prompt. This becomes the batch size for decoding.",
     )
     parser.add_argument("--device", type=str, default="cuda", help="device")
     parser.add_argument(
@@ -642,7 +642,6 @@ if __name__ == "__main__":
         default="weighted_sum",
         help="selection criteria",
     )
-    parser.add_argument("--closs_weight", type=float, default=0.32, help="closs weight")
     parser.add_argument("--beam_size", type=int, default=5, help="beam size")
     parser.add_argument(
         "--wandb_project", type=str, default="mlm_reranking", help="wandb project name"

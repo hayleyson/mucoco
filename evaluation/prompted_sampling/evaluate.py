@@ -1168,8 +1168,9 @@ def formality_score_ext(generations_df, output_file, device):
     
     softmax = nn.Softmax(dim=-1)
     
+    generations_df = generations_df.explode('generations')
     generations = generations_df["generations"]
-    texts = [example[0]['text'] for example in generations]
+    texts = [example['text'] for example in generations]
     dataset = CustomDataset(texts)
     dataloader = DataLoader(dataset, batch_size=8,
                             shuffle=False, collate_fn=collate_fn)

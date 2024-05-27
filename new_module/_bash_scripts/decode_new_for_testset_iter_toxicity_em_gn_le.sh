@@ -36,7 +36,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --coeff-steps=200\
  --custom-epsilons='none'\
  --dampness=0.1\
- --data='new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl'\
+ --data='new_module/data/toxicity-avoidance/dev_set.jsonl'\
  --datastyle='jsonl'\
  --debug-gradients='false'\
  --decay-steps=1\

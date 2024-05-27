@@ -33,8 +33,8 @@ from mucoco.utils import (
     TargetSimplex,
     get_epsilon,
 )
-from new_module.evaluate_wandb import evaluate
-from new_module.locate.locate_utils import locate_main
+from new_module.evaluate_wandb import evaluate_main
+from new_module.locate.locate_utils_old import locate_main
 
 # torch.autograd.set_detect_anomaly(True)
 
@@ -612,10 +612,13 @@ def main(args):
                 predicted_batches = primary_tokenizer.encode(AR_prediction_all[0], return_tensors="pt", add_special_tokens=False).to(device).unsqueeze(0)
             elif args.task_type == "prompted_generation":
                 if args.dev_mode == "true":
-                    predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
-                    predicted_batches = [torch.tensor([x], dtype=torch.long, device=device) for x in predicted_batches]
+                    
+                    # predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
+                    # predicted_batches = [torch.tensor([x], dtype=torch.long, device=device) for x in predicted_batches]
                     
                     AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
+                    predicted_batches = primary_tokenizer.batch_encode_plus(AR_prediction_all, add_special_tokens=False)
+                    predicted_batches = [torch.tensor([x], dtype=torch.long, device=device) for x in predicted_batches.input_ids]
                 else:
                     predicted_batches = [] #each sample x restart becomes a tensor
                     for batchidx in range(source_batch.size(0)): #batch size is 1
@@ -746,8 +749,8 @@ def main(args):
                         ask_skip = input(f"skip this example? [y/n]")
                         definite_skip = ask_skip == "y"
 
-                    # elif skip and predicted_allsat and (args.always_mucoco == "false"):
-                    elif skip and predicted_allsat:
+                    elif skip and predicted_allsat and (args.always_mucoco == "false"):
+                    # elif skip and predicted_allsat:
                         definite_skip = True
 
                     if args.debug:
@@ -1586,30 +1589,33 @@ def main(args):
     if (not interrupted):
         if (args.task == "toxicity") or (lossabbr[1] == "toxicity"):
             # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
-            evaluate(
+            evaluate_main(
                 run.path,
                 outfile,
-                "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency",
+                # "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation",
                 toxicity_model_path=model_paths[1],
                 toxicity_model_type=model_types[1],
-            ) 
+                source_file_path=data_paths[0]
+            )  # 시간 문제로, perspective api 제외
         elif (args.task == "formality") or (lossabbr[1] == "formality"):
-            evaluate(
+            evaluate_main(
                 run.path,
                 outfile,
-                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency",
+                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
                 formality_model_path=model_paths[1],
                 formality_model_type=model_types[1],
+                source_file_path=data_paths[0]
             )
         elif (args.task == "sentiment") or (lossabbr[1] == "sentiment"):
-            evaluate(
+            evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
                 sentiment_model_path=model_paths[1],
                 sentiment_model_type=model_types[1],
+                source_file_path=data_paths[0]
             )
-            
         print("average numbers of steps to converge =", np.mean(all_stepcounts))
         print("average time = ", avg_time/c)
         

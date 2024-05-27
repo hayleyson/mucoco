@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --time=0-12:00:00
-#SBATCH --mem=20GB
+#SBATCH --mem=10GB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --partition=P2
+#SBATCH --cpus-per-task=1
+#SBATCH --nodelist=n01
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/t_gbi_clsf_%j.out'
 
@@ -11,11 +11,12 @@ source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
+DATA_DIR=/data/hyeryung
 export PYTHONPATH=.
-export LOGGING_LEVEL="INFO"
-export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
+export HF_HOME=$DATA_DIR/hf_cache
+export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
+export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
+export LOGGING_LEVEL=INFO
 
 srun python new_module/decode_new_for_testset_iter.py \
  --AR-temperature=1.0\
@@ -36,7 +37,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --coeff-steps=200\
  --custom-epsilons='none'\
  --dampness=0.1\
- --data='new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl'\
+ --data='new_module/data/toxicity-avoidance/dev_set.jsonl'\
  --datastyle='jsonl'\
  --debug-gradients='false'\
  --decay-steps=1\
@@ -100,7 +101,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-prefix-length=50\
  --metric='l2'\
  --min_epsilons='-3'\
- --model='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --model='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
  --num_edit_token_per_step=3\
@@ -112,7 +113,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --only-mucoco='false'\
  --optim='embedgd_le'\
  --optim-steps=20\
- --output_dir_prefix='outputs/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds'\
+ --output_dir_prefix='outputs/toxicity/mucola-le'\
  --output-style='jsonl'\
  --prefix-length=0\
  --random-example='true'\
@@ -130,7 +131,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --start-idx=0\
  --suffix-length=0\
  --target-type='embeds'\
- --tokenizer='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --tokenizer='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --topic-target='none'\
  --topic-word-lists='none'\
  --use_context='false'\

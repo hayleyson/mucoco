@@ -165,7 +165,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --coeff-steps=200\
  --custom-epsilons='none'\
  --dampness=0.1\
- --data='data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'\
+ --data='data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'\
  --datastyle='text'\
  --debug-gradients='false'\
  --decay-steps=1\
@@ -207,7 +207,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --keyword_topk=1\
  --keywords='none'\
  --kweight=5.0\
- --label-id='1:1'\
+ --label-id='0:0'\
  --lambda-lr=1.0\
  --lambda-update=50\
  --length-diff='0'\
@@ -269,8 +269,8 @@ srun python new_module/decode_new_for_testset_iter.py \
  --locate_unit 'word'\
  --wandb_project 'formality_gbi'\
  --wandb_entity 'hayleyson'\
- --source_style='informal'\
- --target_style='formal'\
+ --source_style='formal'\
+ --target_style='informal'\
  --locate_method='grad_norm'\
  --task='formality'\
  --server-time-limit=12
