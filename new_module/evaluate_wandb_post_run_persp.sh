@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --time=0-12:00:00
-#SBATCH --mem=20GB
+#SBATCH --mem=5GB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --partition=P1
+#SBATCH --cpus-per-task=1
+#SBATCH --nodelist=n01
 #SBATCH --gres=gpu:0
 #SBATCH --output='new_module/em4mlm_eval_%j.out'
 

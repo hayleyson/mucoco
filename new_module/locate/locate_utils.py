@@ -189,7 +189,7 @@ def locate_grad_norm(output, tokenizer, batch, max_num_tokens = 6, unit="word", 
     probs = softmax(output['logits'])[:, label_id]
     # print(f"probs.shape:{probs.shape}")
     
-    probs.sum().backward(retain_graph=True)
+    probs.sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
 
     ## layer.grad : (batch_size, seq_len, hidden_size)
     # print(f"layer.grad.shape:{layer.grad.shape}")

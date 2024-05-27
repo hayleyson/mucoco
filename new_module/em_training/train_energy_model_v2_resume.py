@@ -101,7 +101,7 @@ def validate_model(model, accelerator, eval_dataloader, args):
         elif (model.module.num_labels == 2):
             predictions = torch.softmax(outputs.logits, dim = -1)
             predictions, references = accelerator.gather_for_metrics((predictions[:, 1], batch["labels"][:, 1]))
-            
+
         if "ranking" in args.val_loss_type:
             
             higher_batch, lower_batch = create_pairs_for_ranking(predictions, references)
@@ -184,8 +184,8 @@ def main(args):
         outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
         outputs['labels'] = torch.Tensor([[1-example['labels'], example['labels']] for example in batch])
         return outputs
-    
-    if model.num_labels == 1:
+
+    if model.num_labels == 1: ## model.module because model is an data parallel object for accelerate.
         collate_fn = collate_fn_default
     elif model.num_labels == 2:
         collate_fn = collate_fn_bce

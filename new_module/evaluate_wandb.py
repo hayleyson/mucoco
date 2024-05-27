@@ -98,7 +98,13 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     )
     sbertscore_outputs.to_csv(results_file + ".sbertscore", index=False)
 
-    return sbleu_score, sbert_score*100
+    # Calculate % of outputs with SBERT score >= 0.5
+    sbert_preserved_prop = (sbert_score_raw >= 0.5).mean()
+    
+    # Calculate count of outputs with SBERT score >= 0.5
+    sbert_preserved_count = (sbert_score_raw >= 0.5).sum()
+
+    return sbleu_score, sbert_score*100, sbert_preserved_prop, sbert_preserved_count
 
 
 def unravel(outputs_df):
@@ -202,28 +208,32 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         else:
             model_path = run.config['model'].split(':')[1]
         
-        if run.state != 'finished':
-            try:
-                if task == 'toxicity':
-                    assert len(generations_df) == 250
-                elif task == 'formality':
-                    assert len(generations_df) == 1416
-                elif task == 'sentiment':
-                    assert len(generations_df) == 15
-            except:
-                raise Exception(f"The number of generations is not correct. {len(generations_df)} while task is {task}")
-            ## if the run state is not finished but the number of generations are complete -> finish the run
-            run1 = wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
-            run1.finish()
-            del run1
+        # if run.state != 'finished':
+        #     try:
+        #         if task == 'toxicity':
+        #             assert len(generations_df) == 250
+        #         elif task == 'formality':
+        #             assert len(generations_df) == 1416
+        #         elif task == 'sentiment':
+        #             assert len(generations_df) == 15
+        #     except:
+        #         raise Exception(f"The number of generations is not correct. {len(generations_df)} while task is {task}")
+        #     ## if the run state is not finished but the number of generations are complete -> finish the run
+        #     run1 = wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
+        #     run1.finish()
+        #     del run1
         ## update model_tag if it is not set
         model_tag = run.config.get('model_tag', None)
         if (model_tag is None) or (model_tag == ''):
             run.config['model_tag'] = 'em' if ('energy-training' in model_path) else 'clsf'
             if (task == 'formality') and ('gyafc' in model_path):
                 run.config['model_tag'] += '-gyafc'
+        
+        target_style = run.config.get("target_style", "")
     else:
         output_file = "results.txt"
+        task = kwargs.get("task", "")
+        target_style = kwargs.get("target_style", "")
         
     output_dir = Path(os.path.dirname(generations_file_path))
     if os.path.exists(output_dir / output_file):
@@ -341,19 +351,27 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         logger.debug("contents-preservation")
         
         torch.cuda.empty_cache()
-        sbleu_score, sbert_score = contents_preservation_metrics(kwargs['source_file_path'],
+        if (task == "formality") and (target_style == 'informal'):
+            kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
+        elif (task == "formality") and (target_style == 'formal'):
+            kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
+        print(kwargs['source_file_path'])
+        sbleu_score, sbert_score, sbert_preserved_prop, sbert_preserved_count = contents_preservation_metrics(kwargs['source_file_path'],
                                                                     generations_file_path, 
                                                                     str(output_dir / output_file),
                                                                     task)
+        
         if run_path != "":
             run.summary.update(
                 {
                     "sbleu": sbleu_score,
                     "sbert": sbert_score,
+                    "sbert_preserved_prop": sbert_preserved_prop,
+                    "sbert_preserved_count": sbert_preserved_count
                 }
             )
         fp.write(f"sbleu: {sbleu_score}\n")
-        fp.write(f"sbert_score: {sbert_score}\n")
+        fp.write(f"sbert_score: {sbert_score}, sbert_preserved_prop: {sbert_preserved_prop}, sbert_preserved_count: {sbert_preserved_count}\n")
             
     if run_path != "":
         run.update()

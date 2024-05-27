@@ -1,3 +1,4 @@
+#!/bin/bash
 graddistance=${7}
 option=$1
 OUTDIR=$2
@@ -24,8 +25,8 @@ SENTIMENTGENERATIVEMODELYELP=models/sst2-classifier-gedi
 SENTIMENTGENERATIVEMODEL2LMSST2=models/finetuned-lm-negative-sst2#models/finetuned-lm-positive-sst2
 SENTIMENTGENERATIVEMODEL2LMYELP=models/finetuned-lm-negative-yelp#models/finetuned-lm-positive-yelp
 
-TOXICITYCLASSIFIER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best ## make sure to train the classifier and place it here
-TOXICITYTOKENIZER=models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds/checkpoint_best
+TOXICITYCLASSIFIER=roberta-base ## make sure to train the classifier and place it here
+TOXICITYTOKENIZER=roberta-base
 
 #many of these hyperparams were used while experimentation and debugging and do not need to be changed
 gold_loss_epsilons="none"
@@ -199,7 +200,7 @@ then
     noise_variance=1.0
     embedgd_do_sample="false"
     LAMBDALR=1.0
-    selection_criterion="mrr_allsat"
+    selection_criterion="allsat"
 elif [[ "$option" == "sentiment-disc" ]]
 then
     echo "sentiment-disc (label ${LABELID})"

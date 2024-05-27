@@ -356,23 +356,23 @@ def main(args):
     ## 23/7/17 Hayley
     init_gen_ids = dict()
     ##
-    
+    start_time = time.time()
     for text_id, source_text in enumerate(source_dataset):
         
-        # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
-        if text_id < start_idx or text_id > end_idx:
-            continue
+        # # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
+        # if text_id < start_idx or text_id > end_idx:
+        #     continue
 
-        if args.num_examples > 0 and c > 0 and c == args.num_examples: #stop after processing num_examples if it is set 
-            print(f"done {c}")
-            break
+        # if args.num_examples > 0 and c > 0 and c == args.num_examples: #stop after processing num_examples if it is set 
+        #     print(f"done {c}")
+        #     break
         
-        do_this_example = np.random.rand() <= example_p
-        if not do_this_example:
-            print(text_id, "NOT do_this_example")
-            continue
+        # do_this_example = np.random.rand() <= example_p
+        # if not do_this_example:
+        #     print(text_id, "NOT do_this_example")
+        #     continue
         
-        print(text_id, "doing it! do_this_example")
+        # print(text_id, "doing it! do_this_example")
 
         c += 1
 
@@ -604,8 +604,9 @@ def main(args):
             # predicted_batch = []
             context_batch = []
 
-        
+    end_time = time.time() 
     outf_init.close()
+    print('decoding time: ', start_time-end_time)
 
 
 def sentence_completion(prompt, tokens, lossfn):
@@ -622,6 +623,8 @@ def clean_output(tokens, eos_token_id, return_tensors=False, allow_first_eos=Fal
     if sentence_complete:
         tokens = sentence_completion(prompt, tokens, lossfn)
     new_tokens = []
+    if isinstance(tokens, int):
+        tokens = [tokens]
     for i, tok in enumerate(tokens):
         if tok == eos_token_id and (not allow_first_eos or i > 0):
             break

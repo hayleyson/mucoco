@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --time=0-12:00:00
-#SBATCH --mem=20GB
+#SBATCH --mem=10MB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --partition=P1
+#SBATCH --cpus-per-task=1
+#SBATCH --nodelist=n01
 #SBATCH --gres=gpu:0
 #SBATCH --output='new_module/em4mlm_eval_%j.out'
 
@@ -13,11 +13,11 @@ conda activate loc-edit
 
 
 export PYTHONPATH=.
-export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
+export HF_HOME=/data/hyeryung/hf_cache
+export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
+export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 
-myArray=("f108tpx2" "4928q9xt")
+myArray=("haravmmq")
 wandb_project="toxicity-decoding"
 
 ## submit multiple sbatch simultaneously

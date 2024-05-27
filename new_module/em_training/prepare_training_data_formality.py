@@ -30,6 +30,8 @@ def main():
     train_data = data.iloc[:train_size,:].copy()
     valid_data = data.iloc[train_size:, :].copy()
 
+
+    filtering = False
     if filtering: #only filter training data
         train_data['std'] = train_data['individual scores'].apply(lambda x: std([float(i) for i in str(x).split(',')]))
         train_data = train_data.loc[train_data['std'] < 1.5].copy()
@@ -81,24 +83,24 @@ def binarize():
     train_data.to_csv(f'{data_dir}/train_binary.tsv', sep='\t', index=False)
     valid_data.to_csv(f'{data_dir}/valid_binary.tsv', sep='\t', index=False)
 
-def cleanup_data():
+# def cleanup_data():
     
-    data_dir='data/formality/PT16'
-    train_data = pd.read_csv(f'{data_dir}/train.tsv', sep='\t')
-    valid_data = pd.read_csv(f'{data_dir}/valid.tsv', sep='\t')
+#     data_dir='data/formality/PT16'
+#     train_data = pd.read_csv(f'{data_dir}/train.tsv', sep='\t')
+#     valid_data = pd.read_csv(f'{data_dir}/valid.tsv', sep='\t')
     
-    train_data = train_data.rename(columns={"score": "labels"})
-    train_data['labels'] = train_data['labels'].apply(lambda x: scale_labels_pt16(x))
-    valid_data = valid_data.rename(columns={"score": "labels"})
-    valid_data['labels'] = valid_data['labels'].apply(lambda x: scale_labels_pt16(x))
+#     train_data = train_data.rename(columns={"score": "labels"})
+#     train_data['labels'] = train_data['labels'].apply(lambda x: scale_labels_pt16(x))
+#     valid_data = valid_data.rename(columns={"score": "labels"})
+#     valid_data['labels'] = valid_data['labels'].apply(lambda x: scale_labels_pt16(x))
     
-    train_data.to_csv(f'{data_dir}/train.tsv', sep='\t', index=False)
-    valid_data.to_csv(f'{data_dir}/valid.tsv', sep='\t', index=False)
+#     train_data.to_csv(f'{data_dir}/train.tsv', sep='\t', index=False)
+#     valid_data.to_csv(f'{data_dir}/valid.tsv', sep='\t', index=False)
     
 
 if __name__ == "__main__":
 
-    # main()
+    main()
     # binarize()
-    cleanup_data()
+    # cleanup_data()
     

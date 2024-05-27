@@ -1,3 +1,4 @@
+#!/bin/bash
 # LENGTH=$1
 # OUTPUTDIRSUFFIX=$2
 LENGTH=30
