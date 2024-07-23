@@ -1,0 +1,1 @@
+avg_max_toxicity: 0.264815231348, toxic_probability_p: 0.152, avg_toxicity: 0.11247467337208, toxic_probability_s: 0.0432
