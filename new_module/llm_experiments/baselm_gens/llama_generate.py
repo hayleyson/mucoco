@@ -66,7 +66,7 @@ def generate_and_save_result(args):
 
     total_generated_text = []
     for result in total_generated_result:
-        text_result = tokenizer.batch_decode(result)
+        text_result = tokenizer.batch_decode(result, skip_special_tokens=True)
         total_generated_text.append(text_result)
         
     formatted_generated_text_list = []
