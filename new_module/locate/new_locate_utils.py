@@ -82,7 +82,11 @@ class LocateMachine:
 
     def locate_main(self, prediction: List[str], method, max_num_tokens = 6, unit="word",**kwargs):
         
-        batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.model.device) # prediction이 list여도 처리가능함
+        if self.args.task == "nli":
+            premises, hypotheses = list(map(list, zip(*prediction)))
+            batch = self.tokenizer.batch_encode_plus(premises, hypotheses, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)
+        else:
+            batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.model.device) # prediction이 list여도 처리가능함
         lengths = batch.attention_mask.sum(dim=-1)
         
         if method == "attention":

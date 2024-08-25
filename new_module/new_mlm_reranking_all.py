@@ -91,6 +91,14 @@ def main(config):
         with open(config["source_data"], "r") as f:
             generation_dataset = [line.rstrip('\n') for line in f.readlines()]
         source_dataset = ["" for l in generation_dataset]
+        
+    elif (config["task"] == "nli"):
+        generation_dataset = [
+            (json.loads(l)["sentence1"],json.loads(l)["sentence2"]) \
+                if (json.loads(l)["gold_label"] == "contradiction")
+                for l in open(config["source_data"])
+        ]
+        source_dataset = ["" for l in generation_dataset]
 
     # check if outfile exists
     if (config["resume"]) and (os.path.exists(outfile)):
@@ -412,7 +420,12 @@ def main(config):
                 if edit_yn.sum() == 0:
                     break
                 
-                running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
+                
+                ###### TODO: edit 할 때는 skip_special_tokens=True로 해야 할까?? 
+                if task == "nli":
+                    running_text = [x.strip('<s>').strip('</s>').split('</s></s>') for i, x in enumerate(final_hypotheses) if edit_yn[i]]
+                else:
+                    running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
         
 
         output = {

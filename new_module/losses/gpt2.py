@@ -32,6 +32,10 @@ class GPT2Loss(BaseLoss):
         prompt_enc['input_ids']=prompt_enc['input_ids'].expand(num_samples,-1)
         prompt_enc['attention_mask']=prompt_enc['attention_mask'].expand(num_samples,-1)
     
+        
+        if self.args.task == "nli":
+            predictions = list(map(lambda x: x[0] + " " + x[1], prediction))
+            
         predictions_enc=self.tokenizer.batch_encode_plus(predictions, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
 
         input_tokens = torch.cat([prompt_enc.input_ids, predictions_enc.input_ids], dim=1)
