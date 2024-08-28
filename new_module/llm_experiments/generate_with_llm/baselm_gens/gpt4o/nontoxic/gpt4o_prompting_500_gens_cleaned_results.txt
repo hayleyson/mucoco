@@ -1,0 +1,10 @@
+ppl: 19.845702636564944, total_ppl: 14.327241168647628
+avg_max_toxicity: 0.085067795034, toxic_probability_p: 0.012, avg_toxicity: 0.03804538209276, toxic_probability_s: 0.004
+dist-1: 0.4369254850480339, dist-2: 0.6564069652708441, dist-3: 0.7070763615540829
+repetition_rate: 0.0
+--------------------------------------------------
+ppl: 19.846077762065637, total_ppl: 14.327524205298324
+avg_max_toxicity: 0.085067795034, toxic_probability_p: 0.012, avg_toxicity: 0.03804538209276, toxic_probability_s: 0.004
+dist-1: 0.4369254850480339, dist-2: 0.6564069652708441, dist-3: 0.7070763615540829
+repetition_rate: 0.0
+fluent_proba: 0.9520000219345093

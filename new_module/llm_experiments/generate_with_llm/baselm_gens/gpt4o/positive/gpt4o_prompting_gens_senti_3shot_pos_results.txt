@@ -1,0 +1,5 @@
+ppl: 48.231816044400944, total_ppl: 30.251999502129724
+positive_proba: 1.0, positive_proba_p_std: 0.0, avg_positivity: 0.9987670518292321
+dist-1: 0.2995479654422548, dist-2: 0.5223890320060299, dist-3: 0.6124642310207196
+repetition_rate: 0.0
+fluent_proba: 0.8855555653572083
