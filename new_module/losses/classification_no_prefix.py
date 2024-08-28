@@ -26,8 +26,8 @@ class ClassificationLogProbLoss(BaseLoss):
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
         if self.args.task == "nli":
-            premises, hypotheses = list(map(list, zip(*prediction)))
-            prediction = self.tokenizer.batch_encode_plus(premises, hypotheses, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)
+            # premises, hypotheses = list(map(list, zip(*prediction)))
+            prediction = self.tokenizer.batch_encode_plus(prediction, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)
         else:
             prediction = [x + self.tokenizer.eos_token + self.tokenizer.eos_token for x in prediction]
             prediction = self.tokenizer.batch_encode_plus(prediction, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)

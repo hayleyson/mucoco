@@ -77,6 +77,7 @@ def main(config):
                 setattr(self, k, v)
 
     build_loss_args = dummyArgs(**config["build_loss_dict"])
+    build_loss_args.task = config["task"]
 
     ## load data
     if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
@@ -94,9 +95,7 @@ def main(config):
         
     elif (config["task"] == "nli"):
         generation_dataset = [
-            (json.loads(l)["sentence1"],json.loads(l)["sentence2"]) \
-                if (json.loads(l)["gold_label"] == "contradiction")
-                for l in open(config["source_data"])
+            (json.loads(l)["sentence1"],json.loads(l)["sentence2"]) for l in open(config["source_data"]) if (json.loads(l)["gold_label"] == "contradiction") 
         ]
         source_dataset = ["" for l in generation_dataset]
 
@@ -199,7 +198,7 @@ def main(config):
     # lossfns[1].tokenizer = loss2tokenizer[config["losses"][1]]
 
     # define an object to locate problematic phrases
-    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer)
+    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, build_loss_args)
 
     label_ids = config["target_label_ids"]  # target label's ids for each loss
 
@@ -223,8 +222,10 @@ def main(config):
         text_id_interval = 1
     elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
-        ):
+        ) or (config["task"] == "nli"):
         text_id_interval = config['num_samples']
+        
+        
     for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
         if source_text == "":
@@ -240,7 +241,7 @@ def main(config):
             
         elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
-        ):
+        ) or (config["task"] == "nli"):
             # AR_prediction_all = [generation_dataset[text_id]]
             AR_prediction_all = generation_dataset[text_id: text_id + text_id_interval]
  
@@ -310,6 +311,8 @@ def main(config):
                                         num_layer = 10,#-2, #penultimate
                                         label_id = config['target_label_ids'][1])
 
+                print("masked_text", masked_text)
+                print("-"*50)
                 ## replace tokens at the indices with mask tokens
                 
                 inputs = mlm_tokenizer(
@@ -422,8 +425,10 @@ def main(config):
                 
                 
                 ###### TODO: edit 할 때는 skip_special_tokens=True로 해야 할까?? 
-                if task == "nli":
+                if config["task"] == "nli":
+                    print("final_hypotheses", final_hypotheses)
                     running_text = [x.strip('<s>').strip('</s>').split('</s></s>') for i, x in enumerate(final_hypotheses) if edit_yn[i]]
+                    print("running_text", running_text)
                 else:
                     running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
         
@@ -528,7 +533,7 @@ if __name__ == "__main__":
         "--task",
         type=str,
         help="task name",
-        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr"],
+        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr", "nli"],
     )
     parser.add_argument(
         "--source_data",

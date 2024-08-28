@@ -3,8 +3,9 @@
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1
+#SBATCH --nodelist=n02
 #SBATCH --output='new_module/_slurm_outs/f_bv0_clsf_%j.out'
 
 source ~/.bashrc
@@ -12,16 +13,16 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
+export HF_HOME=/data/hyeryung/hf_cache
+export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
+export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 
-srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
 --k_per_location 10 \
 --n_iter 3 \
---closs_weight 0.167236576878629 \
+--loss_weights 0.1 1.0 \
 --selection_criteria allsat_primary \
 --task nli \
 --source_data '/data/hyeryung/mucoco/data/nli/snli_1.0/snli_1.0_test.jsonl' \

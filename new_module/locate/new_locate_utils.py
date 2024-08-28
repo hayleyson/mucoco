@@ -49,10 +49,24 @@ def get_word2tok(row: pd.Series, tokenizer: AutoTokenizer) -> dict:
     # return word2tok
     return tok2word, grouped_tokens
 
-def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, top_masks_final:list, tokenizer:AutoTokenizer):
+def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, top_masks_final:list, tokenizer:AutoTokenizer, task:str):
     # word의 일부만 locate 한 경우, word 전체를 locate 한다.
     # 같은 word 안에 있는 token 끼리 묶음.
-    words = current_sent.strip().split()
+    words = words_ = current_sent.strip().split()
+    if task == "nli":
+        words = []
+        for w in words_:
+            if ('<s>' in w):
+                w = ['<s>', w.replace('<s>', '')]
+            elif ('</s></s>' in w):
+                w = w.split('</s></s>')
+                w.insert(1, '</s></s>')
+            elif ('</s>' in w):
+                w = [w.replace('</s>', ''), '</s>']
+            else:
+                w = [w]
+            words.extend(w)
+                
     prediction = prediction[:length]
     tok2word, grouped_tokens = get_word2tok(pd.Series({'words':words, 'tokens':prediction}), tokenizer)
     
@@ -70,9 +84,10 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
     return list(set(top_masks_final_final))
 
 class LocateMachine:
-    def __init__(self, model, tokenizer):
+    def __init__(self, model, tokenizer, args):
         self.model = model
         self.tokenizer = tokenizer
+        self.args = args
         
         punctuations = string.punctuation + '\n '
         punctuations = list(punctuations)
@@ -82,12 +97,9 @@ class LocateMachine:
 
     def locate_main(self, prediction: List[str], method, max_num_tokens = 6, unit="word",**kwargs):
         
-        if self.args.task == "nli":
-            premises, hypotheses = list(map(list, zip(*prediction)))
-            batch = self.tokenizer.batch_encode_plus(premises, hypotheses, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)
-        else:
-            batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.model.device) # prediction이 list여도 처리가능함
-        lengths = batch.attention_mask.sum(dim=-1)
+        print("prediction", prediction)
+        batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.model.device) # prediction이 list여도 처리가능함
+        
         
         if method == "attention":
             output = self.model(**batch, output_attentions=True)
@@ -114,21 +126,42 @@ class LocateMachine:
         else:
             raise
         
-        ## avg_value만 구하면 된다고 한다면, 이렇게도 가능하다.
-        ## softmax 먼저 해주기
-        token_wise_scores[batch.attention_mask == 0] = -float("inf")
-        token_wise_scores = token_wise_scores.softmax(dim=-1)
         
-        token_wise_scores[torch.isin(batch.input_ids, self.stopwords_ids)]=0.0
-        no_punc_len=(~torch.isin(batch.input_ids, self.stopwords_ids)).sum(dim=-1) # tensor([2, 4], device='cuda:0')
-        # no_punc_len=(~torch.isin(batch.input_ids, self.stopwords_ids)*batch.attention_mask).sum(dim=-1) # tensor([2, 4], device='cuda:0')
-        avg_values=token_wise_scores.sum(dim=-1)/no_punc_len # tensor([0.5120, 0.3744], device='cuda:0', grad_fn=<DivBackward0>)
+        # create a mask to exclude special tokens (incl. PAD), stop words, etc. (e.g. premise for nli task) from being located.
+        exclude_mask = (batch.attention_mask == 0) | torch.isin(batch.input_ids, self.stopwords_ids)
+        if self.args.task == "nli":
+            # sentence structure after encoding : <s> ...(premise)... </s></s> ...(hypothesis)... </s> 
+            # mask before the first occurrence of </s> token
+            premise_mask = torch.zeros_like(batch.input_ids).bool()
+            indices = (batch.input_ids == self.tokenizer.sep_token_id).nonzero(as_tuple=False)
+            for i in range(batch.input_ids.size(0)):
+                all_occurences = indices[indices[:, 0] == i]
+                if len(all_occurences) == 0:
+                    print(prediction[i])
+                    print(batch.input_ids[i])
+                first_occurence = all_occurences[0, 1]
+                premise_mask[i, :first_occurence] = True
+            exclude_mask |= premise_mask
+        
+        # fill -inf at excluded locations and take softmax
+        token_wise_scores[exclude_mask] = -float("inf")
+        token_wise_scores = token_wise_scores.softmax(dim=-1)
+        # calculate average among non-excluded tokens
+        avg_values=token_wise_scores.sum(dim=-1)/(~exclude_mask).sum(dim=-1) # tensor([0.5120, 0.3744], device='cuda:0', grad_fn=<DivBackward0>)
 
-        ## stopwords가 아닌 부분에서만 index를 찾아야 한다.
-        token_wise_scores[torch.isin(batch.input_ids, self.stopwords_ids)]=-float("inf") ## stopwords 인부분을 -inf로 세팅하면, avg랑 비교할 때랑 topk를 찾을때 빠질것으로 예상
+        # find number of above average tokens
         top_masks = (token_wise_scores >= avg_values.unsqueeze(1))# unsqueeze to allow implicit broadcasting : (N) -> (N, 1) -> (N, L)
+        num_above_average_tokens = top_masks.sum(dim=-1)
+        
+        # get top k tokens where k = min(length/3, max_num_tokens, num_above_average_tokens)
+        # k is different for each example in the batch
+        lengths = batch.attention_mask.sum(dim=-1)
+        if self.args['task'] == 'nli': 
+            # for nli task, we locate within "hypothesis". thus, length must also only include hypothesis.
+            lengths = ~((batch.attention_mask == 0) | premise_mask).sum(dim=-1)
+        
         max_num_located_tokens = torch.minimum((lengths//3), torch.LongTensor([max_num_tokens]).to(self.model.device))
-        max_num_located_tokens = torch.minimum(max_num_located_tokens, top_masks.sum(dim=-1))
+        max_num_located_tokens = torch.minimum(max_num_located_tokens, num_above_average_tokens)
         top_masks_final = [x[:max_num_located_tokens[i]] for i,x in enumerate(token_wise_scores.argsort(dim=-1,descending=True).tolist())] 
 
         if unit == "token":
@@ -136,8 +169,12 @@ class LocateMachine:
                 batch.input_ids[i, locate_ixes] = self.tokenizer.mask_token_id
 
         elif unit == "word":
-
-            for i, arguments in enumerate(zip(prediction,batch.input_ids.tolist(), lengths.tolist(), top_masks_final, repeat(self.tokenizer))):
+            if self.args.task == "nli":
+                # revert lenghths to include premise
+                lengths = batch.attention_mask.sum(dim=-1)
+                for i in range(len(batch.input_ids)):
+                    prediction.append(self.tokenizer.decode(batch.input_ids[i, :lengths[i]].tolist(), skip_special_tokens=False))
+            for i, arguments in enumerate(zip(prediction,batch.input_ids.tolist(), lengths.tolist(), top_masks_final, repeat(self.tokenizer), repeat(self.args.task))):
                 locate_ixes = get_word_level_locate_indices(*arguments)
                 batch.input_ids[i, locate_ixes] = self.tokenizer.mask_token_id
                 

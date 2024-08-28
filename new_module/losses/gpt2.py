@@ -34,7 +34,7 @@ class GPT2Loss(BaseLoss):
     
         
         if self.args.task == "nli":
-            predictions = list(map(lambda x: x[0] + " " + x[1], prediction))
+            predictions = list(map(lambda x: x[0] + " " + x[1], predictions))
             
         predictions_enc=self.tokenizer.batch_encode_plus(predictions, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
 
