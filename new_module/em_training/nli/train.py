@@ -58,13 +58,15 @@ def main():
     
     train_dev_data = load_nli_data(output_file_path=config['energynet']['dataset_path'])
     
-    if config['energynet']['add_train_data'] == 'true':
+    if config['energynet']['add_train_data']:
         train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
         train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
 
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
     dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
+    
+    print(f"# train samples: {len(train_data)}, # dev samples: {len(dev_data)}")
     
     ## IMPT. 'finegrained_labels' == degree of contradiction (real number between 0 and 1) == portion of annotators who labeled the sample as "contradiction"
     train_dataset = NLI_Dataset(train_data, label_column=config['energynet']['label_column'])
@@ -111,6 +113,11 @@ def main():
     else:
         raise NotImplementedError('Not a valid loss name')
         
+    if config['energynet']['add_ranking_loss']:
+        ranking_criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
+    else:
+        ranking_criterion = None
+        
     overall_step = 0
     eval_metric = 'pearsonr'
     eval_goal = 'maximize'
@@ -120,12 +127,12 @@ def main():
         
         for i, batch in enumerate(train_dataloader):
             
-            train_metrics = train_model_one_step(batch, model, optimizer, scheduler, criterion, epoch, overall_step, config)
+            train_metrics = train_model_one_step(batch, model, optimizer, scheduler, criterion, ranking_criterion, epoch, overall_step, config)
             overall_step += 1
             
             if overall_step % config['energynet']['eval_every'] == 0:
                 
-                dev_metrics = validate_model(dev_dataloader, model, criterion, config, epoch, overall_step)
+                dev_metrics = validate_model(dev_dataloader, model, criterion, ranking_criterion, config, epoch, overall_step)
                 all_metrics = {**dev_metrics, **train_metrics}
                 wandb.log(all_metrics)
                 try: 
