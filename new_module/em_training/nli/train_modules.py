@@ -83,6 +83,7 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         dev_e = []
         dev_labels = []
         dev_fine_labels = []
+        num_skipped_batch = 0
         for dev_batch in dev_dataloader:
             
             dev_predictions, hidden_states = model(input_ids = dev_batch['input_ids'],
@@ -100,9 +101,12 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
                 # mse calculated with probability
                 # margin_ranking calculated with unnormalized logit
                 higher_batch, lower_batch = create_pairs_for_ranking(dev_predictions, dev_batch['labels'])
+                if higher_batch.sum() == 0.0:
+                    num_skipped_batch += 1
+                    print("Skipping this dev set batch because only one label is included (thus could not evaluate ranking accuracy.)")
+                    continue
                 dev_predictions = torch.sigmoid(dev_predictions)
                 dev_loss += criterion(dev_predictions, dev_batch['labels'], higher_batch, lower_batch)
-                print(f"dev_loss: {dev_loss}")
                 dev_e.extend(dev_predictions.cpu().squeeze(-1).tolist())
             elif config['energynet']['loss'] in ['cross_entropy', 'binary_cross_entropy']:
                 dev_loss += criterion(dev_predictions, dev_batch['labels'])
@@ -122,7 +126,7 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
             
             dev_fine_labels.extend(dev_batch['finegrained_labels'])
                 
-        dev_loss /= len(dev_dataloader)
+        dev_loss /= (len(dev_dataloader) - num_skipped_batch)
         
         # we assume pos_label = 0, i.e., if label == 0 (or label < 0.5), then class == 1.
         e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l >= 0.5]

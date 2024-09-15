@@ -20,7 +20,7 @@ import seaborn as sns
 from new_module.em_training.nli.models import EncoderModel
 from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader
 from new_module.em_training.nli.train_modules import *
-from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, NegativeLogOddsLoss, MSE_MarginRankingLoss
+from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, ScaledRankingLoss, MSE_MarginRankingLoss
 
 def main():
     
@@ -58,10 +58,11 @@ def main():
     
     train_dev_data = load_nli_data(output_file_path=config['energynet']['dataset_path'])
     train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
-    train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
-    
+    # train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
+
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
+    dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
     
     ## IMPT. 'finegrained_labels' == degree of contradiction (real number between 0 and 1) == portion of annotators who labeled the sample as "contradiction"
     train_dataset = NLI_Dataset(train_data, label_column=config['energynet']['label_column'])
@@ -103,7 +104,7 @@ def main():
     elif config['energynet']['loss'] == 'negative_log_odds':
         criterion = NegativeLogOddsLoss()
     elif config['energynet']['loss'] == 'mse+margin_ranking':
-        criterion = MSE_MarginRankingLoss(weights = [1.,0.125], 
+        criterion = MSE_MarginRankingLoss(weights = [1.,1.], 
                                           margin=config['energynet']['margin'])
     else:
         raise NotImplementedError('Not a valid loss name')

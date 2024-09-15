@@ -9,18 +9,14 @@ class MSE_MarginRankingLoss(nn.Module):
         super(MSE_MarginRankingLoss, self).__init__()
         self.margin = margin
         self.weights = weights
-        print(f"self.weights: {self.weights}")
         self.mse_loss = torch.nn.MSELoss()
         self.margin_ranking_loss = CustomMarginRankingLoss(self.margin)
         
     def forward(self, predictions, labels, fy_i, fy_1_i):
         mse_val = self.mse_loss(predictions, labels)
         mrl_val = self.margin_ranking_loss(fy_i, fy_1_i)
-        print(f"mse_val: {mse_val}")
-        print(f"mrl_val: {mrl_val}")
         loss_sum = self.weights[0] * mse_val + self.weights[1] * mrl_val
-        print(f"loss_sum: {loss_sum}")
-        return 
+        return loss_sum
         
         
 
