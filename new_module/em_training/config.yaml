@@ -1,0 +1,19 @@
+energynet:
+  base_model: roberta-large
+  output_form: real_num
+  energy_col: 1
+  label_column: finegrained_labels
+  batch_size: 16
+  num_epochs: 3
+  max_lr: 1e-5
+  weight_decay: 0.03
+  loss: mse+margin_ranking
+  margin: 1
+  eval_every: 100
+  ckpt_save_path: models/nli
+  dataset_path: data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl
+
+locate:
+  type: gradnorm
+
+device: cuda
