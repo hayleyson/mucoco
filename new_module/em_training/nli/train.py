@@ -57,8 +57,10 @@ def main():
         os.makedirs(config['energynet']['ckpt_save_path'])
     
     train_dev_data = load_nli_data(output_file_path=config['energynet']['dataset_path'])
-    train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
-    # train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
+    
+    if config['energynet']['add_train_data'] == 'true':
+        train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
+        train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
 
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
@@ -102,7 +104,7 @@ def main():
     elif config['energynet']['loss'] == 'margin_ranking':
         criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
     elif config['energynet']['loss'] == 'negative_log_odds':
-        criterion = NegativeLogOddsLoss()
+        criterion = ScaledRankingLoss()
     elif config['energynet']['loss'] == 'mse+margin_ranking':
         criterion = MSE_MarginRankingLoss(weights = [1.,1.], 
                                           margin=config['energynet']['margin'])

@@ -131,7 +131,7 @@ dmypy.json
 # Custom
 slurm_output/
 *.csv
-models*
+models*/*
 hf_cache
 wandb
 data

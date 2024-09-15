@@ -128,14 +128,25 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
                 
         dev_loss /= (len(dev_dataloader) - num_skipped_batch)
         
-        # we assume pos_label = 0, i.e., if label == 0 (or label < 0.5), then class == 1.
-        e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l >= 0.5]
-        e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l < 0.5]
+        # class_0 : inconsistent (contradict) / class_1 : consistent (neutral, entail)
+        if config['energynet']['label_column'] == 'finegrained_labels':
+            e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l >= 0.5]
+            e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l < 0.5]
+        elif config['energynet']['label_column'] == 'binary_labels':
+            e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l == 1]
+            e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l == 0]
+        elif config['energynet']['label_column'] == 'original_labels':
+            e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l == 2]
+            e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l != 2]
+        else:
+            raise NotImplementedError
         
-        # calculate mse
+        # ~calculate mse~ : won't use mse because our energies aren't necessarily probabilities(0~1), while finegrained labels are probabilities.
         mse = mean_squared_error(dev_fine_labels, dev_e)
         
         # calculate pearson r
+        # dev_fine_labels : close to 0 if consistent, 1 if inconsistent
+        # our energy : -log (1-p(inconsistent)) ==> small if inconsistent, large if consistent
         corr_val = pearsonr(dev_fine_labels, dev_e).statistic
         
         # calculate precision, recall, f1 at threshold 0.5
