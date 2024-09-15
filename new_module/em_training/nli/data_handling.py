@@ -44,11 +44,11 @@ class NLI_DataLoader:
         
         sequences = [self.tokenizer.bos_token + p + self.tokenizer.sep_token + h + self.tokenizer.eos_token for p, h in zip(premises, hypotheses)]
         tokenized_sequences = self.tokenizer(sequences, padding=True, truncation=True, return_tensors='pt')
-        if self.config['energynet']['loss'] == 'cross_entropy':
+        if (self.config['energynet']['loss'] == 'cross_entropy') and (self.config['energynet']['label_column'] == 'real_num'):
             labels = torch.Tensor(labels).reshape(-1, 1)
             labels = torch.tile(labels, (1,2))
             labels[:, 0] = 1 - labels[:, 0] 
-        elif self.config['energynet']['loss'] == 'binary_cross_entropy':
+        elif (self.config['energynet']['loss'] == 'binary_cross_entropy') or ((self.config['energynet']['loss'] == 'cross_entropy') and (self.config['energynet']['label_column'] == 'original_labels')):
             labels = torch.LongTensor(labels)
         elif self.config['energynet']['loss'] in ['mse', 'margin_ranking', 'negative_log_odds', 'mse+margin_ranking']:
             labels = torch.Tensor(labels).reshape(-1, 1)
@@ -150,6 +150,9 @@ def load_nli_data(dev_split_size=0.1, force_reload=False,
         
         # 4. Concat SNLI, MNLI, ANLI data and save
         nli_dataset = pd.concat([smnli, anli], axis=0)
+        
+        # change column name 'label' to 'binary_labels'
+        nli_dataset = nli_dataset.rename(columns={'label': 'binary_labels'})
         nli_dataset.to_json(output_file_path, orient='records', lines=True)
 
         # 5. Save dataset statistics
@@ -230,6 +233,9 @@ def load_additional_nli_training_data(force_reload=False,
         
         # 4. Concat SNLI, MNLI, ANLI data and save
         nli_dataset = pd.concat([smnli, anli], axis=0)
+        
+        # change column name 'label' to 'binary_labels'
+        nli_dataset = nli_dataset.rename(columns={'label': 'binary_labels'})
         nli_dataset.to_json(output_file_path, orient='records', lines=True)
 
         # 5. Save dataset statistics
@@ -312,6 +318,8 @@ def load_nli_test_data(force_reload=False,
         
         # 4. Concat SNLI, MNLI, ANLI data and save
         nli_dataset = pd.concat([smnli, anli], axis=0)
+        # change column name 'label' to 'binary_labels'
+        nli_dataset = nli_dataset.rename(columns={'label': 'binary_labels'})
         nli_dataset.to_json(output_file_path, orient='records', lines=True)
 
         # 5. Save dataset statistics

@@ -1,13 +1,14 @@
 energynet:
   base_model: roberta-large
-  output_form: real_num
+  output_form: 2dim_vec
   energy_col: 1
-  label_column: finegrained_labels
+  label_column: binary_labels
   batch_size: 16
   num_epochs: 3
   max_lr: 1e-5
   weight_decay: 0.03
-  loss: mse+margin_ranking
+  loss: binary_cross_entropy
+  add_ranking_loss: true
   margin: 1
   eval_every: 100
   ckpt_save_path: models/nli

@@ -18,7 +18,7 @@ from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_fscore_su
 import seaborn as sns
 
 from new_module.em_training.nli.models import EncoderModel
-from new_module.em_training.nli.data_handling import load_nli_data, NLI_Dataset, NLI_DataLoader
+from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader
 from new_module.em_training.nli.train_modules import *
 from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, NegativeLogOddsLoss, MSE_MarginRankingLoss
 
@@ -57,6 +57,8 @@ def main():
         os.makedirs(config['energynet']['ckpt_save_path'])
     
     train_dev_data = load_nli_data(output_file_path=config['energynet']['dataset_path'])
+    train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
+    train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
     
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']

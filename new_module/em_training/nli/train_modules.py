@@ -113,9 +113,9 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
                 
             if config['energynet']['loss'] in ['mse', 'margin_ranking', 'negative_log_odds', 'mse+margin_ranking']:
                 dev_labels.extend(dev_batch['labels'].cpu().squeeze(-1).tolist())
-            elif config['energynet']['loss'] == 'cross_entropy':
+            elif (config['energynet']['loss'] == 'cross_entropy') and (config['energynet']['label_column'] == 'real_num'):
                 dev_labels.extend(dev_batch['labels'].cpu()[:,config['energynet']['energy_col']].tolist())
-            elif config['energynet']['loss'] == 'binary_cross_entropy':
+            elif (config['energynet']['loss'] == 'binary_cross_entropy') or ((config['energynet']['loss'] == 'cross_entropy') and (config['energynet']['label_column'] == 'original_labels')):
                 dev_labels.extend(dev_batch['labels'].cpu().tolist())
             else:
                 raise NotImplementedError("Invalid loss name provided.")

@@ -9,6 +9,7 @@ class MSE_MarginRankingLoss(nn.Module):
         super(MSE_MarginRankingLoss, self).__init__()
         self.margin = margin
         self.weights = weights
+        print(f"self.weights: {self.weights}")
         self.mse_loss = torch.nn.MSELoss()
         self.margin_ranking_loss = CustomMarginRankingLoss(self.margin)
         
@@ -17,17 +18,19 @@ class MSE_MarginRankingLoss(nn.Module):
         mrl_val = self.margin_ranking_loss(fy_i, fy_1_i)
         print(f"mse_val: {mse_val}")
         print(f"mrl_val: {mrl_val}")
-        return self.weights[0] * mse_val + self.weights[1] * mrl_val
+        loss_sum = self.weights[0] * mse_val + self.weights[1] * mrl_val
+        print(f"loss_sum: {loss_sum}")
+        return 
         
         
 
-class NegativeLogOddsLoss(nn.Module):
+class ScaledRankingLoss(nn.Module):
     """
     Implementation of loss from "Learning to Summarize from Human Feedback" paper.
     """
     
     def __init__(self):
-        super(NegativeLogOddsLoss, self).__init__()
+        super(ScaledRankingLoss, self).__init__()
 
     def forward(self, fy_i, fy_1_i):
         return - torch.mean(torch.log(torch.sigmoid(fy_i - fy_1_i)))
