@@ -2,6 +2,7 @@ import os
 import yaml
 import math
 import time
+import shutil
 
 import json
 import wandb
@@ -13,7 +14,7 @@ from torch.optim import AdamW, SGD, RMSprop, Adam, NAdam
 
 import numpy as np
 import matplotlib.pyplot as plt
-from transformers import get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup, get_cosine_with_hard_restarts_schedule_with_warmup
 from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_fscore_support, accuracy_score
 import seaborn as sns
 
@@ -64,7 +65,7 @@ def main():
 
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
-    dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
+    # dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
     
     print(f"# train samples: {len(train_data)}, # dev samples: {len(dev_data)}")
     
@@ -75,11 +76,13 @@ def main():
     train_dataloader = NLI_DataLoader(dataset=train_dataset, 
                                       config = config, 
                                       mode='train', 
-                                      tokenizer=model.tokenizer).get_dataloader()
+                                      tokenizer=model.tokenizer,
+                                      allow_oversample=True).get_dataloader()
     dev_dataloader = NLI_DataLoader(dataset=dev_dataset, 
                                       config = config, 
                                       mode='dev', 
-                                      tokenizer=model.tokenizer).get_dataloader()
+                                      tokenizer=model.tokenizer,
+                                      allow_oversample=True).get_dataloader()
     
     # Define the optimizer
     try:
@@ -98,6 +101,9 @@ def main():
 
     num_warmup_steps = len(train_dataloader)*num_epochs*0.1
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_dataloader)*num_epochs)
+    # scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_dataloader)*num_epochs,
+                                                                #    num_cycles=num_epochs)
+    
     
     if (config['energynet']['loss'] == 'cross_entropy') or (config['energynet']['loss'] == 'binary_cross_entropy'):
         criterion = nn.CrossEntropyLoss()
@@ -119,9 +125,16 @@ def main():
         ranking_criterion = None
         
     overall_step = 0
-    eval_metric = 'pearsonr'
-    eval_goal = 'maximize'
-    best_val_metric = float('inf') if eval_goal == 'minimize' else -1000.
+    # eval_metric = 'pearsonr'
+    # eval_goal = 'maximize'
+    # best_val_metric = float('inf') if eval_goal == 'minimize' else -1000.
+    eval_metrics = ['pearsonr', 'loss']
+    eval_goals = ['maximize', 'minimize']
+    if config['energynet']['add_ranking_loss']:
+        eval_metrics.append('add_ranking_loss')
+        eval_goals.append('minimize')
+    best_val_metrics = [float('inf') if eval_goal == 'minimize' else -1000. for eval_goal in eval_goals]
+    
     # log_file = open(f"{config['energynet']['ckpt_save_path']}/log.txt", 'w')
     for epoch in tqdm(range(num_epochs)):
         
@@ -136,21 +149,32 @@ def main():
                 all_metrics = {**dev_metrics, **train_metrics}
                 wandb.log(all_metrics)
                 try: 
-                    wandb.log({"boxplot": wandb.Image(os.path.splitext(config['model_path'])[0] + '_boxplot.png', caption=f"{runname}")}, step = overall_step)
-                    wandb.log({"hist": wandb.Image(os.path.splitext(config['model_path'])[0] + '_hist.png', caption=f"{runname}")}, step = overall_step)
-                    wandb.log({"ROC": wandb.Image(os.path.splitext(config['model_path'])[0] + '_ROC.png', caption=f"{runname}")}, step = overall_step)
+                    wandb.log({"boxplot": wandb.Image(os.path.dirname(config['model_path']) + '/current_model_boxplot.png', caption=f"{runname}")}, step = overall_step)
+                    wandb.log({"hist": wandb.Image(os.path.dirname(config['model_path']) + '/current_model_hist.png', caption=f"{runname}")}, step = overall_step)
+                    wandb.log({"ROC": wandb.Image(os.path.dirname(config['model_path']) + '/current_model_ROC.png', caption=f"{runname}")}, step = overall_step)
                 except:
                     useless_variable = 1
                     
-                if ((eval_goal == 'maximize') and (dev_metrics[f"eval_{eval_metric}"] > best_val_metric)) or \
-                   ((eval_goal == 'minimize') and (dev_metrics[f"eval_{eval_metric}"] < best_val_metric)) :
-                       
-                    best_val_metric = dev_metrics[f"eval_{eval_metric}"]
-                    torch.save(model.state_dict(), model_path)
-                    
-                    f = open(model_path.split('.pth')[0] + "_info.txt", 'w')
-                    json.dump(dev_metrics, f)
-                    f.close()
+                for idx in range(len(eval_metrics)):
+                    if ((eval_goals[idx] == 'maximize') and (dev_metrics[f"eval_{eval_metrics[idx]}"] > best_val_metrics[idx])) or \
+                        ((eval_goals[idx] == 'minimize') and (dev_metrics[f"eval_{eval_metrics[idx]}"] < best_val_metrics[idx])) :
+                        
+                        best_val_metrics[idx] = dev_metrics[f"eval_{eval_metrics[idx]}"]
+                        torch.save(model.state_dict(), model_path.split('.pth')[0] + f"_{eval_metrics[idx]}.pth")
+                        
+                        f = open(model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_info.txt", 'w')
+                        json.dump(dev_metrics, f)
+                        f.close()
+                        
+                        shutil.copy2(os.path.dirname(config['model_path']) + '/current_model_boxplot.png',
+                                     model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_boxplot.png")
+                        
+                        shutil.copy2(os.path.dirname(config['model_path']) + '/current_model_hist.png',
+                                     model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_hist.png")
+                        
+                        shutil.copy2(os.path.dirname(config['model_path']) + '/current_model_ROC.png',
+                                     model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_ROC.png")
+                        
             else:
                 wandb.log(train_metrics)
     

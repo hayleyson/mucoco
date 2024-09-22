@@ -43,7 +43,7 @@ class EncoderModel(nn.Module):
             output = output_all[0][:,0,:] ## taking CLS token representation
             output = output.squeeze(1) ## squeeze out sequence length dimension
             output = self.linear1(output)
-            hidden_states = output_all['hidden_states'][0] ## return hidden states of embedding layer
+            hidden_states = output_all['hidden_states'] ## return hidden states of embedding layer
             
         else:
             

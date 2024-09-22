@@ -2,10 +2,11 @@ import os
 import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Sampler, RandomSampler, BatchSampler, SequentialSampler
 import matplotlib.pyplot as plt
 import pandas as pd
 import json
+import math
     
 class NLI_Dataset(Dataset):
     
@@ -23,18 +24,139 @@ class NLI_Dataset(Dataset):
             return (sample['premise'], sample['hypothesis'], sample[self.label_column], sample['finegrained_labels'])
         else:
             return (sample['premise'], sample['hypothesis'], sample[self.label_column], [None for _ in range(len(sample))])
+   
+    # def __getitem__(self, idx):
+    #     return idx
 
     def set_label_column(self, label_column):
         self.label_column = label_column
     
+class NLI_BatchSampler(Sampler):
+    
+    def __init__(self, examples, batch_size, shuffle=True, allow_oversample = True):
+        self.shuffle = shuffle
+        self.drop_last = True ## drop_last = False is not implemented
+        self.batch_size = batch_size
+        self.allow_oversample = allow_oversample
+        self.data = {'nan': [],
+                     '0': [],
+                     '(0, 0.5)': [],
+                     '[0.5, 1)': [],
+                     '1': []}
+        for idx, item in enumerate(examples.to_dict(orient='records')):
+            if math.isnan(item['finegrained_labels']):
+                self.data['nan'].append(idx)
+            elif item['finegrained_labels'] == 0.0:
+                self.data['0'].append(idx)
+            elif item['finegrained_labels'] == 1.0:
+                self.data['1'].append(idx)
+            elif (item['finegrained_labels'] > 0.0) and (item['finegrained_labels'] < 0.5):
+                self.data['(0, 0.5)'].append(idx)
+            else:
+                self.data['[0.5, 1)'].append(idx)
+        
+        for key in self.data.keys():
+            self.data[key] = torch.LongTensor(self.data[key])
+        
+        # each batch of finegrained data will be composed of 2:1:1:2 ratios of (0, 0~0.5, 0.5~1, 1) data
+        self.fg_inbatch_cnt_05_1 = self.fg_inbatch_cnt_0_05 = self.batch_size // 6
+        self.fg_inbatch_cnt_1 = (self.batch_size - 2 * self.fg_inbatch_cnt_05_1) // 2
+        self.fg_inbatch_cnt_0 = self.batch_size - self.fg_inbatch_cnt_05_1 - self.fg_inbatch_cnt_0_05 - self.fg_inbatch_cnt_1
+        
+        if self.allow_oversample:
+            self.num_finegrained_batches = max(len(self.data['1']) // self.fg_inbatch_cnt_1, 
+                                        max(len(self.data['0']) // self.fg_inbatch_cnt_0,
+                                            max(len(self.data['[0.5, 1)']) // self.fg_inbatch_cnt_05_1, 
+                                                len(self.data['(0, 0.5)']) // self.fg_inbatch_cnt_0_05
+                                                )
+                                        )
+                          )
+        else:
+            self.num_finegrained_batches = min(len(self.data['1']) // self.fg_inbatch_cnt_1, 
+                                        min(len(self.data['0']) // self.fg_inbatch_cnt_0,
+                                            min(len(self.data['[0.5, 1)']) // self.fg_inbatch_cnt_05_1, 
+                                                len(self.data['(0, 0.5)']) // self.fg_inbatch_cnt_0_05
+                                                )
+                                        )
+                          )
+        self.num_nan_batches = (len(self.data['nan']) // self.batch_size)
+        
+        self.num_batches = self.num_nan_batches + self.num_finegrained_batches
+        
+        if not self.shuffle:
+            # extend indexes if some bin of data have to be oversampled
+            self.data['0'] = self.data['0'].repeat(math.ceil((self.fg_inbatch_cnt_0 * self.num_finegrained_batches) / len(self.data['0'])))
+            self.data['0'] = self.data['0'][:self.fg_inbatch_cnt_0 * self.num_finegrained_batches]
+            
+            self.data['1'] = self.data['1'].repeat(math.ceil((self.fg_inbatch_cnt_1 * self.num_finegrained_batches) / len(self.data['1'])))
+            self.data['1'] = self.data['1'][:self.fg_inbatch_cnt_1 * self.num_finegrained_batches]
+            
+            self.data['(0, 0.5)'] = self.data['(0, 0.5)'].repeat(math.ceil((self.fg_inbatch_cnt_0_05 * self.num_finegrained_batches) / len(self.data['(0, 0.5)'])))
+            self.data['(0, 0.5)'] = self.data['(0, 0.5)'][:self.fg_inbatch_cnt_0_05 * self.num_finegrained_batches]
+            
+            self.data['[0.5, 1)'] = self.data['[0.5, 1)'].repeat(math.ceil((self.fg_inbatch_cnt_05_1 * self.num_finegrained_batches) / len(self.data['[0.5, 1)'])))
+            self.data['[0.5, 1)'] = self.data['[0.5, 1)'][:self.fg_inbatch_cnt_05_1 * self.num_finegrained_batches]
+            
+    
+    def __iter__(self):
+        
+        # set samplers for each type of data
+        if self.shuffle:
+            self.rsampler_nan = BatchSampler(RandomSampler(self.data['nan']), self.batch_size, self.drop_last)
+            self.rsampler_0 = BatchSampler(RandomSampler(self.data['0'], num_samples = self.num_finegrained_batches * self.fg_inbatch_cnt_0),
+                                        batch_size=self.fg_inbatch_cnt_0, drop_last = True)
+            self.rsampler_1 = BatchSampler(RandomSampler(self.data['1'], num_samples = self.num_finegrained_batches * self.fg_inbatch_cnt_1),
+                                        batch_size=self.fg_inbatch_cnt_1, drop_last = True)
+            self.rsampler_0_05 = BatchSampler(RandomSampler(self.data['(0, 0.5)'], num_samples = self.num_finegrained_batches * self.fg_inbatch_cnt_0_05),
+                                        batch_size=self.fg_inbatch_cnt_0_05, drop_last = True)
+            self.rsampler_05_1 = BatchSampler(RandomSampler(self.data['[0.5, 1)'], num_samples = self.num_finegrained_batches * self.fg_inbatch_cnt_05_1),
+                                        batch_size=self.fg_inbatch_cnt_05_1, drop_last = True)
+        else:
+            self.rsampler_nan = BatchSampler(SequentialSampler(self.data['nan']), self.batch_size, self.drop_last)
+            self.rsampler_0 = BatchSampler(SequentialSampler(self.data['0']), batch_size=self.fg_inbatch_cnt_0, drop_last = True)
+            self.rsampler_1 = BatchSampler(SequentialSampler(self.data['1']), batch_size=self.fg_inbatch_cnt_1, drop_last = True)
+            self.rsampler_0_05 = BatchSampler(SequentialSampler(self.data['(0, 0.5)']), batch_size=self.fg_inbatch_cnt_0_05, drop_last = True)
+            self.rsampler_05_1 = BatchSampler(SequentialSampler(self.data['[0.5, 1)']), batch_size=self.fg_inbatch_cnt_05_1, drop_last = True)
+    
+        self.rsampler_0 = iter(self.rsampler_0)
+        self.rsampler_1 = iter(self.rsampler_1)
+        self.rsampler_nan = iter(self.rsampler_nan)
+        self.rsampler_0_05 = iter(self.rsampler_0_05)
+        self.rsampler_05_1 = iter(self.rsampler_05_1)
+        
+        batch = []
+        # use up samples with only discrete labels first
+        for batch in self.rsampler_nan:
+            yield self.data['nan'][batch].tolist()
+            batch = []
+                
+        # use samples with finegrained labels
+        for _ in range(self.num_finegrained_batches):
+            batch.extend(self.data['0'][next(self.rsampler_0)].tolist())
+            batch.extend(self.data['(0, 0.5)'][next(self.rsampler_0_05)].tolist())
+            batch.extend(self.data['[0.5, 1)'][next(self.rsampler_05_1)].tolist())
+            batch.extend(self.data['1'][next(self.rsampler_1)].tolist())
+            yield batch
+            batch = []
+        
+    def __len__(self):
+        return self.num_batches
+                
+    
 class NLI_DataLoader:
     
-    def __init__(self, dataset, config, mode, tokenizer):
+    def __init__(self, dataset, config, mode, tokenizer, allow_oversample):
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.config = config
         self.batch_size = self.config['energynet']['batch_size']
         self.mode = mode
+        self.shuffle = True if self.mode=='train' else False
+        self.allow_oversample = allow_oversample
+        self.batch_sampler = self.get_batch_sampler()
+    
+    # def collate_fn(self, batch):
+    #     return batch
     
     def collate_fn(self, batch):
         premises = [x[0] for x in batch]
@@ -50,7 +172,7 @@ class NLI_DataLoader:
             labels[:, 0] = 1 - labels[:, 0] 
         elif (self.config['energynet']['loss'] == 'binary_cross_entropy') or ((self.config['energynet']['loss'] == 'cross_entropy') and (self.config['energynet']['label_column'] == 'original_labels')):
             labels = torch.LongTensor(labels)
-        elif self.config['energynet']['loss'] in ['mse', 'margin_ranking', 'negative_log_odds', 'mse+margin_ranking']:
+        elif self.config['energynet']['loss'] in ['mse', 'margin_ranking', 'scaled_ranking', 'mse+margin_ranking']:
             labels = torch.Tensor(labels).reshape(-1, 1)
         else:
             raise NotImplementedError('Loss type not recognized')
@@ -58,10 +180,13 @@ class NLI_DataLoader:
         return {'input_ids': tokenized_sequences['input_ids'].to(self.config['device']), 
                 'attention_mask': tokenized_sequences['attention_mask'].to(self.config['device']), 
                 'labels': labels.to(self.config['device']),
-                'finegrained_labels': finegrained_labels}
+                'finegrained_labels': torch.Tensor(finegrained_labels).to(self.config['device'])}
+    
+    def get_batch_sampler(self):
+        return NLI_BatchSampler(self.dataset.data, self.batch_size, shuffle=self.shuffle, allow_oversample=self.allow_oversample)
     
     def get_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True if self.mode=='train' else False, collate_fn=self.collate_fn)
+        return DataLoader(self.dataset, batch_sampler = self.batch_sampler, collate_fn=self.collate_fn)
         
     
 def load_nli_data(dev_split_size=0.1, force_reload=False,
