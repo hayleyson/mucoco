@@ -88,20 +88,24 @@ class LocateMachine:
         self.model = model
         self.tokenizer = tokenizer
         self.task = args.task
+        try:
+            self.device = model.device
+        except:
+            self.device = model.params['device']
         
         punctuations = string.punctuation + '\n '
         punctuations = list(punctuations)
         punctuations.remove('-')
         stopwords = [" and", " of", " or", " so"] + punctuations + [token for token in self.tokenizer.special_tokens_map.values()]
-        self.stopwords_ids = self.tokenizer.batch_encode_plus(stopwords, return_tensors="pt",add_special_tokens=False)['input_ids'].squeeze().to(self.model.device)
+        self.stopwords_ids = self.tokenizer.batch_encode_plus(stopwords, return_tensors="pt",add_special_tokens=False)['input_ids'].squeeze().to(self.device)
 
     def locate_main(self, prediction: List[str], method, max_num_tokens = 6, unit="word",**kwargs):
         
 
         if self.task == "nli":
-            batch = self.tokenizer(prediction, add_special_tokens=True, padding=True, truncation=True, return_tensors="pt").to(self.model.device) # prediction이 list여도 처리가능함
+            batch = self.tokenizer(prediction, add_special_tokens=True, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
         else:
-            batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.model.device) # prediction이 list여도 처리가능함
+            batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
         
         if method == "attention":
             output = self.model(**batch, output_attentions=True)
@@ -112,14 +116,26 @@ class LocateMachine:
             token_wise_scores = attentions.max(1)[0][:, 0] # cls_attns's dimension: (N, L)
             
         elif method == "grad_norm":
-            output = self.model(**batch, output_hidden_states=True)
-            ## output['hidden_states']: tuple of length num_hidden_layers
-            ## output['hidden_states'][0]: (batch_size, seq_len, hidden_size)
-            layer = output['hidden_states'][0]
+            try:
+                output = self.model(**batch, output_hidden_states=True)
+                hidden_states = output['hidden_states']
+                logits = output['logits']
+            except:
+                logits, hidden_states = self.model(**batch)
+            ## hidden_states: tuple of length num_hidden_layers
+            ## hidden_states[0]: (batch_size, seq_len, hidden_size)
+            layer = hidden_states[0]
             layer.retain_grad()
 
-            softmax=torch.nn.Softmax(dim=-1)
-            probs = softmax(output['logits'])[:, kwargs['label_id']]
+            try:
+                if self.model.params['energynet']['output_form'] != 'real_num':
+                    softmax=torch.nn.Softmax(dim=-1)
+                    probs = softmax(logits)[:, kwargs['label_id']]
+                else:
+                    probs = logits
+            except:
+                softmax=torch.nn.Softmax(dim=-1)
+                probs = softmax(logits)[:, kwargs['label_id']]
             probs.sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
             ## layer.grad : (batch_size, seq_len, hidden_size)
             norm = torch.norm(layer.grad, dim=-1)
@@ -163,7 +179,7 @@ class LocateMachine:
             # for nli task, we locate within "hypothesis". thus, length must also only include hypothesis.
             lengths = (~((batch.attention_mask == 0) | premise_mask)).sum(dim=-1)
         
-        max_num_located_tokens = torch.minimum((lengths//3), torch.LongTensor([max_num_tokens]).to(self.model.device))
+        max_num_located_tokens = torch.minimum((lengths//3), torch.LongTensor([max_num_tokens]).to(self.device))
         max_num_located_tokens = torch.minimum(max_num_located_tokens, num_above_average_tokens)
         top_masks_final = [x[:max_num_located_tokens[i]] for i,x in enumerate(token_wise_scores.argsort(dim=-1,descending=True).tolist())] 
 
