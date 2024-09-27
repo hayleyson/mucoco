@@ -3,7 +3,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-48:00:00
 #SBATCH --mem=20GB
-#SBATCH --nodelist=n01
+#SBATCH --nodelist=n02
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=nli_energy
 #SBATCH --output='new_module/_slurm_outs/####_%j.out'

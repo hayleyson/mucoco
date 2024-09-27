@@ -24,14 +24,13 @@ from new_module.locate.new_locate_utils import LocateMachine
 from new_module.em_training.nli.models import EncoderModel
 from new_module.em_training.nli.data_handling import load_nli_data, load_nli_test_data, NLI_Dataset, NLI_DataLoader
 
-def merge_masks(input_text):
+def merge_masks(input_text, merge_masks_method):
     
     ## re를 이용해 [MASK]의 반복을 찾고 이를 하나로 대체한다.
-    # mask_start_end_indices = re.findall("(<mask>)+", input_text) 
-    # for mask_index in mask_start_end_indices:
-    #     input_text[: mask_index[0]] + "<mask>"
-    # return re.sub("(<mask>)+", "<mask>", input_text)
-    return re.sub("(<mask>)+", "...", input_text)
+    if merge_masks_method == "ellipsis":
+        return re.sub("(<mask>)+", "...", input_text)
+    elif merge_masks_method == "mask":
+        return re.sub("(<mask>)+", "<mask>", input_text)
 
 # locate 이 잘 되었는지 판단하기 위해서,
 # 0) 라벨이 contradict인 샘플에 대해서 
@@ -84,28 +83,31 @@ class NLIDataset(Dataset):
 def collate_fn(examples):
     return [(x['premise'], x['hypothesis']) for x in examples]
 
-# nli_dataset = load_dataset('stanfordnlp/snli')
 train_dev_data = load_nli_data(output_file_path="/data/hyeryung/mucoco/data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl")
 dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
 nli_dataset = dev_data.to_dict(orient="records")
 
 contradiction_indexes = [i for i, x in enumerate(nli_dataset) if x['original_labels'] == 2]
-# neutral_indexes = [i for i, x in enumerate(nli_dataset['test']['label']) if x == 1]
 print(f"# of contradiction data: {len(contradiction_indexes)}")
-# print(f"# of neutral data: {len(neutral_indexes)}")
 
 contradiction_data = NLIDataset(nli_dataset, contradiction_indexes)
-# neutral_data = NLIDataset(nli_dataset['test'], neutral_indexes)
-
 print(f"# of contradiction data: {len(contradiction_data)}")
-# print(f"# of neutral data: {len(neutral_data)}")
 
 contra_dataloader = DataLoader(contradiction_data, batch_size=batch_size, collate_fn = collate_fn, shuffle=False)
-# neutral_dataloader = DataLoader(neutral_data, batch_size=batch_size, collate_fn = collate_fn)
+
+# indexes for mnli
+mnli_indexes = [i for i, idx in enumerate(contradiction_indexes) if 'mnli' in nli_dataset[idx]['source']]
+# indexes for snli
+snli_indexes = [i for i, idx in enumerate(contradiction_indexes) if 'snli' in nli_dataset[idx]['source']]
+# indexes for anli
+anli_indexes = [i for i, idx in enumerate(contradiction_indexes) if 'anli' in nli_dataset[idx]['source']]
 
 ### energy model load
 
-def main(run_id, save_df=False):
+def main(run_id, merge_masks_method='ellipsis', save_df=False, save_file_path=""):
+    
+    print("merge_masks_method: ", merge_masks_method)
+    
     api = wandb.Api()
     run = api.run(run_id)
     config = run.config
@@ -139,9 +141,37 @@ def main(run_id, save_df=False):
                                "optimizer": [config['energynet'].get('optimizer', 'adamw')],
                                "average contradiction proba before masking": ['nan'], 
                                "average contradiction proba after masking": ['nan'], 
+                               "entail proportion before masking": ['nan'],
+                               "neutral proportion before masking": ['nan'],
+                               "contradiction proportion before masking": ['nan'],
                                "entail proportion after masking": ['nan'],
                                "neutral proportion after masking": ['nan'],
-                               "contradiction proportion after masking": ['nan']})
+                               "contradiction proportion after masking": ['nan'],
+                               "average contradiction proba before masking (snli)": ['nan'], 
+                               "average contradiction proba after masking (snli)": ['nan'],
+                               "average contradiction proba before masking (anli)": ['nan'], 
+                               "average contradiction proba after masking (anli)": ['nan'],
+                               "average contradiction proba before masking (mnli)": ['nan'],
+                               "average contradiction proba after masking (mnli)": ['nan'],
+                               "entail proportion before masking (snli)": ['nan'],
+                               "neutral proportion before masking (snli)": ['nan'],
+                               "contradiction proportion before masking (snli)": ['nan'],
+                               "entail proportion before masking (anli)": ['nan'],
+                               "neutral proportion before masking (anli)": ['nan'],
+                               "contradiction proportion before masking (anli)": ['nan'],
+                               "entail proportion before masking (mnli)": ['nan'],
+                               "neutral proportion before masking (mnli)": ['nan'],
+                               "contradiction proportion before masking (mnli)": ['nan'],
+                               "entail proportion after masking (snli)": ['nan'],
+                               "neutral proportion after masking (snli)": ['nan'],
+                               "contradiction proportion after masking (snli)": ['nan'],
+                               "entail proportion after masking (anli)": ['nan'],
+                               "neutral proportion after masking (anli)": ['nan'],
+                               "contradiction proportion after masking (anli)": ['nan'],
+                               "entail proportion after masking (mnli)": ['nan'],
+                               "neutral proportion after masking (mnli)": ['nan'],
+                               "contradiction proportion after masking (mnli)": ['nan'],})
+
 
 
     class Args:
@@ -152,32 +182,27 @@ def main(run_id, save_df=False):
     
     # ----------------------------------- #
     # Inference
-    # original_class = "contradiction"
     contra_original = []
     contra_masked = []
     energys_before_masking = []
     energys_after_masking = []
     classes_before_masking = []
     classes_after_masking = []
-    # loader = contra_dataloader if original_class == "contradiction" else neutral_dataloader
     loader = contra_dataloader
     for batch in tqdm.tqdm(loader):
         
         result = locator.locate_main(batch, 'grad_norm', max_num_tokens = max_num_tokens, unit="word", label_id=config['energynet']['energy_col'])
 
-        print(result)
-
-        ## post processing : merge multiple [MASK] into one 
-        result = [merge_masks(x) for x in result]
+        ## post processing : merge multiple [MASK] into one         
+        if merge_masks_method != ''  or merge_masks_method != 'none':
+            result = [merge_masks(x, merge_masks_method) for x in result]
         
-        print('-' * 50)
-        print(result)
-        ##
         contra_masked.extend(result)
         
         tokens = nli_tokenizer(batch, return_tensors='pt', padding=True, truncation=True)
         tokens = tokens.to(device)
         texts = nli_tokenizer.batch_decode(tokens['input_ids'], skip_special_tokens=False)
+        texts = [text.replace('<pad>', '') for text in texts]
         contra_original.extend(texts)
         with torch.no_grad():
             outputs = nli_model(**tokens)
@@ -201,19 +226,14 @@ def main(run_id, save_df=False):
         
         torch.cuda.empty_cache()
 
-    # conf_matrix = cm(classes_before_masking, classes_after_masking, labels=[0,1,2])
-    # pd.DataFrame(conf_matrix, columns=['Entailment', 'Neutral', 'Contradiction'], index=['Entailment', 'Neutral', 'Contradiction']).to_excel(f'snli_test_{original_class}_locating_cm_after_mask.xlsx')
-
     if save_df:
         pd.DataFrame({"original": contra_original, 
                 "masked": contra_masked,
                 "original_class": classes_before_masking,
                 "masked_class": classes_after_masking,
                 "original_contradiction_proba": energys_before_masking,
-                "masked_contradiction_proba": energys_after_masking}).to_excel(f"snli_test_locating_result_{run_id.split('/')[-1]}.xlsx")
+                "masked_contradiction_proba": energys_after_masking}).to_excel(save_file_path.split(".csv")[0] + f"_raw_{run_id.split('/')[-1]}.xlsx", index=False)
 
-    # energy_dict = {'Average Contradiction Proba Before Masking': np.mean(energys_before_masking), 
-    #                'Average Contradiction Proba After Masking': np.mean(energys_after_masking)}
 
     summary_df = pd.DataFrame({"run_id": [run_id], 
                                "loss": [config['energynet']['loss']],
@@ -226,16 +246,40 @@ def main(run_id, save_df=False):
                                "optimizer": [config['energynet'].get('optimizer', 'adamw')],
                                "average contradiction proba before masking": [np.mean(energys_before_masking)], 
                                "average contradiction proba after masking": [np.mean(energys_after_masking)], 
+                               "entail proportion before masking": [(np.array(classes_before_masking)==0).sum()/len(classes_before_masking)],
+                               "neutral proportion before masking": [(np.array(classes_before_masking)==1).sum()/len(classes_before_masking)],
+                               "contradiction proportion before masking": [(np.array(classes_before_masking)==2).sum()/len(classes_before_masking)],
                                "entail proportion after masking": [(np.array(classes_after_masking)==0).sum()/len(classes_after_masking)],
                                "neutral proportion after masking": [(np.array(classes_after_masking)==1).sum()/len(classes_after_masking)],
-                               "contradiction proportion after masking": [(np.array(classes_after_masking)==2).sum()/len(classes_after_masking)]})
+                               "contradiction proportion after masking": [(np.array(classes_after_masking)==2).sum()/len(classes_after_masking)],
+                               "average contradiction proba before masking (snli)": [np.mean(np.array(energys_before_masking)[snli_indexes])], 
+                               "average contradiction proba after masking (snli)": [np.mean(np.array(energys_after_masking)[snli_indexes])],
+                               "average contradiction proba before masking (anli)": [np.mean(np.array(energys_before_masking)[anli_indexes])], 
+                               "average contradiction proba after masking (anli)": [np.mean(np.array(energys_after_masking)[anli_indexes])],
+                               "average contradiction proba before masking (mnli)": [np.mean(np.array(energys_before_masking)[mnli_indexes])], 
+                               "average contradiction proba after masking (mnli)": [np.mean(np.array(energys_after_masking)[mnli_indexes])],
+                               "entail proportion before masking (snli)": [(np.array(classes_before_masking)[snli_indexes]==0).sum()/len(snli_indexes)],
+                               "neutral proportion before masking (snli)": [(np.array(classes_before_masking)[snli_indexes]==1).sum()/len(snli_indexes)],
+                               "contradiction proportion before masking (snli)": [(np.array(classes_before_masking)[snli_indexes]==2).sum()/len(snli_indexes)],
+                               "entail proportion before masking (anli)": [(np.array(classes_before_masking)[anli_indexes]==0).sum()/len(anli_indexes)],
+                               "neutral proportion before masking (anli)": [(np.array(classes_before_masking)[anli_indexes]==1).sum()/len(anli_indexes)],
+                               "contradiction proportion before masking (anli)": [(np.array(classes_before_masking)[anli_indexes]==2).sum()/len(anli_indexes)],
+                               "entail proportion before masking (mnli)": [(np.array(classes_before_masking)[mnli_indexes]==0).sum()/len(mnli_indexes)],
+                               "neutral proportion before masking (mnli)": [(np.array(classes_before_masking)[mnli_indexes]==1).sum()/len(mnli_indexes)],
+                               "contradiction proportion before masking (mnli)": [(np.array(classes_before_masking)[mnli_indexes]==2).sum()/len(mnli_indexes)],
+                               "entail proportion after masking (snli)": [(np.array(classes_after_masking)[snli_indexes]==0).sum()/len(snli_indexes)],
+                               "neutral proportion after masking (snli)": [(np.array(classes_after_masking)[snli_indexes]==1).sum()/len(snli_indexes)],
+                               "contradiction proportion after masking (snli)": [(np.array(classes_after_masking)[snli_indexes]==2).sum()/len(snli_indexes)],
+                               "entail proportion after masking (anli)": [(np.array(classes_after_masking)[anli_indexes]==0).sum()/len(anli_indexes)],
+                               "neutral proportion after masking (anli)": [(np.array(classes_after_masking)[anli_indexes]==1).sum()/len(anli_indexes)],
+                               "contradiction proportion after masking (anli)": [(np.array(classes_after_masking)[anli_indexes]==2).sum()/len(anli_indexes)],
+                               "entail proportion after masking (mnli)": [(np.array(classes_after_masking)[mnli_indexes]==0).sum()/len(mnli_indexes)],
+                               "neutral proportion after masking (mnli)": [(np.array(classes_after_masking)[mnli_indexes]==1).sum()/len(mnli_indexes)],
+                               "contradiction proportion after masking (mnli)": [(np.array(classes_after_masking)[mnli_indexes]==2).sum()/len(mnli_indexes)],})
 
     if save_df:
-        summary_df.to_csv(f"snli_test_locating_result_{run_id.split('/')[-1]}_metrics.csv", index=False)
-    # with open(f"snli_test_locating_result_{run_id.split('/')[-1]}_metrics.csv", 'w') as f:
-        # 
-        # f.write(f"average contradiction proba before masking, average contradiction proba after masking, entail proportion after masking, neutral proporation after masking, contradiction proportion after masking\n")
-        # f.write(f"{np.mean(energys_before_masking)}, {np.mean(energys_after_masking)}, {(np.array(classes_after_masking)==0).sum()/len(classes_after_masking)}, {(np.array(classes_after_masking)==1).sum()/len(classes_after_masking)}, {(np.array(classes_after_masking)==2).sum()/len(classes_after_masking)} \n")
+        summary_df.to_csv(save_file_path.split(".csv")[0] + f"_{run_id.split('/')[-1]}.csv", index=False)
+    
     return summary_df
         
 if __name__ == "__main__":
@@ -263,13 +307,14 @@ if __name__ == "__main__":
 # xohsica6
 # cdpmq4y1
 # 24i537i4""".split()
-#     metrics_all = []
+    run_ids = ["t6lbryef"]
+    metrics_all = []
+    save_file_path="dev_data_locating_result_merge_masks.csv"
     
-#     for run_id in run_ids:
-#         metrics_all.append(main(f"hayleyson/nli_energynet/{run_id}"))
+    for run_id in run_ids:
+        metrics_all.append(main(f"hayleyson/nli_energynet/{run_id}", "mask", True, save_file_path))
         
-#     pd.concat(metrics_all).to_csv(f"snli_test_locating_result_metrics_merge_masks.csv", index=False)
-    pass
+    # pd.concat(metrics_all).to_csv(save_file_path, index=False)
         
         
     

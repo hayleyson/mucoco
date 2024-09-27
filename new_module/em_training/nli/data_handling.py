@@ -145,7 +145,7 @@ class NLI_BatchSampler(Sampler):
     
 class NLI_DataLoader:
     
-    def __init__(self, dataset, config, mode, tokenizer, allow_oversample):
+    def __init__(self, dataset, config, mode, tokenizer, allow_oversample=True):
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.config = config
@@ -166,7 +166,7 @@ class NLI_DataLoader:
         
         sequences = [self.tokenizer.bos_token + p + self.tokenizer.sep_token + h + self.tokenizer.eos_token for p, h in zip(premises, hypotheses)]
         tokenized_sequences = self.tokenizer(sequences, padding=True, truncation=True, return_tensors='pt')
-        if (self.config['energynet']['loss'] == 'cross_entropy') and (self.config['energynet']['label_column'] == 'real_num'):
+        if (self.config['energynet']['loss'] == 'cross_entropy') and (self.config['energynet']['label_column'] == 'finegrained_labels'):
             labels = torch.Tensor(labels).reshape(-1, 1)
             labels = torch.tile(labels, (1,2))
             labels[:, 0] = 1 - labels[:, 0] 
@@ -186,7 +186,10 @@ class NLI_DataLoader:
         return NLI_BatchSampler(self.dataset.data, self.batch_size, shuffle=self.shuffle, allow_oversample=self.allow_oversample)
     
     def get_dataloader(self):
-        return DataLoader(self.dataset, batch_sampler = self.batch_sampler, collate_fn=self.collate_fn)
+        if self.shuffle:
+            return DataLoader(self.dataset, batch_sampler = self.batch_sampler, collate_fn=self.collate_fn)
+        else:
+            return DataLoader(self.dataset, batch_size = self.batch_size, shuffle = self.shuffle, collate_fn=self.collate_fn)
         
     
 def load_nli_data(dev_split_size=0.1, force_reload=False,
