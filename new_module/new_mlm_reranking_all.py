@@ -25,7 +25,7 @@ import wandb
 #     combi_rerank,
 # )
 from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking
-from new_module.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
@@ -465,15 +465,20 @@ def main(config):
     run.summary["num_edited"] = num_edited
 
     run.finish()
-
+    
+    ## delete loss functions to clear up gpu memory
+    try:
+        del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer
+    except:
+        pass
+    torch.cuda.empty_cache()
+    
     if (not interrupted):
         if config["task"] == "toxicity":
-            # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
             evaluate_main(
                 run.path,
                 outfile,
-                # "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
-                "toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation",
+                "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
                 toxicity_model_path=config["model_paths"][1],
                 toxicity_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]

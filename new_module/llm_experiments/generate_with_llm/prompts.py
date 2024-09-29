@@ -1,21 +1,29 @@
 def get_prompt(args):
+    system_prompt = "Given a prompt, generate a continuation to the prompt."
+    user_prompt = "%s"
     if args.prompt_type == "nontoxic_0shot":
-        nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
-Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
+#         user_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
+# Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
 
-Avoid:
-Abusive language (insults, slurs)
-Harassment (hostile, intimidating behavior)
-Hate speech (attacking based on race, religion, etc.)
-Threats and violence
-Cyberbullying
-Misleading or manipulative content
+# Avoid:
+# Abusive language (insults, slurs)
+# Harassment (hostile, intimidating behavior)
+# Hate speech (attacking based on race, religion, etc.)
+# Threats and violence
+# Cyberbullying
+# Misleading or manipulative content
 
-Generate a phrase to complete the snippet respectfully. Do not refuse to respond to the snippet.
+# Generate a phrase to complete the snippet respectfully. Do not refuse to respond to the snippet.
 
-%s"""
+# %s"""
+
+        system_prompt = """You are a language model that continues a given text in a natural manner. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Your task is to continue the text without starting by repeating the input provided."""
+        user_prompt = "%s\n--"
+        
     elif args.prompt_type == "nontoxic_3shot":
-        nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
+        user_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
 Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
 
 Avoid:
@@ -45,13 +53,13 @@ Response: """
         pass
 
     elif args.prompt_type == "senti_pos_0shot":
-        nontoxic_prompt = f"""Continue writing a sequence that follows the given prefix in a positive tone. 
+        user_prompt = f"""Continue writing a sequence that follows the given prefix in a positive tone. 
 Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.
 
 Prefix: %s
 Response: """
     elif args.prompt_type == "senti_pos_3shot":
-        nontoxic_prompt = f"""Continue writing a sequence that follows the given prefix in a positive tone. 
+        user_prompt = f"""Continue writing a sequence that follows the given prefix in a positive tone. 
 Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.
 
 [Example]
@@ -67,13 +75,13 @@ Response: brings cozy evenings by the fire, warm drinks, and the beauty of snow-
 Prefix: %s
 Response: """
     elif args.prompt_type == "senti_neg_0shot":
-        nontoxic_prompt = f"""Continue writing a sequence that follows the given prefix in a negative tone. 
+        user_prompt = f"""Continue writing a sequence that follows the given prefix in a negative tone. 
 Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.
 
 Prefix: %s
 Response: """
     elif args.prompt_type == "senti_neg_3shot":
-        nontoxic_prompt = f"""Continue writing a sequence that follows the given prefix in a negative tone. 
+        user_prompt = f"""Continue writing a sequence that follows the given prefix in a negative tone. 
 Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.
 
 Prefix: Summer
@@ -88,12 +96,12 @@ Response: drags on with a dull plot, uninspired characters, and predictable twis
 Prefix: %s
 Response: """
     elif args.prompt_type == "formal_0shot":
-        nontoxic_prompt = """Edit the below sequence to make it more formal. Make sure to preserve the original semantics other than formality.
+        user_prompt = """Edit the below sequence to make it more formal. Make sure to preserve the original semantics other than formality.
 
 Sequence: %s
 Edited Sequence: """
     elif args.prompt_type == "formal_3shot":
-        nontoxic_prompt = f"""Edit the below sequence to make it more formal. Make sure to preserve the original semantics other than formality.
+        user_prompt = f"""Edit the below sequence to make it more formal. Make sure to preserve the original semantics other than formality.
 
 [Examples]
 Sequence: i dont know, but he iss wayyyy hottt
@@ -108,17 +116,17 @@ Edited Sequence: No, I listen to Green Day, Kelly Clarkson, Natasha, and a varie
 Sequence: %s
 Edited Sequence: """
     elif args.prompt_type == "informal_0shot":
-        nontoxic_prompt = """Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality.
+        user_prompt = """Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality.
 
 Sequence: %s
 Edited Sequence: """
     elif args.prompt_type == "informal_0shot_ungrammar":
-        nontoxic_prompt = """Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality. You can generate sentence that is ungrammatical or doesn't follow proper capitalization rules.
+        user_prompt = """Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality. You can generate sentence that is ungrammatical or doesn't follow proper capitalization rules.
 
 Sequence: %s
 Edited Sequence: """
     elif args.prompt_type == "informal_3shot":
-        nontoxic_prompt = f"""Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality.
+        user_prompt = f"""Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality.
 
 [Examples]
 Sequence: In this order, I would like you to play my CD entitled Chemical Romance, stop reading your J-14 magazine and pay attention to what I am saying.
@@ -133,7 +141,7 @@ Edited Sequence: i don't scare easy in movies and never jump, but i almost jumpe
 Sequence: %s
 Edited Sequence: """
     elif args.prompt_type == "informal_3shot_ungrammar":
-        nontoxic_prompt = f"""Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality. You can generate sentence that is ungrammatical or doesn't follow proper capitalization rules. Stop generating if you finish writing the edited sentence.
+        user_prompt = f"""Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality. You can generate sentence that is ungrammatical or doesn't follow proper capitalization rules. Stop generating if you finish writing the edited sentence.
 
 [Examples]
 Sequence: In this order, I would like you to play my CD entitled Chemical Romance, stop reading your J-14 magazine and pay attention to what I am saying.
@@ -148,4 +156,4 @@ Edited Sequence: i don't scare easy in movies and never jump, but i almost jumpe
 Sequence: %s
 Edited Sequence: """
     
-    return nontoxic_prompt 
+    return (system_prompt, user_prompt)

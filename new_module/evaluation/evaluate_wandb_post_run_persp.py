@@ -6,7 +6,7 @@ from glob import glob
 import pandas as pd
 
 import wandb
-from new_module.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_wandb import evaluate_main
 
 
 def main(run_id_list, wandb_entity, wandb_project, prefix='mlm'):

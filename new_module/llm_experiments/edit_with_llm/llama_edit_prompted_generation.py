@@ -11,7 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from new_module.llm_experiments.prompts import get_prompt
-from new_module.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_wandb import evaluate_main
 
 
 def unravel(outputs_df):

@@ -5,8 +5,10 @@ from glob import glob
 import pandas as pd
 
 import wandb
-from new_module.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_wandb import evaluate_main
 
+import os
+os.chdir('/data/hyeryung/mucoco')
 
 def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
 
@@ -19,15 +21,15 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
         run = api.run(run_path)
         outfile_path_pattern_sub = None
         min_epsilon = run.config['min_epsilons'][0] if isinstance(run.config['min_epsilons'],list) else run.config['min_epsilons']
-        if run_id == 'noe1aj78':
-            outfile_path_pattern = "outputs/toxicity/mlm-reranking/mlm-token-nps4-k3-allsat_primary-0.5-0.5-wandb-2/outputs_epsilon-3-test.txt"
-        elif run.config.get('output_dir_prefix', None):
+        output_dir_prefix = run.config.get('output_dir_prefix', None)
+        print(f"output_dir_prefix: {output_dir_prefix}")
+        if output_dir_prefix is None:
             outfile_path_pattern = f"/data/hyeryung/mucoco/outputs/toxicity/mucola/*{prefix}*{run_id}*/outputs_epsilon{min_epsilon}.txt"
             # outfile_path_pattern = f"{run.config['output_dir_prefix']}/*{prefix}*{run_id}*/outputs_epsilon{min_epsilon}.txt"
         else:
-            outfile_path_pattern = f"outputs/toxicity/mlm-reranking/**/*{prefix}*{run_id}*/outputs_epsilon{min_epsilon}.txt"
-            outfile_path_pattern_sub = f"outputs/toxicity/mlm-reranking/*{prefix}*{run_id}*/outputs_epsilon{min_epsilon}.txt"
-       
+            outfile_path_pattern = f"{output_dir_prefix}/*{run_id}*/outputs_epsilon{min_epsilon}.txt"
+            # outfile_path_pattern_sub = f"outputs/toxicity/mlm-reranking/*{prefix}*{run_id}*/outputs_epsilon{min_epsilon}.txt"
+        
         
         print(outfile_path_pattern)
         outfile_paths = glob(outfile_path_pattern)
@@ -52,42 +54,30 @@ def main(run_id_list, wandb_entity, wandb_project,prefix="mlm"):
         else:
             task = run.config['lossabbr'].split(':')[1]
         run.update()
-        del run
+        
         
         if task == 'toxicity':
-            # evaluate_main(run_path, outfile_path, 'contents-preservation', 
-            # evaluate_main(run_path, outfile_path, 'toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual', 
-            evaluate_main(run_path, outfile_path, 'contents-preservation,qual', 
+            # metrics list: toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual
+            evaluate_main(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation', 
                      toxicity_model_path=model_path,toxicity_model_type=model_type,
-                     source_file_path='new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl') # 시간 문제로, perspective api 제외
-            # evaluate(run_path, outfile_path, 'toxicity-int,ppl-big,dist-n,repetition,fluency', 
-            #          toxicity_model_path=model_path,toxicity_model_type=model_type) # 시간 문제로, perspective api 제외
+                     source_file_path=run.config.get("source_data", None))
         elif task == 'formality':
-            # evaluate_main(run_path, outfile_path, 'formality-ext,qual', 
+            # metrics list: "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual
             evaluate_main(run_path, outfile_path, 'contents-preservation,qual', 
                      formality_model_path=model_path,formality_model_type=model_type,
                      source_file_path='') ## source_file_path is set within evaluate_wandb
-            # evaluate_main(run_path, outfile_path, 'formality-int,formality-ext,ppl-big,dist-n,repetition,fluency', 
-            #         formality_model_path=model_path,formality_model_type=model_type)
         elif task == 'sentiment':
+            # metrics list: sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual
             evaluate_main(run_path, outfile_path, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual', 
-            # evaluate_main(run_path, outfile_path, 'qual', 
                      sentiment_model_path=model_path,sentiment_model_type=model_type,
-                     source_file_path='new_module/data/sentiment/dev_set.jsonl')
-            # evaluate_main(run_path, outfile_path, 'sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency',
-            #         sentiment_model_path=model_path,sentiment_model_type=model_type)
-    
+                     source_file_path=run.config.get("source_data", None))
+        del run
 
 if __name__ == "__main__":
 
-    run_id_list = """b3l01234
-as8ea8e0"""
+    run_id_list = """q7tlrfcl
+r7kykwge"""
 
     run_id_list = run_id_list.split('\n')
-    print(run_id_list)
-    # main(run_id_list, wandb_entity="hayleyson", wandb_project="sentiment_gbi", prefix="")
-    # main(run_id_list, wandb_entity="hayleyson", wandb_project="formality_gbi", prefix="")
-    main(run_id_list, wandb_entity="hayleyson", wandb_project="toxicity_gbi", prefix="")
-    
-    # main(run_id_list, wandb_entity="hayleyson", wandb_project="toxicity_gbi", prefix="")
+    main(run_id_list, wandb_entity="hayleyson", wandb_project="toxicity-decoding", prefix="")
             

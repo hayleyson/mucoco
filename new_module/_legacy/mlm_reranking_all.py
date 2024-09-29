@@ -21,7 +21,7 @@ from new_module.decode_utils import (
     beam_rerank_v2,
     combi_rerank,
 )
-from new_module.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
