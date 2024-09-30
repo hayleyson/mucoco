@@ -329,7 +329,7 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
     print(np.nanmean(goodperplexities), len(goodperplexities), len(perplexities), g)
     # return np.nanmean(perplexities), np.exp(total_nll/total_tokens)
     if include_trimmed_mean:
-        notna_perplexities = perplexities[np.isnan(perplexities)]
+        notna_perplexities = perplexities[~np.isnan(perplexities)]
         return np.nanmean(perplexities), scipy.stats.trim_mean(notna_perplexities, proportiontocut=0.001), np.exp(np.nansum(total_nll)/np.nansum(total_tokens))
         
     else:

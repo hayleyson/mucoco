@@ -1,4 +1,5 @@
 import pandas as pd
+import math
 from glob import glob
 import os
 os.chdir('/data/hyeryung/mucoco')
@@ -54,7 +55,7 @@ def unravel_toxicity_data(df):
 # "wgarjlit",
 # "8qv0f6o3",]
 
-run_ids = ["03inbk5m",]
+run_ids = ["q7tlrfcl",]
 ## edited index를 뽑아오고
 ## get common indexs
 
@@ -81,7 +82,7 @@ for run_id in run_ids:
 # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
-output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_prompting_500_gens_cleaned.jsonl"]
+output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl"]
 
 
 for i, run_id in enumerate(run_ids):
@@ -111,12 +112,13 @@ metrics=['fluency','ppl-big','repetitions','toxicity','toxicity_int', 'dist-3', 
 ## ppl-big
 metric='ppl-big'
 ppl_metrics=[]
+total_ppl_metrics=[]
 
 # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.ppl-big", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.ppl-big",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.ppl-big"]
 
-result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.ppl-big"]
+result_files = [f"{output_files[0]}-results.txt.ppl-big"]
 
 
 for i, run_id in enumerate(run_ids):
@@ -131,6 +133,8 @@ for i, run_id in enumerate(run_ids):
     result=result.loc[edited_ixs[run_id]]
     metric_value=result[0].mean()
     ppl_metrics.append(metric_value)
+    metric_value=math.exp(result[1].sum()/result[2].sum())
+    total_ppl_metrics.append(metric_value)
     
     
 ## fluency
@@ -140,7 +144,7 @@ fluency_metrics=[]
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.fluency",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.fluency"]
 
-result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.fluency"]
+result_files = [f"{output_files[0]}-results.txt.fluency"]
 
 for i, run_id in enumerate(run_ids):
     print(run_id)
@@ -162,7 +166,7 @@ repetitions_metrics=[]
 # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.repetitions", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.repetitions",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.repetitions"]
-result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.repetitions"]
+result_files = [f"{output_files[0]}-results.txt.repetitions"]
 
 
 for i, run_id in enumerate(run_ids):
@@ -191,7 +195,7 @@ toxic_proba_75_metrics=[]
 # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_results.txt.toxicity", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.toxicity",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_results.txt.toxicity"]
-result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_results.txt.toxicity"]
+result_files = [f"{output_files[0]}-results.txt.toxicity"]
 
 
 for i, run_id in enumerate(run_ids):
@@ -228,7 +232,7 @@ dist3_metrics= []
 # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
-output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
+output_files = output_files
 
 
 for i, run_id in enumerate(run_ids):
@@ -278,7 +282,7 @@ for i, run_id in enumerate(run_ids):
 
 
 # pd.DataFrame({'run_ids':["llama3_8b_instruct_gens","llama2_13b_chat_gens","gpt4o_gens"], 
-pd.DataFrame({'run_ids':[f"gpt4o_gens_{run_ids[0]}"], 
+pd.DataFrame({'run_ids':[f"llm_gens_{run_ids[0]}"], 
              'sbert': ["" for _ in range(len(run_ids))],
               'sbert_count': ["" for _ in range(len(run_ids))],
               'sbert_ratio': ["" for _ in range(len(run_ids))],
@@ -286,9 +290,10 @@ pd.DataFrame({'run_ids':[f"gpt4o_gens_{run_ids[0]}"],
               'toxic_proba':toxic_proba_metrics,
               'toxic_75_proba':toxic_proba_75_metrics,
               'ppl':ppl_metrics,
+              'total_ppl':total_ppl_metrics,
               'delta_ppl':['' for _ in range(len(run_ids))],
               'fluency_metrics':fluency_metrics,
               'dist-3':dist3_metrics,
               'rep_rate':repetitions_metrics,
               'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
-        }).to_csv('/data/hyeryung/mucoco/new_module/dev_utils/edited_index_only_metrics_original_gens_longform_500.csv',index=False)
+        }).to_csv(f"{output_files[0]}-results_editedonly.csv",index=False)

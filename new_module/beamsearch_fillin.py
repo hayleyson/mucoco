@@ -7,7 +7,7 @@ import pandas as pd
 from transformers import AutoTokenizer
 
 import wandb
-from new_module.evaluate_wandb import evaluate
+from new_module.evaluation.evaluate_wandb import evaluate
 
 ## toxicity
 origin=pd.read_json('new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl', lines=True)

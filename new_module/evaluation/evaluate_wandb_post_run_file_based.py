@@ -59,8 +59,32 @@ if __name__ == "__main__":
     #             task = "toxicity",
     #             target_style="nontoxic")
     
-    evaluate_main("hayleyson/toxicity-decoding/r7kykwge",
-            "/data/hyeryung/mucoco/outputs/toxicity/llm/r7kykwge/outputs_epsilon0.9.txt",
-            'toxicity',
+    # evaluate_main("hayleyson/toxicity-decoding/r7kykwge",
+    #         "/data/hyeryung/mucoco/outputs/toxicity/llm/r7kykwge/outputs_epsilon0.9.txt",
+    #         'toxicity',
+    #         task = "toxicity",
+    #         target_style="nontoxic")
+    
+    # evaluate_main("hayleyson/toxicity-decoding/kwdp6ovm",
+    #         "/data/hyeryung/mucoco/outputs/toxicity/llm/kwdp6ovm/outputs_epsilon0.9.txt",
+    #         metrics='toxicity',
+    #         task = "toxicity",
+    #         target_style="nontoxic")
+    
+    # evaluate_main("hayleyson/toxicity-decoding/kwdp6ovm",
+    #         "/data/hyeryung/mucoco/outputs/toxicity/llm/kwdp6ovm/outputs_epsilon0.9.txt",
+    #         metrics="ppl-big,fluency,dist-n,repetition",
+    #         task = "toxicity",
+    #         target_style="nontoxic")
+    
+    evaluate_main("hayleyson/toxicity-decoding/q7tlrfcl",
+            "/data/hyeryung/mucoco/outputs/toxicity/llm/q7tlrfcl/outputs_epsilon0.9.txt",
+            metrics="fluency",
             task = "toxicity",
             target_style="nontoxic")
+    
+    # evaluate_main("hayleyson/toxicity-decoding/r7kykwge",
+    #         "/data/hyeryung/mucoco/outputs/toxicity/llm/r7kykwge/outputs_epsilon0.9.txt",
+    #         metrics="ppl-big,fluency,dist-n,repetition",
+    #         task = "toxicity",
+    #         target_style="nontoxic")

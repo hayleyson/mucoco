@@ -25,7 +25,7 @@ import wandb
 #     combi_rerank,
 # )
 from new_module.new_decode_utils_bv1_ab import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking_bv1_ab
-from new_module.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 

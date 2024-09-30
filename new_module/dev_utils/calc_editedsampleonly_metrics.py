@@ -4,7 +4,7 @@ import os
 os.chdir('/data/hyeryung/mucoco')
 from evaluation.prompted_sampling.evaluate import distinctness, repetition
 os.getcwd()
-
+import math
 
 ## func to read output file
 def unravel(outputs_df):
@@ -45,7 +45,7 @@ def unravel_toxicity_data(df):
 # "8qv0f6o3",
 # "bx3qb540"]
 
-run_ids = ["03inbk5m"]
+run_ids = ["q7tlrfcl"]
 ## edited index를 뽑아오고
 ## get common indexs
 
@@ -71,6 +71,7 @@ metrics=['fluency','ppl-big','repetitions','toxicity','toxicity_int', 'dist-3', 
 ## ppl-big
 metric='ppl-big'
 ppl_metrics=[]
+total_ppl_metrics=[]
 for run_id in run_ids:
 
     result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
@@ -85,7 +86,8 @@ for run_id in run_ids:
     result=result.loc[edited_ixs[run_id]]
     metric_value=result[0].mean()
     ppl_metrics.append(metric_value)
-    
+    metric_value=math.exp(result[1].sum()/ result[2].sum())
+    total_ppl_metrics.append(metric_value)
     
 ## fluency
 metric='fluency'
@@ -250,8 +252,9 @@ pd.DataFrame({'run_ids':run_ids,
               'toxic_75_proba':toxic_proba_75_metrics,
               'ppl':ppl_metrics,
               'delta_ppl':['' for _ in range(len(run_ids))],
+              'total_ppl': total_ppl_metrics,
               'fluency_metrics':fluency_metrics,
               'dist-3':dist3_metrics,
               'rep_rate':repetitions_metrics,
               'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
-        }).to_csv('/data/hyeryung/mucoco/new_module/dev_utils/edited_index_only_metrics_longform_500.csv',index=False)
+        }).to_csv('/data/hyeryung/mucoco/outputs/toxicity/llm/q7tlrfcl/results_epsilon0.9-test-editedonly.csv',index=False)
