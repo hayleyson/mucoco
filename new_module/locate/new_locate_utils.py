@@ -127,6 +127,10 @@ class LocateMachine:
         max_num_located_tokens = torch.minimum(max_num_located_tokens, top_masks.sum(dim=-1))
         top_masks_final = [x[:max_num_located_tokens[i]] for i,x in enumerate(token_wise_scores.argsort(dim=-1,descending=True).tolist())] 
 
+        #### change here
+        #### TODO: find consecutive masks (spans) --> count # of masks in spans --> replace the consecutive masks with 0 ~ # of masks in spans 
+        #### TODO 1) first find consecutive masks and check span lengths
+        
         if unit == "token":
             for i, locate_ixes in enumerate(top_masks_final):
                 batch.input_ids[i, locate_ixes] = self.tokenizer.mask_token_id
