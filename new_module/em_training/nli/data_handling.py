@@ -142,21 +142,153 @@ class NLI_BatchSampler(Sampler):
     def __len__(self):
         return self.num_batches
                 
+class NLI_TrainBatchSampler_Continuous(Sampler):
+    """
+    Group examples by labels into intervals [0, 0], (0, 0.5), [0.5, 1), and [1, 1], 
+    then sample examples from each bin in a 2:1:1:2 ratio
+    """
+    def __init__(self, examples, batch_size, oversample_minority = True):
+        self.batch_size = batch_size
+        self.oversample_minority = oversample_minority
+        examples = examples.reset_index(drop=True)
+        self.data = {'0': torch.LongTensor(examples.loc[examples['finegrained_labels'] == 0.0].index.tolist()),
+                     '(0, 0.5)': torch.LongTensor(examples.loc[(examples['finegrained_labels'] > 0.0) & (examples['finegrained_labels'] < 0.5)].index.tolist()),
+                     '[0.5, 1)': torch.LongTensor(examples.loc[(examples['finegrained_labels'] >= 0.5) & (examples['finegrained_labels'] < 1.0)].index.tolist()),
+                     '1': torch.LongTensor(examples.loc[examples['finegrained_labels'] == 1.0].index.tolist())} ## 0: incon, 1: con
+        
+        # each batch of finegrained data will be composed of 2:1:1:2 ratios of (0, 0~0.5, 0.5~1, 1) data
+        self.batch_size_05_1 = self.batch_size_0_05 = self.batch_size // 6
+        self.batch_size_1 = (self.batch_size - 2 * self.batch_size_05_1) // 2
+        self.batch_size_0 = self.batch_size - self.batch_size_05_1 - self.batch_size_0_05 - self.batch_size_1
+        
+        if self.oversample_minority:
+            self.num_batches = max(len(self.data['1']) // self.batch_size_1, 
+                                        max(len(self.data['0']) // self.batch_size_0,
+                                            max(len(self.data['[0.5, 1)']) // self.batch_size_05_1, 
+                                                len(self.data['(0, 0.5)']) // self.batch_size_0_05
+                                                )
+                                        )
+                          )
+        else:
+            self.num_batches = min(len(self.data['1']) // self.batch_size_1, 
+                                        min(len(self.data['0']) // self.batch_size_0,
+                                            min(len(self.data['[0.5, 1)']) // self.batch_size_05_1, 
+                                                len(self.data['(0, 0.5)']) // self.batch_size_0_05
+                                                )
+                                        )
+                          )
+    
+    def __iter__(self):
+        
+        # set samplers for each type of data
+        self.rsampler_0 = iter(BatchSampler(RandomSampler(self.data['0'], num_samples = self.num_batches * self.batch_size_0),
+                                    batch_size=self.batch_size_0, drop_last = True))
+        self.rsampler_1 = iter(BatchSampler(RandomSampler(self.data['1'], num_samples = self.num_batches * self.batch_size_1),
+                                    batch_size=self.batch_size_1, drop_last = True))
+        self.rsampler_0_05 = iter(BatchSampler(RandomSampler(self.data['(0, 0.5)'], num_samples = self.num_batches * self.batch_size_0_05),
+                                    batch_size=self.batch_size_0_05, drop_last = True))
+        self.rsampler_05_1 = iter(BatchSampler(RandomSampler(self.data['[0.5, 1)'], num_samples = self.num_batches * self.batch_size_05_1),
+                                    batch_size=self.batch_size_05_1, drop_last = True))
+        
+        batch = []
+                
+        for _ in range(self.num_batches):
+            batch.extend(self.data['0'][next(self.rsampler_0)].tolist())
+            batch.extend(self.data['(0, 0.5)'][next(self.rsampler_0_05)].tolist())
+            batch.extend(self.data['[0.5, 1)'][next(self.rsampler_05_1)].tolist())
+            batch.extend(self.data['1'][next(self.rsampler_1)].tolist())
+            yield batch
+            batch = []
+        
+    def __len__(self):
+        return self.num_batches
+    
+class NLI_TrainBatchSampler_Binary(Sampler):
+    
+    def __init__(self, examples:pd.DataFrame, batch_size, oversample_minority = True):
+        self.batch_size = batch_size
+        self.oversample_minority = oversample_minority
+        
+        examples = examples.reset_index(drop=True)
+        self.data = {'con': torch.LongTensor(examples.loc[examples['binary_labels'] == 1.0].index.tolist()),
+                     'incon': torch.LongTensor(examples.loc[examples['binary_labels'] == 0.0].index.tolist())}
+        
+        self.batch_size_con = self.batch_size - self.batch_size//2
+        self.batch_size_incon = self.batch_size//2
+        
+        if self.oversample_minority:
+            self.num_batches = max(len(self.data['con']) // self.batch_size_con, 
+                                   len(self.data['incon']) // self.batch_size_incon)
+        else:
+            self.num_batches = min(len(self.data['con']) // self.batch_size_con, 
+                                   len(self.data['incon']) // self.batch_size_incon)
+            
+    def __iter__(self):
+        
+        # set samplers for each type of data
+        self.rsampler_incon = iter(BatchSampler(RandomSampler(self.data['incon'], 
+                                    num_samples = self.num_batches * self.batch_size_incon),
+                                    batch_size=self.batch_size_incon, drop_last = True))
+        self.rsampler_con = iter(BatchSampler(RandomSampler(self.data['con'], 
+                                    num_samples = self.num_batches * self.batch_size_con),
+                                    batch_size=self.batch_size_con, drop_last = True))
+        
+        batch = []
+        for _ in range(self.num_batches):
+            batch.extend(self.data['incon'][next(self.rsampler_incon)].tolist())
+            batch.extend(self.data['con'][next(self.rsampler_con)].tolist())
+            yield batch
+            batch = []
+        
+    def __len__(self):
+        return self.num_batches
+
+# class NLI_TrainBatchSampler_Combined(Sampler):
+    
+#     def __init__(self, binary_examples:pd.DataFrame, continuous_examples:pd.DataFrame, batch_size, oversample_minority = True):
+#         self.binary_examples = binary_examples
+#         self.continuous_examples = continuous_examples
+#         self.batch_size = batch_size
+#         self.oversample_minority = oversample_minority
+        
+#         self.binary_sampler = self.get_binary_sampler()
+#         self.continuous_sampler = self.get_continuous_sampler()
+#         self.num_iters = max(len(self.binary_sampler), len(self.continuous_sampler))
+            
+#     def get_binary_sampler(self):
+#         return NLI_TrainBatchSampler_Binary(self.binary_examples, self.batch_size, self.oversample_minority)
+    
+#     def get_continuous_sampler(self):
+#         return NLI_TrainBatchSampler_Continuous(self.continuous_examples, self.batch_size, self.oversample_minority)
+        
+        
+#     def __iter__(self):
+        
+#         self.rsampler_binary = iter(self.binary_sampler)
+#         self.rsampler_continuous = iter(self.continuous_sampler)
+        
+#         for _ in range(self.num_iters):
+#             try:
+#                 binary_batch = next(self.rsampler_binary)
+#             except:
+#                 self.rsampler_binary = iter(self.get_binary_sampler())
+#                 binary_batch = next(self.rsampler_binary)
+#             try:
+#                 continuous_batch = next(self.rsampler_continuous)
+#             except:
+#                 self.rsampler_continuous = iter(self.get_continuous_sampler())
+#                 continuous_batch = next(self.rsampler_continuous)
+#             yield binary_batch, continuous_batch
+        
+#     def __len__(self):
+#         return self.num_iters
     
 class NLI_DataLoader:
     
-    def __init__(self, dataset, config, mode, tokenizer, allow_oversample=True):
+    def __init__(self, config, tokenizer):
         self.tokenizer = tokenizer
-        self.dataset = dataset
         self.config = config
         self.batch_size = self.config['energynet']['batch_size']
-        self.mode = mode
-        self.shuffle = True if self.mode=='train' else False
-        self.allow_oversample = allow_oversample
-        self.batch_sampler = self.get_batch_sampler()
-    
-    # def collate_fn(self, batch):
-    #     return batch
     
     def collate_fn(self, batch):
         premises = [x[0] for x in batch]
@@ -166,30 +298,25 @@ class NLI_DataLoader:
         
         sequences = [self.tokenizer.bos_token + p + self.tokenizer.sep_token + h + self.tokenizer.eos_token for p, h in zip(premises, hypotheses)]
         tokenized_sequences = self.tokenizer(sequences, padding=True, truncation=True, return_tensors='pt')
-        if (self.config['energynet']['loss'] == 'cross_entropy') and (self.config['energynet']['label_column'] == 'finegrained_labels'):
+        if (self.config['energynet']['output_form'] == 'real_num') and (self.config['energynet']['label_column'] == 'finegrained_labels'):
+            labels = torch.Tensor(labels).reshape(-1, 1)
+        elif (self.config['energynet']['output_form'] == '2dim_vec') and (self.config['energynet']['label_column'] == 'finegrained_labels'):
             labels = torch.Tensor(labels).reshape(-1, 1)
             labels = torch.tile(labels, (1,2))
             labels[:, 0] = 1 - labels[:, 0] 
-        elif (self.config['energynet']['loss'] == 'binary_cross_entropy') or ((self.config['energynet']['loss'] == 'cross_entropy') and (self.config['energynet']['label_column'] == 'original_labels')):
+        elif (self.config['energynet']['label_column'] == 'binary_labels') or (self.config['energynet']['label_column'] == 'original_labels'):
             labels = torch.LongTensor(labels)
-        elif self.config['energynet']['loss'] in ['mse', 'margin_ranking', 'scaled_ranking', 'mse+margin_ranking']:
-            labels = torch.Tensor(labels).reshape(-1, 1)
-        else:
-            raise NotImplementedError('Loss type not recognized')
         
         return {'input_ids': tokenized_sequences['input_ids'].to(self.config['device']), 
                 'attention_mask': tokenized_sequences['attention_mask'].to(self.config['device']), 
                 'labels': labels.to(self.config['device']),
                 'finegrained_labels': torch.Tensor(finegrained_labels).to(self.config['device'])}
-    
-    def get_batch_sampler(self):
-        return NLI_BatchSampler(self.dataset.data, self.batch_size, shuffle=self.shuffle, allow_oversample=self.allow_oversample)
-    
-    def get_dataloader(self):
-        if self.shuffle:
-            return DataLoader(self.dataset, batch_sampler = self.batch_sampler, collate_fn=self.collate_fn)
+
+    def get_dataloader(self, dataset=None, batch_size=None, batch_sampler=None, shuffle=False):
+        if batch_sampler:
+            return DataLoader(dataset, batch_sampler = batch_sampler, collate_fn=self.collate_fn)
         else:
-            return DataLoader(self.dataset, batch_size = self.batch_size, shuffle = self.shuffle, collate_fn=self.collate_fn)
+            return DataLoader(dataset, batch_size = batch_size, shuffle = shuffle, collate_fn=self.collate_fn)
         
     
 def load_nli_data(dev_split_size=0.1, force_reload=False,
@@ -242,9 +369,9 @@ def load_nli_data(dev_split_size=0.1, force_reload=False,
         assert smnli.shape[0] == 29489, "Number of samples in SMNLI data is not 29489"
         
         # 2-3. add finegrained labels 
-        smnli['finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: np.mean([1 if label == 'contradiction' else 0 for label in labels]))
+        smnli['finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: np.mean([0 if label == 'contradiction' else 1 for label in labels]))
         smnli['original_labels'] = smnli['label'].replace({'entailment': 0, 'neutral': 1, 'contradiction': 2})
-        smnli['label'] = smnli['label'].apply(lambda x: 1 if x == 'contradiction' else 0)
+        smnli['label'] = smnli['label'].apply(lambda x: 0 if x == 'contradiction' else 1)
         
         
         # 2-4. split data by promptID considering genre and source
@@ -264,9 +391,9 @@ def load_nli_data(dev_split_size=0.1, force_reload=False,
         anli_verifier_labels = pd.read_json('data/nli/anli_v1.0/verifier_labels_R1-3.jsonl', lines=True)
         anli = pd.merge(anli,anli_verifier_labels, on='uid', how='inner')
         assert anli.shape[0] == 26603, "Number of samples in ANLI data is not 26603"
-        anli['finegrained_labels'] = anli['verifier labels'].apply(lambda labels: np.mean([1 if label == 'c' else 0 for label in labels]))
+        anli['finegrained_labels'] = anli['verifier labels'].apply(lambda labels: np.mean([0 if label == 'c' else 1 for label in labels]))
         anli['original_labels'] = anli['label'].replace({'e': 0, 'n': 1, 'c': 2})
-        anli['label'] = anli['label'].apply(lambda x: 1 if x == 'c' else 0)
+        anli['label'] = anli['label'].apply(lambda x: 0 if x == 'c' else 1)
         
         # 3-3. split data considering genre and source
         # anli['split'] = ['train' if 'train' in x else 'dev' for x in anli['source']]
@@ -336,7 +463,7 @@ def load_additional_nli_training_data(force_reload=False,
         # 2-3. add labels & split
         smnli['finegrained_labels'] = [None for _ in range(len(smnli))]
         smnli['original_labels'] = smnli['label'].replace({'entailment': 0, 'neutral': 1, 'contradiction': 2})
-        smnli['label'] = smnli['label'].apply(lambda x: 1 if x == 'contradiction' else 0)
+        smnli['label'] = smnli['label'].apply(lambda x: 0 if x == 'contradiction' else 1)
         smnli['split'] = ['train' for _ in range(len(smnli))]
         smnli = smnli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source', 'split']]
         
@@ -353,7 +480,7 @@ def load_additional_nli_training_data(force_reload=False,
         
         anli['finegrained_labels'] = [None for _ in range(len(anli))]
         anli['original_labels'] = anli['label'].replace({'e': 0, 'n': 1, 'c': 2})
-        anli['label'] = anli['label'].apply(lambda x: 1 if x == 'c' else 0)
+        anli['label'] = anli['label'].apply(lambda x: 0 if x == 'c' else 1)
         
         # 3-3. add split info
         anli['split'] = ['train' for _ in range(len(anli))]
@@ -424,9 +551,9 @@ def load_nli_test_data(force_reload=False,
         assert smnli.shape[0] == 9824, f"Number of samples in SMNLI data,  {len(smnli)}, is not 9824"
         
         # 2-3. add finegrained labels 
-        smnli['finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: np.mean([1 if label == 'contradiction' else 0 for label in labels]))
+        smnli['finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: np.mean([0 if label == 'contradiction' else 1 for label in labels]))
         smnli['original_labels'] = smnli['label'].replace({'entailment': 0, 'neutral': 1, 'contradiction': 2})
-        smnli['label'] = smnli['label'].apply(lambda x: 1 if x == 'contradiction' else 0)
+        smnli['label'] = smnli['label'].apply(lambda x: 0 if x == 'contradiction' else 1)
         smnli = smnli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source']]
         
         # 3. Preprocess ANLI dataset
@@ -439,9 +566,9 @@ def load_nli_test_data(force_reload=False,
         anli_verifier_labels = pd.read_json('data/nli/anli_v1.0/verifier_labels_R1-3.jsonl', lines=True)
         anli = pd.merge(anli,anli_verifier_labels, on='uid', how='inner')
         assert anli.shape[0] == 3200, "Number of samples in ANLI data is not 3200"
-        anli['finegrained_labels'] = anli['verifier labels'].apply(lambda labels: np.mean([1 if label == 'c' else 0 for label in labels]))
+        anli['finegrained_labels'] = anli['verifier labels'].apply(lambda labels: np.mean([0 if label == 'c' else 1 for label in labels]))
         anli['original_labels'] = anli['label'].replace({'e': 0, 'n': 1, 'c': 2})
-        anli['label'] = anli['label'].apply(lambda x: 1 if x == 'c' else 0)
+        anli['label'] = anli['label'].apply(lambda x: 0 if x == 'c' else 1)
         anli = anli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source']]
         
         # 4. Concat SNLI, MNLI, ANLI data and save
@@ -473,6 +600,6 @@ def load_nli_test_data(force_reload=False,
 
 
 if __name__ == "__main__":
-    # load_nli_data(0.1,force_reload=True)
-    # load_nli_test_data(force_reload=True)
+    load_nli_data(0.1,force_reload=True)
+    load_nli_test_data(force_reload=True)
     load_additional_nli_training_data(force_reload=True)
