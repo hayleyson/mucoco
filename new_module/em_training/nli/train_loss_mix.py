@@ -67,8 +67,8 @@ def main():
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
     dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
     
-    print(f"# train samples: {len(train_data)}, # dev samples: {len(dev_data)}")
-    
+    print(f"# train samples with binary labels only: {len(train_add_data)}, # train samples with finegrained labels: {len(train_data)}, # dev samples: {len(dev_data)}")
+   
     ## IMPT. 'finegrained_labels' == degree of contradiction (real number between 0 and 1) == portion of annotators who labeled the sample as "contradiction"
     train_add_dataset = NLI_Dataset(train_add_data, label_column=config['energynet']['label_column'])
     train_dataset = NLI_Dataset(train_data, label_column=config['energynet']['label_column'])
@@ -87,8 +87,8 @@ def main():
     train_dataloader = NLI_DataLoader(config = config,
                                      tokenizer = model.tokenizer).get_dataloader(train_dataset, batch_size=None, batch_sampler=continuous_batchsampler)
     dev_dataloader = NLI_DataLoader(config = config,
-                                     tokenizer = model.tokenizer).get_dataloader(dev_dataset, batch_size=config['energynet']['batch_size'], batch_sampler=None)
-    
+                                     tokenizer = model.tokenizer).get_dataloader(dev_dataset, batch_size=config['energynet']['batch_size'], batch_sampler=None, shuffle=False)
+   
     num_train_iters = max(len(train_add_dataloader), len(train_dataloader))
     train_add_iterator = iter(train_add_dataloader)
     train_iterator = iter(train_dataloader)
@@ -108,8 +108,8 @@ def main():
     except:
         optimizer = AdamW(model.parameters(),lr=max_lr, weight_decay=weight_decay)
 
-    num_warmup_steps = len(train_add_iterator)*num_epochs*0.1
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_dataloader)*num_epochs)
+    num_training_steps = num_train_iters*num_epochs
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_training_steps*0.1, num_training_steps=num_training_steps)
     # scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_dataloader)*num_epochs,
                                                                 #    num_cycles=num_epochs)
     
@@ -122,7 +122,7 @@ def main():
         criterion = nn.MSELoss()
     elif config['energynet']['loss'] == 'margin_ranking':
         criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
-    elif config['energynet']['loss'] == 'negative_log_odds':
+    elif (config['energynet']['loss'] == 'scaled_ranking') or (config['energynet']['loss'] == 'negative_log_odds'):
         criterion = ScaledRankingLoss()
     elif config['energynet']['loss'] == 'mse+margin_ranking':
         criterion = MSE_MarginRankingLoss(weights = [1.,1.], 

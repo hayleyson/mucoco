@@ -76,6 +76,24 @@ def plot_observed_predicted_boxplot(array_energy, array_labels, path_to_save_fig
     plt.savefig(path_to_save_figure)
     plt.close()
 
+def plot_observed_predicted_boxplot_v2(array_energy, array_labels, path_to_save_figure):
+    predicted_result = pd.DataFrame({'labels': array_labels, 'predicted_proba': array_energy})
+    cutoffs = np.linspace(predicted_result.labels.min()-0.1, 
+                      predicted_result.loc[predicted_result.labels < 20, 'labels'].max(), 
+                      num=10)
+    cutoffs = np.append(cutoffs, np.array([predicted_result['labels'].max()]))
+    cutoffs = np.round(cutoffs, 2)
+    cutoffs = pd.IntervalIndex.from_breaks(cutoffs, closed='right')
+    predicted_result['labels_c'] = pd.cut(predicted_result['labels'], cutoffs)
+    g = sns.boxplot(predicted_result, x='labels_c', y='predicted_proba')
+    plt.xticks(rotation=30)
+    plt.xticks(rotation=30)
+    plt.title("Predicted Values by Bins of Observed Values")
+    plt.xlabel("Bins in Labels")
+    plt.ylabel("Energy")
+    plt.savefig(path_to_save_figure)
+    plt.close()
+
 def validate_model_loss_mix(dev_dataloader, model, binary_criterion, continuous_criterion, mixing_weights, config, epoch, overall_step):
     
     model.eval()
@@ -137,6 +155,7 @@ def validate_model_loss_mix(dev_dataloader, model, binary_criterion, continuous_
         corr_subset_val = pearsonr(dev_fine_labels_subset, dev_e_subset).statistic
         
         ndcg_val = ndcg_score([dev_fine_labels_for_metrics], [dev_e])
+        ndcg_subset_val = ndcg_score([dev_fine_labels_subset], [dev_e_subset])
         
         # calculate precision, recall, f1 at threshold 0.5
         # we assume pos_label = 0 
@@ -149,7 +168,7 @@ def validate_model_loss_mix(dev_dataloader, model, binary_criterion, continuous_
         threshold, precision, recall, f1 = thresholds['best_f1_threshold'], thresholds['best_f1_precision'], thresholds['best_f1_recall'], thresholds['best_f1_f1'] 
         
         # boxplot of energy against bins of finegrained labels
-        plot_observed_predicted_boxplot(dev_e, dev_fine_labels_for_metrics, os.path.dirname(config['model_path']) + '/current_model_boxplot.png')
+        plot_observed_predicted_boxplot_v2(dev_e, dev_fine_labels_for_metrics, os.path.dirname(config['model_path']) + '/current_model_boxplot.png')
                 
         # hist plot of energy by binary labels
         plot_hist_real_num(e_class_1, e_class_0, os.path.dirname(config['model_path']) + '/current_model_hist.png')
@@ -164,6 +183,7 @@ def validate_model_loss_mix(dev_dataloader, model, binary_criterion, continuous_
         'eval_pearsonr': corr_val,
         'eval_pearsonr_subset': corr_subset_val,
         'eval_ndcg': ndcg_val,
+        'eval_ndcg_subset': ndcg_subset_val,
         'eval_auroc': auroc,
         'eval_threshold': threshold,
         'eval_precision': precision,
@@ -207,9 +227,12 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
             else:
                 raise NotImplementedError(f"Invalid loss name {config['energynet']['loss']} provided.")
                 
-            if (config['energynet']['output_dim'] == 'real_num') and (config['energynet']['label_column'] == 'finegrained_labels'):
+            if (config['energynet']['output_dim'] == 'real_num') and ('ranking' in config['energynet']['loss']):
                 dev_labels.extend(dev_batch['labels'].cpu().squeeze(-1).tolist())
                 dev_fine_labels_for_metrics.extend((-dev_batch['finegrained_labels']).tolist())
+            elif (config['energynet']['output_dim'] == 'real_num') and (config['energynet']['loss'] == 'mse'):
+                dev_labels.extend(dev_batch['labels'].cpu().squeeze(-1).tolist())
+                dev_fine_labels_for_metrics.extend((-torch.log(dev_batch['finegrained_labels']).tolist()))
             elif (config['energynet']['output_dim'] == '2dim_vec') and (config['energynet']['label_column'] == 'finegrained_labels'):
                 dev_labels.extend(dev_batch['labels'].cpu()[:,config['energynet']['energy_col']].tolist())
                 dev_fine_labels_for_metrics.extend((-torch.log(dev_batch['finegrained_labels'])).tolist())
@@ -244,7 +267,8 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         dev_fine_labels_subset = [e for e, l in zip(dev_fine_labels_for_metrics, dev_fine_labels) if (l < 1) and (0 > l)]
         corr_subset_val = pearsonr(dev_fine_labels_subset, dev_e_subset).statistic
         
-        ndcg_val = ndcg_score(dev_fine_labels_for_metrics, dev_e)
+        ndcg_val = ndcg_score([dev_fine_labels_for_metrics], [dev_e])
+        ndcg_subset_val = ndcg_score([dev_fine_labels_subset], [dev_e_subset])
         
         # calculate precision, recall, f1 at threshold 0.5
         # we assume pos_label = 0 
@@ -257,7 +281,10 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         threshold, precision, recall, f1 = thresholds['best_f1_threshold'], thresholds['best_f1_precision'], thresholds['best_f1_recall'], thresholds['best_f1_f1'] 
         
         # boxplot of energy against bins of finegrained labels
-        plot_observed_predicted_boxplot(dev_e, dev_fine_labels_for_metrics, os.path.dirname(config['model_path']) + '/current_model_boxplot.png')
+        if 'ranking' in config['energynet']['loss']:
+            plot_observed_predicted_boxplot(dev_e, dev_fine_labels_for_metrics, os.path.dirname(config['model_path']) + '/current_model_boxplot.png')
+        else:
+            plot_observed_predicted_boxplot_v2(dev_e, dev_fine_labels_for_metrics, os.path.dirname(config['model_path']) + '/current_model_boxplot.png')
                 
         # hist plot of energy by binary labels
         plot_hist_real_num(e_class_1, e_class_0, os.path.dirname(config['model_path']) + '/current_model_hist.png')
@@ -272,6 +299,7 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         'eval_pearsonr': corr_val,
         'eval_pearsonr_subset': corr_subset_val,
         'eval_ndcg': ndcg_val,
+        'eval_ndcg_subset': ndcg_subset_val,
         'eval_auroc': auroc,
         'eval_threshold': threshold,
         'eval_precision': precision,
@@ -295,6 +323,7 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
     
     # continuous loss
     if config['energynet']['add_ranking_loss_setting'] == 2: ## assume binary labels indicate uninanimous votes and treat them as continuous labels
+        print('!!!')
         predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
         energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
         labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
@@ -313,6 +342,8 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
     train_metrics = {'epoch': epoch, 
                      'step': overall_step, 
                      'train_loss': loss.item(), 
+                     'train_binary_loss': binary_loss.item(),
+                     'train_continuous_loss': continuous_loss.item(),
                      'learning_rate': scheduler.get_last_lr()[0]}
     
     optimizer.step()
