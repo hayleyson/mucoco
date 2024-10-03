@@ -24,7 +24,7 @@ import wandb
 #     beam_rerank_v2,
 #     combi_rerank,
 # )
-from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking
+from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking, analyze_span_lengths_and_count, editing_with_delete_variable_replace
 from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
@@ -287,7 +287,6 @@ def main(config):
                 )
         
         else:
-        
             
             num_edited += edit_yn.sum().item()
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
@@ -302,66 +301,32 @@ def main(config):
                                         num_layer = 10,#-2, #penultimate
                                         label_id = config['target_label_ids'][1])
 
-                ## replace tokens at the indices with mask tokens
+                span_lengths_es = []
+                for test_sent in masked_text:
+                    _, span_lengths = analyze_span_lengths_and_count(test_sent)
+                    span_lengths_es.append(span_lengths)
+
+                # Arguments
+                final_hypotheses_ = []
+                new_best_weighted_loss_ = []
+                new_best_allsat_ = []
+                new_best_logging_loss_ = []
                 
-                inputs = mlm_tokenizer(
-                    masked_text, return_tensors="pt", padding=True, truncation=True
-                )
-                inputs = inputs.to(config['device']) 
-                masked_sequence=inputs['input_ids']
-
-
-                ## make predictions for the masked indices
-                with torch.no_grad():
-                    logits = mlm(**inputs).logits
-
-                special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
-                logits[:, :, special_token_ids] = -float("inf")
-
-                
-                indices_in_mlm_tokens = (
-                    inputs.input_ids == mlm_tokenizer.mask_token_id
-                ).nonzero(as_tuple=True)
-
-                ## get top k tokens for each index
-                predicted_token_ids = torch.topk(
-                    logits[indices_in_mlm_tokens[0], indices_in_mlm_tokens[1], :],
-                    k=config['k_per_location'],
-                    dim=-1,
-                )
-
-                
-                if config["method"] == "mlm-beamsearch-v0":
-                    hypotheses = get_beam_hypotheses_v0(source_text, 
-                            masked_sequence, 
-                            indices_in_mlm_tokens,
-                            predicted_token_ids.indices,
-                            mlm_tokenizer, 
-                            lossfns,
-                            config)
-                elif config["method"] == "mlm-beamsearch-v1":
-                    hypotheses = get_beam_hypotheses_v1(source_text, 
-                            masked_sequence, 
-                            indices_in_mlm_tokens,
-                            predicted_token_ids.indices,
-                            mlm_tokenizer, 
-                            lossfns,
-                            config)
-                elif config["method"] == "mlm-reranking":
-                    hypotheses = get_combi_hypotheses(masked_sequence, 
-                                indices_in_mlm_tokens,
-                                predicted_token_ids.indices,
-                                mlm_tokenizer,
-                                config)
-
+                for idx in range(len(masked_text)):
+                    test_sent = masked_text[idx]
+                    test_sent_span_lengths = span_lengths_es[idx]
                     
+                    final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
+                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config)
+                    final_hypotheses_.extend(final_hypotheses_curr)
+                    new_best_weighted_loss_.append(new_best_weighted_loss_curr)
+                    new_best_allsat_.append(new_best_allsat_curr)
+                    new_best_logging_loss_.append(new_best_logging_loss_curr)
                     
-                final_hypotheses_, new_best_weighted_loss_, new_best_allsat_, new_best_logging_loss_ = final_reranking(source_text,
-                                                                                                                    hypotheses,
-                                                                                                                    lossfns,
-                                                                                                                    config,
-                                                                                                                    batch_size=64)
-
+                new_best_weighted_loss_ = torch.cat(new_best_weighted_loss_)
+                new_best_allsat_ = torch.cat(new_best_allsat_)
+                new_best_logging_loss_ = torch.cat(new_best_logging_loss_, dim=0)
+                
 
                 ## final_hypotheses, new_best_weighted_loss, new_best_allsat, new_best_logging_loss 모두 N 의 길이를 가짐 
                 ## 특히 edit 대상이 iteration마다 달라지면 best_... tensor와 new_best_... tensor간에 크기가 달라서 아래 코드 실행시 에러가 날 것이다.
@@ -639,6 +604,18 @@ if __name__ == "__main__":
         default=5,
         help="number of edit tokens per step",
     )
+    parser.add_argument(
+        "--max_tokens_per_span",
+        type=int,
+        default=3,
+        help="max number of tokens to replace each mask span (overrided if original span length was longer than this)",
+    )
+    parser.add_argument(
+        "--consider_prompt_for_cand_gen",
+        action="store_true",
+        help="whether to consider source_text when generating token-level candidates",
+    )
+    
     parser.add_argument("--k_per_location", type=int, default=15, help="k per location")
     parser.add_argument("--n_iter", type=int, default=3, help="number of iterations")
     parser.add_argument(
