@@ -55,7 +55,7 @@ def unravel_toxicity_data(df):
 # "wgarjlit",
 # "8qv0f6o3",]
 
-run_ids = ["q7tlrfcl",]
+run_ids = ["r7kykwge",]
 ## edited index를 뽑아오고
 ## get common indexs
 
@@ -82,7 +82,7 @@ for run_id in run_ids:
 # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
-output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl"]
+output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl"]
 
 
 for i, run_id in enumerate(run_ids):

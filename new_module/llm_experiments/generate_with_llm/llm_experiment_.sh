@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=t_bv0_clsf
-#SBATCH --time=0-48:00:00
+#SBATCH --time=0-12:00:00
 #SBATCH --mem=10GB
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
@@ -93,7 +93,7 @@ export LOGGING_LEVEL=INFO
 # --cache_dir '/data/hyeryung/hf_cache' \
 # --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
 --beam_size 3 \
@@ -103,7 +103,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --selection_criteria allsat_primary \
 --task toxicity \
 --num_samples 10 \
---source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl' \
+--source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl' \
 --source_style 'toxic' \
 --target_style 'nontoxic' \
 --target_label_ids 0 0 \
@@ -116,40 +116,11 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --early_stopping_patience 0 \
 --locate_method 'grad_norm' \
 --server_time_limit 12 \
---consider_prompt_for_cand_gen \
+--dont_skip_allsat \
 --device 'cuda' \
 --max_tokens_per_span 3 \
 --cache_dir '/data/hyeryung/hf_cache' \
 --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
-
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
-# --num_edit_token_per_step 5  \
-# --locate_unit word \
-# --beam_size 3 \
-# --loss_weights 0.1 1.0 \
-# --k_per_location 5 \
-# --n_iter 10 \
-# --selection_criteria allsat_primary \
-# --task toxicity \
-# --num_samples 10 \
-# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl' \
-# --source_style 'toxic' \
-# --target_style 'nontoxic' \
-# --target_label_ids 0 0 \
-# --min_epsilons 0.9 \
-# --wandb_project 'toxicity-decoding' \
-# --model_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
-# --tokenizer_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
-# --output_dir_prefix 'outputs/toxicity/llm' \
-# --slurm_job_id $SLURM_JOB_ID \
-# --early_stopping_patience 0 \
-# --locate_method 'grad_norm' \
-# --server_time_limit 48 \
-# --consider_prompt_for_cand_gen \
-# --device 'cuda' \
-# --max_tokens_per_span 3 \
-# --cache_dir '/data/hyeryung/hf_cache' \
-# --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
 # python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5  \
