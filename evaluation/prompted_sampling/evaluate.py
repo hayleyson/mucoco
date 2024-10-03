@@ -11,6 +11,11 @@ from functools import partial
 from multiprocessing.pool import Pool
 from pathlib import Path
 
+from openai import OpenAI
+import evaluate
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+
 import click
 import numpy as np
 import pandas as pd
@@ -382,7 +387,7 @@ def fluency_classify(generations_df, output_file=None):
         generations = [gen['text'] for gen in row['generations']]
         sentences_for_prompt= []
         for gen in generations:
-            sentences_for_prompt.append(f'{prompt}{gen}')
+            sentences_for_prompt.append(f'{prompt}{gen}' if gen.startswith(' ') else f'{prompt} {gen}')
             
         # print(sentences_for_prompt)
         
@@ -1506,6 +1511,200 @@ def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
 def HUSE(generations_df):
     pass
     ##need human evaluation for this
+
+
+
+def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
+    
+    if task in ['toxicity','sentiment']:
+        sources = pd.read_json(sources_file, lines=True)
+        sources.prompt=sources.prompt.apply(lambda x: x['text'])
+        
+        predictions = pd.read_json(outputs_file, lines=True)
+        predictions.prompt=predictions.prompt.apply(lambda x: x['text'])
+        if task=='toxicity':
+            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
+        elif task=='sentiment':
+            source_predictions=pd.concat([sources,predictions],axis=1)
+            source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
+            source_predictions.columns=['prompt','generations_source','generations_prediction']
+            
+        prompt_list=[]
+        source_list=[]
+        prediction_list=[]
+        for _, row in source_predictions.iterrows():
+            prompt_list.extend([row.prompt]*len(row.generations_source))
+            for i in range(len(row.generations_source)):
+                source_list.append(row.generations_source[i]['text'])
+                prediction_list.append(row.generations_prediction[i]['text'])
+        source_predictions_=pd.DataFrame({'prompt':prompt_list,'source':source_list,'prediction':prediction_list})
+        
+    elif task=='formality':
+        with open(sources_file,'r') as f:
+            sources = [line.rstrip('\n') for line in f.readlines()]
+            
+        predictions = pd.read_json(outputs_file, lines=True)
+        predictions = predictions.explode('generations')
+        predictions['generations']=predictions['generations'].apply(lambda x: x['text'])
+        
+        source_predictions_ = pd.DataFrame({'source': sources, 'prediction': predictions['generations'].tolist()}) 
+        
+    ## start evaluation
+    ## -- BLEU, SBLEU
+    # https://huggingface.co/spaces/evaluate-metric/sacrebleu
+    sacrebleu = evaluate.load("sacrebleu")
+    # decided not to save raw sbleu score since it took a while to compute
+    # sbleu_score_raw = [sacrebleu.compute(predictions=[predictions[i]], references=[sources[i]])['score'] for i in range(len(predictions))]
+    sbleu_score = sacrebleu.compute(
+        predictions=source_predictions_['prediction'].tolist(), references=source_predictions_['source'].tolist()
+    )["score"]
+
+    ## -- BERTScore, SBERTScore
+    # https://huggingface.co/spaces/evaluate-metric/bertscore
+    # The function returns a dictionary with the following keys - precision, recall, f1, hashcode - and corresponding values for each sentence
+    bertscore = evaluate.load("bertscore")
+    sbert_score_raw = np.array(
+        bertscore.compute(
+            predictions=source_predictions_['prediction'].tolist(),
+            references=source_predictions_['source'].tolist(),
+            lang="en",
+            rescale_with_baseline=True,
+        )["f1"]
+    )
+    # Take the mean of f1 scores for all the predictions
+    sbert_score = np.mean(sbert_score_raw)
+
+
+    sbertscore_outputs = pd.DataFrame(
+        {"sbert_score": sbert_score_raw}
+    )
+    sbertscore_outputs.to_csv(results_file + ".sbertscore", index=False)
+
+    # Calculate % of outputs with SBERT score >= 0.5
+    sbert_preserved_prop = (sbert_score_raw >= 0.5).mean()
+    
+    # Calculate count of outputs with SBERT score >= 0.5
+    sbert_preserved_count = (sbert_score_raw >= 0.5).sum()
+
+    return sbleu_score, sbert_score*100, sbert_preserved_prop, sbert_preserved_count
+
+
+def unravel(outputs_df):
+    outputs_df=outputs_df.explode('generations',ignore_index=True)
+    outputs_df['prompt']=outputs_df['prompt'].apply(lambda x: x['text'])
+    outputs_df['generations']=outputs_df['generations'].apply(lambda x: x['text'] if isinstance(x, dict) else x)
+    outputs_df = outputs_df.dropna().reset_index(drop=True)
+    return outputs_df
+
+def unravel_toxicity_data(df):
+    df['toxicity']=df['allresponses'].apply(lambda x: [x[0]['attributeScores']['TOXICITY']['summaryScore']['value'] for x in list(x.values())])
+    df=df.explode('toxicity',ignore_index=True)
+    return df
+
+def save_qualitative_results(task,
+                             source_file_path, 
+                             outputs_file_path, 
+                             ppl_results_path, 
+                             constraint_results_path, 
+                             contents_prsrv_results_path,
+                             qual_results_path):
+    
+    
+    # read files
+    if (task=='toxicity') or (task=='sentiment'):
+        source = pd.read_json(source_file_path, lines=True)
+    elif (task=='formality'):
+        with open(source_file_path, 'r') as f:
+            source = [_line.rstrip('\n') for _line in f.readlines()]
+    
+    outputs = pd.read_json(outputs_file_path, lines=True)
+    ppl = pd.read_csv(ppl_results_path, header=None)
+    if (task=='toxicity') or (task=='sentiment'):
+        constraint_sat = pd.read_json(constraint_results_path, lines=True)
+    elif (task=='formality'):
+        constraint_sat = pd.read_csv(constraint_results_path, header=None)
+    contents_prsrv=pd.read_csv(contents_prsrv_results_path)
+
+
+    # preprocess files
+    ## key (row index), prompt, gen 
+    if (task=='toxicity'): 
+        source = unravel(source)
+    elif (task=='sentiment'):
+        source = unravel(source)
+        source = source[['prompt','generations']].copy()
+    elif (task=='formality'):
+        source = pd.DataFrame({'prompt': ["" for _ in range(len(source))], 'generations': source})
+    outputs = unravel(outputs)
+
+    ## key (row index), value
+    ppl = ppl.iloc[:, 0].copy()
+
+    if task == 'toxicity':
+        constraint_sat = unravel_toxicity_data(constraint_sat)
+        constraint_sat = constraint_sat[['toxicity']].copy()
+        constraint_sat['toxicity'] = 1-constraint_sat['toxicity']
+    elif task == 'sentiment': 
+        constraint_sat.loc[constraint_sat['label']=='NEGATIVE', 'score'] = constraint_sat.loc[constraint_sat['label']=='NEGATIVE', 'score'].apply(lambda x: 1-x)
+        constraint_sat = constraint_sat['score'].copy()
+    elif task == 'formality':
+        constraint_sat = constraint_sat.iloc[:, 0].copy()
+                                
+    contents_prsrv = contents_prsrv['sbert_score'].copy()
+
+    final_df=pd.concat([source,outputs[['generations']],ppl,constraint_sat,contents_prsrv],axis=1,ignore_index=True)
+
+    final_df.columns=['prompt','original','edited','ppl','constraint_sat','sbert_score']
+    final_df.to_excel(qual_results_path,index=False)
+
+def sentiment_classify_gpt4o(generations_df, output_file_path):
+    api_key = os.environ['OPENAI_API_KEY']
+    client = OpenAI(api_key=api_key)
+    responses_by_prompt = []
+    responses_unravel = []
+    system_prompt = """\"Classify each of the following text samples as either Positive or Negative based on their sentiment. Do not include a Neutral class, and ensure each sample is distinctly categorized as either Positive or Negative. The number of examples is 20. Ensure you label every example provided.  Provide the output in JSON format as follows: {'results': ['Positive', 'Negative', ...]}.\"
+Text Samples:
+"""
+    # print(f"Number of prompts: {len(generations_df)}")
+    for i in range(len(generations_df)):
+        
+        prompt = generations_df['prompt'][i]['text']
+        generations = generations_df['generations'][i]
+        
+        full_text = [prompt + x['text'] for x in generations]
+        # print(f"Number of generations for {i}th prompt: {len(full_text)}")
+        formatted_full_text = ""
+        for text in full_text:
+            formatted_full_text += "'" + text + "'" + ',\n\n'
+
+        response = client.chat.completions.create(model='gpt-4o-2024-08-06', 
+                                                temperature = 0, n = 1, max_tokens=200, #logprobs=True, 
+                                                response_format={ 'type': "json_object" },
+                                                messages = [
+            {"role": "system", "content": system_prompt}, 
+            {"role": "user", "content": formatted_full_text}
+        ])
+        
+        
+        result = json.loads(response.choices[0].message.content)
+        result = result['results']
+        result = [1 if x == "Positive" else 0 for x in result]
+        # print(f"Number of predictions for {i}th prompt: {len(result)}")
+        assert len(full_text) == len(result)
+
+        responses_by_prompt.append(result)
+        responses_unravel.extend(result)
+        
+    # responses.append(response.choices[0].message.content)
+    
+    with open(output_file_path ,'w') as f:
+        
+        f.writelines([str(x) + '\n' for x in responses_unravel])
+        
+    responses_unravel = np.array(responses_unravel)
+    return np.mean(responses_unravel), np.std(responses_unravel)
+
+
 
 @click.command()
 @click.option('--generations_file', required=True, type=str, help='a jsonl file with generations and attribute scores')
