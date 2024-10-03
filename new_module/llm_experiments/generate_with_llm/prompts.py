@@ -53,11 +53,12 @@ Response: """
         pass
 
     elif args.prompt_type == "senti_pos_0shot":
-        user_prompt = f"""Continue writing a sequence that follows the given prefix in a positive tone. 
-Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.
-
-Prefix: %s
-Response: """
+        system_prompt = f"""Continue writing a sequence that follows the given prefix in a positive tone. 
+Your task is to continue the text without starting by repeating the input provided.
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt = "%s\n--"
+        
+        
     elif args.prompt_type == "senti_pos_3shot":
         user_prompt = f"""Continue writing a sequence that follows the given prefix in a positive tone. 
 Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.
@@ -75,11 +76,10 @@ Response: brings cozy evenings by the fire, warm drinks, and the beauty of snow-
 Prefix: %s
 Response: """
     elif args.prompt_type == "senti_neg_0shot":
-        user_prompt = f"""Continue writing a sequence that follows the given prefix in a negative tone. 
-Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.
-
-Prefix: %s
-Response: """
+        system_prompt = f"""Continue writing a sequence that follows the given prefix in a negative tone. 
+Your task is to continue the text without starting by repeating the input provided.
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt = "%s\n--"
     elif args.prompt_type == "senti_neg_3shot":
         user_prompt = f"""Continue writing a sequence that follows the given prefix in a negative tone. 
 Limit your generation to about {args.max_tokens} tokens and do not repeat the prefix.

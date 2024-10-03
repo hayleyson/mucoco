@@ -1,0 +1,7 @@
+ppl: 3.7136502503763382, total_ppl: 3.65975596861338
+dist-1: 0.2700136357039201, dist-2: 0.6014712186858588, dist-3: 0.7595775556961122
+repetition_rate: 0.0
+fluent_proba: 0.996666669845581
+--------------------------------------------------
+positive_proba: 1.0, positive_proba_p_std: 0.0, avg_positivity: 0.9987668029467265
+positive_proba_gpt4o: 1.0, positive_proba_std_gpt4o: 0.0

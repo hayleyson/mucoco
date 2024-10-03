@@ -6,15 +6,35 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
+# python /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/gpt_api_generate.py \
+# --model "gpt-3.5-turbo-0125" \
+# --openai_api_key $OPENAI_API_KEY \
+# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_0shot_positive_150.jsonl \
+# --input_file_path /data/hyeryung/mucoco/new_module/data/sentiment/outputs.txt.init.jsonl \
+# --prompt_type senti_pos_0shot \
+# --max_tokens 150 \
+# --num_test_prompts -1 \
+# --num_return_sequences 20
+
 python /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/gpt_api_generate.py \
 --model "gpt-3.5-turbo-0125" \
 --openai_api_key $OPENAI_API_KEY \
---file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl \
---input_file_path /data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
---prompt_type nontoxic_0shot \
+--file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_0shot_negative_150.jsonl \
+--input_file_path /data/hyeryung/mucoco/new_module/data/sentiment/outputs.txt.init.jsonl \
+--prompt_type senti_neg_0shot \
 --max_tokens 150 \
 --num_test_prompts -1 \
---num_return_sequences 10
+--num_return_sequences 20
+
+# python /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/gpt_api_generate.py \
+# --model "gpt-3.5-turbo-0125" \
+# --openai_api_key $OPENAI_API_KEY \
+# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl \
+# --input_file_path /data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
+# --prompt_type nontoxic_0shot \
+# --max_tokens 150 \
+# --num_test_prompts -1 \
+# --num_return_sequences 10
 
 # python /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/gpt_api_generate.py \
 # --model "gpt-3.5-turbo-0125" \
