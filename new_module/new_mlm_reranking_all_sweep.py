@@ -3,6 +3,7 @@
 
 from copy import deepcopy
 from itertools import chain
+import functools
 import math
 import argparse
 import json
@@ -62,6 +63,7 @@ def main(config):
             config=config,
         )
 
+    run_config = wandb.config
     run_id = run.path.split("/")[-1]
     display_name = f"{run_id}"
     
@@ -208,8 +210,13 @@ def main(config):
         num_edited = 0
         num_decoded_tokens = 0
 
-    # loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+    if config['sweep']:
+        config['loss_weights'] = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
+        
     loss_weights = config['loss_weights']
+    
+    print(f"***** loss_weights *****: {loss_weights}")
+    
     interrupted = False
     if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
         text_id_interval = 1
@@ -217,6 +224,7 @@ def main(config):
             config["task"] == "sentiment-lewis-compr"
         ):
         text_id_interval = config['num_samples']
+        
     for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
         if source_text == "":
@@ -484,7 +492,8 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                # "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -498,9 +507,6 @@ def main(config):
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
             )
-
-
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Locally Editing Text Generation")
@@ -677,8 +683,37 @@ if __name__ == "__main__":
         help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
         default=10000
     )
+    parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Whether the run is part of a sweep"
+    )
 
     args = parser.parse_args()
     config = vars(args)
 
-    main(config)
+
+
+    # Configure the sweep – specify the parameters to search through, the search strategy, the optimization metric et all.
+    sweep_config = {
+        'method': 'grid', #grid, random
+        'metric': {
+        'name': 'fluent_proba',
+        'goal': 'maximize'   
+        },
+        'parameters': {
+            'closs_weight': {
+                'values':[0.1, 0.3, 0.5, 0.7, 0.9]
+            },
+        }
+    }
+    
+    # sweep_id = wandb.sweep(sweep_config, entity="hayleyson", project=config['wandb_project'])
+    # sw_count = 10
+    # sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
+    # wandb.agent(sweep_id, function=main, count=sw_count//2)
+    main_for_sweep = functools.partial(main, config)
+    wandb.agent("hayleyson/sentiment-decoding/pdhcaecq", function=main_for_sweep)
+    
+
+    # main(config)

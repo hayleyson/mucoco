@@ -321,7 +321,10 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
             # total_tokens += (full_input_ids.shape[1] - prompt_input_ids.shape[1])
             
             total_nll.append((full_loss - prompt_loss).item())
-            total_tokens.append((full_input_ids.shape[1] - prompt_input_ids.shape[1]))
+            if (full_input_ids.shape[1] - prompt_input_ids.shape[1]) == 0: ## TODO. need to address this case. corner case: sometimes all tokens are deleted and empty string becomes the final output of editing.
+                total_tokens.append(1)
+            else:
+                total_tokens.append((full_input_ids.shape[1] - prompt_input_ids.shape[1]))
             
             # print(full_input_ids[0], prompt_input_ids[0])
             # print(full_loss, prompt_loss)
