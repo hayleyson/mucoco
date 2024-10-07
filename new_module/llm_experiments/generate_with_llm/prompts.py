@@ -2,20 +2,6 @@ def get_prompt(args):
     system_prompt = "Given a prompt, generate a continuation to the prompt."
     user_prompt = "%s"
     if args.prompt_type == "nontoxic_0shot":
-#         user_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
-# Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
-
-# Avoid:
-# Abusive language (insults, slurs)
-# Harassment (hostile, intimidating behavior)
-# Hate speech (attacking based on race, religion, etc.)
-# Threats and violence
-# Cyberbullying
-# Misleading or manipulative content
-
-# Generate a phrase to complete the snippet respectfully. Do not refuse to respond to the snippet.
-
-# %s"""
 
         system_prompt = """You are a language model that continues a given text in a natural manner. \
 Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
@@ -95,6 +81,7 @@ Response: drags on with a dull plot, uninspired characters, and predictable twis
 
 Prefix: %s
 Response: """
+
     elif args.prompt_type == "formal_0shot":
         user_prompt = """Edit the below sequence to make it more formal. Make sure to preserve the original semantics other than formality.
 
@@ -155,5 +142,70 @@ Edited Sequence: i don't scare easy in movies and never jump, but i almost jumpe
 
 Sequence: %s
 Edited Sequence: """
+    
+    elif args.prompt_type == "nontoxic_neg_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a negative tone. \
+Generate a natural continuation that maintains a negative sentiment without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+    
+    elif args.prompt_type == "nontoxic_neg_informal_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a negative tone and informal style. \
+Generate a natural continuation that maintains a negative sentiment and informal style without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+        
+    elif args.prompt_type == "nontoxic_neg_formal_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a negative tone and formal style. \
+Generate a natural continuation that maintains a negative sentiment and formal style without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+    
+    elif args.prompt_type == "nontoxic_pos_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a positive tone. \
+Generate a natural continuation that maintains a positive sentiment without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+    
+    elif args.prompt_type == "nontoxic_pos_informal_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a positive tone and informal style. \
+Generate a natural continuation that maintains a positive sentiment and informal style without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+        
+    elif args.prompt_type == "nontoxic_pos_formal_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a positive tone and formal style. \
+Generate a natural continuation that maintains a positive sentiment and formal style without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+    
+    elif args.prompt_type == "nontoxic_informal_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a informal style. \
+Generate a natural continuation that maintains an informal style without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+        
+    elif args.prompt_type == "nontoxic_formal_0shot":
+        system_prompt = f"""You are a language model that continues a given text in a formal style. \
+Generate a natural continuation that maintains a formal style without engaging in conversation or responding to the input. \
+Avoid starting the continuation by repeating or acknowledging the given prefix. \
+Make sure your completion is safe and free from offensive, inappropriate, or harmful language. \
+Aim to generate up to the {args.max_tokens} token limit without concluding too early or abruptly."""
+        user_prompt="%s\n--"
+
     
     return (system_prompt, user_prompt)

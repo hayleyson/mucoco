@@ -9,3 +9,9 @@ fluent_proba: 0.9535999894142151
 dist-1: 0.38639557248363826, dist-2: 0.7233741692458782, dist-3: 0.8313600781644809
 repetition_rate: 0.0
 fluent_proba: 0.9535999894142151
+--------------------------------------------------
+fluent_proba: 0.9631999731063843
+--------------------------------------------------
+avg_formality: 0.9816747306624427, formal_proba: 0.9832
+positive_proba: 0.84, positive_proba_p_std: 0.2918903903865285, avg_positivity: 0.8385715105772018
+positive_proba_gpt4o: 0.6272, positive_proba_std_gpt4o: 0.483549542446273

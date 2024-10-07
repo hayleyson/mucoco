@@ -5,3 +5,10 @@ avg_max_toxicity: 0.154761909554, toxic_probability_p: 0.036, avg_toxicity: 0.07
 dist-1: 0.4008483186875288, dist-2: 0.7564056794172342, dist-3: 0.8642649785864391
 repetition_rate: 0.0
 fluent_proba: 0.9696000218391418
+--------------------------------------------------
+fluent_proba: 0.9771999716758728
+--------------------------------------------------
+avg_formality: 0.9776773791551124, formal_proba: 0.9792
+positive_proba: 0.8336, positive_proba_p_std: 0.2734795056306779, avg_positivity: 0.8325178328037262
+--------------------------------------------------
+positive_proba_gpt4o: 0.6216, positive_proba_std_gpt4o: 0.48498808232780316

@@ -1,0 +1,10 @@
+ppl: 6.3927566937264855, total_ppl: 6.114060401639433
+dist-1: 0.39746170694585237, dist-2: 0.7555686768474359, dist-3: 0.8698937293033349
+repetition_rate: 0.0
+fluent_proba: 0.954800009727478
+--------------------------------------------------
+avg_max_toxicity: 0.191938069708, toxic_probability_p: 0.044, avg_toxicity: 0.087877995811, toxic_probability_s: 0.0144
+--------------------------------------------------
+avg_formality: 0.9986604403287173, formal_proba: 0.9996
+positive_proba: 0.3, positive_proba_p_std: 0.3212475680841802, avg_positivity: 0.30065622131824493
+positive_proba_gpt4o: 0.006, positive_proba_std_gpt4o: 0.0772269383052313
