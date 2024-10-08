@@ -18,15 +18,31 @@ class MSE_MarginRankingLoss(nn.Module):
         loss_sum = self.weights[0] * mse_val + self.weights[1] * mrl_val
         return loss_sum
         
-        
 
-class ScaledRankingLoss(nn.Module):
+class KendallsTauLoss(nn.Module):
+    
+    def __init__(self):
+        super(KendallsTauLoss, self).__init__()
+    
+    def forward(self, predictions, true_labels):
+        
+        # Assumes predictions and true_labels are 1D tensors of equal length
+        n = predictions.size(0)
+        numerator = 0.0
+        for i in range(n):
+            for j in range(i + 1, n):
+                numerator += torch.sign(predictions[i] - predictions[j]) * torch.sign(true_labels[i] - true_labels[j])
+        loss = 1.0 - (2 * numerator / (n * (n - 1)))  # Normalizing Kendall's Tau to be in [0, 1]
+        return loss
+
+
+class PairwiseLogisticLoss(nn.Module):
     """
     Implementation of loss from "Learning to Summarize from Human Feedback" paper.
     """
     
     def __init__(self):
-        super(ScaledRankingLoss, self).__init__()
+        super(PairwiseLogisticLoss, self).__init__()
 
     def forward(self, fy_i, fy_1_i):
         return - torch.mean(torch.log(torch.sigmoid(fy_i - fy_1_i)))

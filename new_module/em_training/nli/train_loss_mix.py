@@ -21,7 +21,7 @@ import seaborn as sns
 from new_module.em_training.nli.models import EncoderModel
 from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader, NLI_TrainBatchSampler_Binary, NLI_TrainBatchSampler_Continuous
 from new_module.em_training.nli.train_modules import *
-from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, ScaledRankingLoss, MSE_MarginRankingLoss
+from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, PairwiseLogisticLoss, MSE_MarginRankingLoss
 
 def main():
     
@@ -59,39 +59,40 @@ def main():
     
     train_dev_data = load_nli_data(output_file_path=config['energynet']['dataset_path'])
     
-    if config['energynet']['add_train_data']:
-        train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
-        # train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
-
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
     dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
     
-    print(f"# train samples with binary labels only: {len(train_add_data)}, # train samples with finegrained labels: {len(train_data)}, # dev samples: {len(dev_data)}")
-   
-    ## IMPT. 'finegrained_labels' == degree of contradiction (real number between 0 and 1) == portion of annotators who labeled the sample as "contradiction"
-    train_add_dataset = NLI_Dataset(train_add_data, label_column=config['energynet']['label_column'])
     train_dataset = NLI_Dataset(train_data, label_column=config['energynet']['label_column'])
     dev_dataset = NLI_Dataset(dev_data, label_column=config['energynet']['label_column'])
     
-    binary_batchsampler = NLI_TrainBatchSampler_Binary(train_add_data, config['energynet']['batch_size'], oversample_minority = True)
-    continuous_batchsampler = NLI_TrainBatchSampler_Continuous(train_data, config['energynet']['batch_size'], oversample_minority = True)
-    
-    if config['energynet']['binary_loader'] == 'balanced':
-        train_add_dataloader = NLI_DataLoader(config = config,
-                                        tokenizer = model.tokenizer).get_dataloader(train_add_dataset, batch_size=None, batch_sampler=binary_batchsampler)
-    else:
-        train_add_dataloader = NLI_DataLoader(config = config,
-                                     tokenizer = model.tokenizer).get_dataloader(train_add_dataset, batch_size=config['energynet']['batch_size'], batch_sampler=None, shuffle=True)
-    
+    continuous_batchsampler = NLI_TrainBatchSampler_Continuous(train_data, config['energynet']['batch_size']['continuous'], oversample_minority = True)
     train_dataloader = NLI_DataLoader(config = config,
                                      tokenizer = model.tokenizer).get_dataloader(train_dataset, batch_size=None, batch_sampler=continuous_batchsampler)
     dev_dataloader = NLI_DataLoader(config = config,
-                                     tokenizer = model.tokenizer).get_dataloader(dev_dataset, batch_size=config['energynet']['batch_size'], batch_sampler=None, shuffle=False)
-   
-    num_train_iters = max(len(train_add_dataloader), len(train_dataloader))
-    train_add_iterator = iter(train_add_dataloader)
+                                     tokenizer = model.tokenizer).get_dataloader(dev_dataset, batch_size=config['energynet']['batch_size']['continuous'], batch_sampler=None, shuffle=False)
+    
+    num_train_iters = len(train_dataloader)
     train_iterator = iter(train_dataloader)
+    
+    if config['energynet']['add_train_data']:
+        train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
+        print(f"# train samples with binary labels only: {len(train_add_data)}, # train samples with finegrained labels: {len(train_data)}, # dev samples: {len(dev_data)}")
+    
+        train_add_dataset = NLI_Dataset(train_add_data, label_column=config['energynet']['label_column'])
+        binary_batchsampler = NLI_TrainBatchSampler_Binary(train_add_data, config['energynet']['batch_size']['binary'], oversample_minority = True)
+        if config['energynet']['binary_loader'] == 'balanced':
+            train_add_dataloader = NLI_DataLoader(config = config,
+                                            tokenizer = model.tokenizer).get_dataloader(train_add_dataset, batch_size=None, batch_sampler=binary_batchsampler)
+        else:
+            train_add_dataloader = NLI_DataLoader(config = config,
+                                        tokenizer = model.tokenizer).get_dataloader(train_add_dataset, batch_size=config['energynet']['batch_size']['binary'], batch_sampler=None, shuffle=True)
+        num_train_iters = max(len(train_add_dataloader), num_train_iters)
+        train_add_iterator = iter(train_add_dataloader)
+        
+        mixing_weights = [float(x) for x in config['energynet']['mixing_weights'].split(', ')]
+        print(mixing_weights)
+    
     
     # Define the optimizer
     try:
@@ -108,13 +109,9 @@ def main():
     except:
         optimizer = AdamW(model.parameters(),lr=max_lr, weight_decay=weight_decay)
 
-    num_training_steps = num_train_iters*num_epochs
+    num_training_steps = num_train_iters * num_epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_training_steps*0.1, num_training_steps=num_training_steps)
     # scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_dataloader)*num_epochs,
-                                                                #    num_cycles=num_epochs)
-    
-    mixing_weights = [float(x) for x in config['energynet']['mixing_weights'].split(', ')]
-    print(mixing_weights)
     
     if (config['energynet']['loss'] == 'cross_entropy') or (config['energynet']['loss'] == 'binary_cross_entropy'):
         criterion = nn.CrossEntropyLoss()
@@ -122,8 +119,8 @@ def main():
         criterion = nn.MSELoss()
     elif config['energynet']['loss'] == 'margin_ranking':
         criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
-    elif (config['energynet']['loss'] == 'scaled_ranking') or (config['energynet']['loss'] == 'negative_log_odds'):
-        criterion = ScaledRankingLoss()
+    elif config['energynet']['loss'] in ['pairwise_logistic', 'scaled_ranking', 'negative_log_odds']:
+        criterion = PairwiseLogisticLoss()
     elif config['energynet']['loss'] == 'mse+margin_ranking':
         criterion = MSE_MarginRankingLoss(weights = [1.,1.], 
                                           margin=config['energynet']['margin'])
@@ -143,28 +140,42 @@ def main():
     eval_goals = ['maximize', 'maximize','maximize', 'minimize', 'minimize']
     best_val_metrics = [float('inf') if eval_goal == 'minimize' else -1000. for eval_goal in eval_goals]
     
+    # Early stopping parameters
+    patience = config['energynet']['early_stopping']['patience'] # Number of eval_every to wait before stopping
+    min_delta = config['energynet']['early_stopping']['min_delta'] # Minimum change in loss to qualify as an improvement
+    patience_counter = 0
+    best_loss = None
+    
     # log_file = open(f"{config['energynet']['ckpt_save_path']}/log.txt", 'w')
     for epoch in tqdm(range(num_epochs)):
         
         for i in range(num_train_iters):
-        
-            try:
-                binary_batch = next(train_add_iterator)
-            except:
-                train_add_iterator = iter(train_add_dataloader)
-                binary_batch = next(train_add_iterator)
+            
+            if config['energynet']['add_train_data']:
+                try:
+                    binary_batch = next(train_add_iterator)
+                except:
+                    train_add_iterator = iter(train_add_dataloader)
+                    binary_batch = next(train_add_iterator)
             try:
                 continuous_batch = next(train_iterator)
             except:
                 train_iterator = iter(train_dataloader)
                 continuous_batch = next(train_iterator)
                 
-            train_metrics = train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimizer, scheduler, criterion, ranking_criterion, mixing_weights, epoch, overall_step, config)
+            if config['energynet']['add_train_data']:
+                train_metrics = train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimizer, scheduler, criterion, ranking_criterion, mixing_weights, epoch, overall_step, config)
+            else:
+                train_metrics = train_model_one_step(continuous_batch, model, optimizer, scheduler, criterion, epoch, overall_step, config)
             overall_step += 1
             
             if overall_step % config['energynet']['eval_every'] == 0:
                 
-                dev_metrics = validate_model_loss_mix(dev_dataloader, model, criterion, ranking_criterion, mixing_weights, config, epoch, overall_step)
+                if config['energynet']['add_train_data']:
+                    dev_metrics = validate_model_loss_mix(dev_dataloader, model, criterion, ranking_criterion, mixing_weights, config, epoch, overall_step)
+                else:
+                    dev_metrics = validate_model(dev_dataloader, model, criterion, config, epoch, overall_step)
+                
                 all_metrics = {**dev_metrics, **train_metrics}
                 wandb.log(all_metrics)
                 try: 
@@ -194,7 +205,20 @@ def main():
                         
                         shutil.copy2(os.path.dirname(config['model_path']) + '/current_model_ROC.png',
                                      model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_ROC.png")
-                        
+                                        
+                # Check for improvement
+                if best_loss is None:
+                    best_loss = dev_metrics["eval_loss"]
+                elif dev_metrics["eval_loss"] >= best_loss - min_delta:
+                    if dev_metrics['eval_loss'] < best_loss:
+                        best_loss = dev_metrics['eval_loss']
+                    patience_counter += 1
+                    if (patience_counter >= patience) and (config["energynet"]["early_stopping"]["use"]):
+                        print(f"Early stopping at epoch {epoch}")
+                        break
+                else:
+                    best_loss = dev_metrics["eval_loss"]
+                    patience_counter = 0
             else:
                 wandb.log(train_metrics)
     

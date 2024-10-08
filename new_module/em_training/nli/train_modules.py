@@ -208,32 +208,40 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         for dev_batch in dev_dataloader:
             
             dev_predictions, _ = model(input_ids = dev_batch['input_ids'],
-                                               attention_mask = dev_batch['attention_mask'])
+                                        attention_mask = dev_batch['attention_mask'])
             
-            if config['energynet']['loss'] == 'mse':
+            if config['energynet']['loss'] in ['mse', 'mse+margin_ranking']:
                 dev_predictions = torch.sigmoid(dev_predictions)
                 dev_loss += criterion(dev_predictions, dev_batch['labels'])
-                dev_e.extend(-torch.log(dev_predictions).cpu().squeeze(-1).tolist())
-            elif 'ranking' in config['energynet']['loss']:
+                dev_e.extend((-torch.log(dev_predictions)).cpu().squeeze(-1).tolist())
+            elif config['energynet']['loss'] in ['margin_ranking', 'pairwise_logistic', 'negative_log_odds']:
                 higher_batch, lower_batch = create_pairs_for_ranking(dev_predictions, dev_batch['labels'])
                 if higher_batch.sum().item() == 0:
                     num_skipped_batch += 1
                     continue
                 dev_loss += criterion(higher_batch, lower_batch)
-                dev_e.extend(-dev_predictions.cpu().squeeze(-1).tolist())
+                dev_e.extend((-dev_predictions).cpu().squeeze(-1).tolist())
             elif config['energynet']['loss'] in ['cross_entropy', 'binary_cross_entropy']:
                 dev_loss += criterion(dev_predictions, dev_batch['labels'])
-                dev_e.extend(-torch.log_softmax(dev_predictions, dim=-1).cpu()[:, config['energynet']['energy_col']].tolist()) 
+                if (config.get('legacy', False)) and (config['energynet']['output_form'] == '2dim_vec'):
+                    # legacy models with 2dim_vec output used to be trained as index 1 representing contradiction proba. dev_e should be consistency proba.
+                    dev_e.extend((-torch.log_softmax(dev_predictions, dim=-1)).cpu()[:, 1 - config['energynet']['energy_col']].tolist()) 
+                elif config['energynet']['output_form'] == '3dim_vec':
+                    # defining energy_col for 3dim_vec is a bit tricky. since entail and neutral are both consistent, energy_col should point to contradict class(2), so that we can use 1-p(contradict)
+                    # legacy models with 2dim_vec output used to be trained as index 1 representing contradiction proba. dev_e should be consistency proba.
+                    dev_e.extend((-torch.log(1-torch.softmax(dev_predictions, dim=-1)[:, config['energynet']['energy_col']])).cpu().tolist()) 
+                else:
+                    dev_e.extend((-torch.log_softmax(dev_predictions, dim=-1)).cpu()[:, config['energynet']['energy_col']].tolist()) 
             else:
                 raise NotImplementedError(f"Invalid loss name {config['energynet']['loss']} provided.")
                 
-            if (config['energynet']['output_dim'] == 'real_num') and ('ranking' in config['energynet']['loss']):
+            if config['energynet']['loss'] in ['margin_ranking', 'pairwise_logistic', 'negative_log_odds']:
                 dev_labels.extend(dev_batch['labels'].cpu().squeeze(-1).tolist())
                 dev_fine_labels_for_metrics.extend((-dev_batch['finegrained_labels']).tolist())
-            elif (config['energynet']['output_dim'] == 'real_num') and (config['energynet']['loss'] == 'mse'):
+            elif config['energynet']['loss'] in ['mse', 'mse+margin_ranking']:
                 dev_labels.extend(dev_batch['labels'].cpu().squeeze(-1).tolist())
                 dev_fine_labels_for_metrics.extend((-torch.log(dev_batch['finegrained_labels']).tolist()))
-            elif (config['energynet']['output_dim'] == '2dim_vec') and (config['energynet']['label_column'] == 'finegrained_labels'):
+            elif (config['energynet']['output_form'] == '2dim_vec') and (config['energynet']['label_column'] == 'finegrained_labels'):
                 dev_labels.extend(dev_batch['labels'].cpu()[:,config['energynet']['energy_col']].tolist())
                 dev_fine_labels_for_metrics.extend((-torch.log(dev_batch['finegrained_labels'])).tolist())
             elif (config['energynet']['label_column'] == 'binary_labels') or (config['energynet']['label_column'] == 'original_labels'):
@@ -259,15 +267,20 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         else:
             raise NotImplementedError
         
+        dev_fine_labels_for_metrics = torch.Tensor(dev_fine_labels)        
+        if config['energynet']['loss'] in ['cross_entropy', 'binary_cross_entropy', 'mse', 'mse+margin_ranking']:
+            dev_fine_labels_for_metrics[dev_fine_labels_for_metrics == 0] = 1e-10
+            dev_fine_labels_for_metrics = (-torch.log(dev_fine_labels_for_metrics)).tolist()
+        
         mse = mean_squared_error(dev_fine_labels_for_metrics, dev_e)
         corr_val = pearsonr(dev_fine_labels_for_metrics, dev_e).statistic
-        
-        # calculate corr only using examples with labels between 0 and 1 exclusive
-        dev_e_subset = [e for e, l in zip(dev_e, dev_fine_labels) if (l < 1) and (0 > l)]
-        dev_fine_labels_subset = [e for e, l in zip(dev_fine_labels_for_metrics, dev_fine_labels) if (l < 1) and (0 > l)]
-        corr_subset_val = pearsonr(dev_fine_labels_subset, dev_e_subset).statistic
-        
         ndcg_val = ndcg_score([dev_fine_labels_for_metrics], [dev_e])
+        
+        # calculate metrics only using examples with labels between 0 and 1 exclusive
+        dev_e_subset = [e for e, l in zip(dev_e, dev_fine_labels) if (l < 1) and (0 < l)]
+        dev_fine_labels_subset = [e for e, l in zip(dev_fine_labels_for_metrics, dev_fine_labels) if (l < 1) and (0 < l)]
+        
+        corr_subset_val = pearsonr(dev_fine_labels_subset, dev_e_subset).statistic
         ndcg_subset_val = ndcg_score([dev_fine_labels_subset], [dev_e_subset])
         
         # calculate precision, recall, f1 at threshold 0.5
@@ -277,11 +290,11 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         # precision, recall, f1, support = precision_recall_fscore_support(dev_labels, dev_pred, average='binary')        
         
         # precision, recall, f1 at threshold at which f1 is the maximum
-        thresholds = determine_best_split_by_f1(e_class_1, e_class_0)
-        threshold, precision, recall, f1 = thresholds['best_f1_threshold'], thresholds['best_f1_precision'], thresholds['best_f1_recall'], thresholds['best_f1_f1'] 
+        # thresholds = determine_best_split_by_f1(e_class_1, e_class_0)
+        # threshold, precision, recall, f1 = thresholds['best_f1_threshold'], thresholds['best_f1_precision'], thresholds['best_f1_recall'], thresholds['best_f1_f1'] 
         
         # boxplot of energy against bins of finegrained labels
-        if 'ranking' in config['energynet']['loss']:
+        if config['energynet']['loss'] in ['margin_ranking', 'pairwise_logistic', 'negative_log_odds']:
             plot_observed_predicted_boxplot(dev_e, dev_fine_labels_for_metrics, os.path.dirname(config['model_path']) + '/current_model_boxplot.png')
         else:
             plot_observed_predicted_boxplot_v2(dev_e, dev_fine_labels_for_metrics, os.path.dirname(config['model_path']) + '/current_model_boxplot.png')
@@ -301,10 +314,10 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         'eval_ndcg': ndcg_val,
         'eval_ndcg_subset': ndcg_subset_val,
         'eval_auroc': auroc,
-        'eval_threshold': threshold,
-        'eval_precision': precision,
-        'eval_recall': recall,
-        'eval_f1': f1,
+        # 'eval_threshold': threshold,
+        # 'eval_precision': precision,
+        # 'eval_recall': recall,
+        # 'eval_f1': f1,
         'eval_loss': dev_loss.item()}
 
     return dev_metrics
@@ -351,7 +364,7 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
     optimizer.zero_grad()
     return train_metrics
 
-def train_model_one_step(batch, model, optimizer, scheduler, criterion, ranking_criterion, epoch, overall_step, config):
+def train_model_one_step(batch, model, optimizer, scheduler, criterion, epoch, overall_step, config):
     
     model.train()
     predictions, hidden_states = model(input_ids = batch['input_ids'],

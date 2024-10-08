@@ -21,7 +21,7 @@ import seaborn as sns
 from new_module.em_training.nli.models import EncoderModel
 from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader
 from new_module.em_training.nli.train_modules import *
-from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, ScaledRankingLoss, MSE_MarginRankingLoss
+from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, PairwiseLogisticLoss, MSE_MarginRankingLoss
 
 def main():
     
@@ -73,11 +73,19 @@ def main():
     train_dataset = NLI_Dataset(train_data, label_column=config['energynet']['label_column'])
     dev_dataset = NLI_Dataset(dev_data, label_column=config['energynet']['label_column'])
     
-    train_dataloader = NLI_DataLoader(dataset=train_dataset, 
+    if config['energynet']['binary_loader'] == 'balanced':
+        train_dataloader = NLI_DataLoader(dataset=train_dataset, 
                                       config = config, 
                                       mode='train', 
                                       tokenizer=model.tokenizer,
                                       allow_oversample=True).get_dataloader()
+    else:
+        train_dataloader = NLI_DataLoader(dataset=train_dataset, 
+                                      config = config, 
+                                      mode='train', 
+                                      tokenizer=model.tokenizer,
+                                      allow_oversample=True).get_dataloader()
+    
     dev_dataloader = NLI_DataLoader(dataset=dev_dataset, 
                                       config = config, 
                                       mode='dev', 
@@ -112,7 +120,7 @@ def main():
     elif config['energynet']['loss'] == 'margin_ranking':
         criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
     elif config['energynet']['loss'] == 'negative_log_odds':
-        criterion = ScaledRankingLoss()
+        criterion = PairwiseLogisticLoss()
     elif config['energynet']['loss'] == 'mse+margin_ranking':
         criterion = MSE_MarginRankingLoss(weights = [1.,1.], 
                                           margin=config['energynet']['margin'])
@@ -134,6 +142,12 @@ def main():
         eval_metrics.append('add_ranking_loss')
         eval_goals.append('minimize')
     best_val_metrics = [float('inf') if eval_goal == 'minimize' else -1000. for eval_goal in eval_goals]
+    
+    # Early stopping parameters
+    patience = config['energynet']['early_stopping']['patience'] # Number of eval_every iterations to wait before stopping
+    min_delta = config['energynet']['early_stopping']['min_delta'] # Minimum change in loss to qualify as an improvement
+    patience_counter = 0
+    best_loss = None
     
     # log_file = open(f"{config['energynet']['ckpt_save_path']}/log.txt", 'w')
     for epoch in tqdm(range(num_epochs)):
@@ -174,7 +188,20 @@ def main():
                         
                         shutil.copy2(os.path.dirname(config['model_path']) + '/current_model_ROC.png',
                                      model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_ROC.png")
-                        
+                    
+                # Check for improvement
+                if best_loss is None:
+                    best_loss = dev_metrics["eval_loss"]
+                elif dev_metrics["eval_loss"] >= best_loss - min_delta:
+                    if dev_metrics['eval_loss'] < best_loss:
+                        best_loss = dev_metrics['eval_loss']
+                    patience_counter += 1
+                    if (patience_counter >= patience) and (config["energynet"]["early_stopping"]):
+                        print(f"Early stopping at epoch {epoch}")
+                        break
+                else:
+                    best_loss = dev_metrics["eval_loss"]
+                    patience_counter = 0    
             else:
                 wandb.log(train_metrics)
     

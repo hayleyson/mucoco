@@ -303,7 +303,7 @@ class NLI_DataLoader:
         elif (self.config['energynet']['output_form'] == '2dim_vec') and (self.config['energynet']['label_column'] == 'finegrained_labels'):
             labels = torch.Tensor(labels).reshape(-1, 1)
             labels = torch.tile(labels, (1,2))
-            labels[:, 0] = 1 - labels[:, 0] 
+            labels[:, 0] = 1 - labels[:, 1] 
         elif (self.config['energynet']['label_column'] == 'binary_labels') or (self.config['energynet']['label_column'] == 'original_labels'):
             labels = torch.LongTensor(labels)
         
