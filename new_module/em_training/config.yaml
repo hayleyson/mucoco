@@ -3,18 +3,27 @@ energynet:
   output_form: 2dim_vec
   energy_col: 1
   label_column: binary_labels
-  batch_size: 16
+  batch_size: 
+    binary: 16
+    continuous: 16
   num_epochs: 3
   optimizer: adamw
   max_lr: 1e-5
   weight_decay: 0.03
   loss: binary_cross_entropy
-  add_ranking_loss: true
-  add_ranking_loss_setting: 3
+  margin: n/a
+  additional_loss:
+    use: true
+    loss: margin_ranking
+    margin: 1
+    setting: 2
+    mixing_weights: 0.5, 0.5
   add_train_data: true
-  margin: 1
   eval_every: 100
-  mixing_weights: 0.9, 0.1
+  early_stopping: 
+    use: false
+    min_delta: 0.0
+    patience: 5
   binary_loader: balanced
   ckpt_save_path: models/nli
   dataset_path: data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl

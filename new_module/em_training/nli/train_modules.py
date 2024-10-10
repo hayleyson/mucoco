@@ -118,12 +118,19 @@ def validate_model_loss_mix(dev_dataloader, model, binary_criterion, continuous_
             binary_loss = binary_criterion(dev_predictions, dev_batch['labels'])
             dev_binary_loss += binary_loss
             
-            higher_batch, lower_batch = create_pairs_for_ranking(-dev_e_, dev_batch['finegrained_labels'])
-            if higher_batch.sum() == 0.0:
-                num_skipped_batch += 1
-                continue
+            if config['energynet']['additional_loss']['loss'] in ["margin_ranking", "pairwise_logistic"]:
+                higher_batch, lower_batch = create_pairs_for_ranking(-dev_e_, dev_batch['finegrained_labels'])
                 
-            continuous_loss = continuous_criterion(higher_batch, lower_batch)
+                if higher_batch.sum() == 0.0:
+                    num_skipped_batch += 1
+                    continue
+                continuous_loss = continuous_criterion(higher_batch, lower_batch)
+                
+            elif config['energynet']['additional_loss']['loss'] == "cross_entropy":
+                labels = dev_batch['finegrained_labels'].reshape(-1, 1)
+                labels = torch.tile(labels, (1,2))
+                labels[:, 0] = 1 - labels[:, 1]
+                continuous_loss = continuous_criterion(dev_predictions, labels)
             
             dev_loss += (mixing_weights[0] * binary_loss + mixing_weights[1] * continuous_loss)
             dev_continuous_loss += continuous_loss
@@ -202,7 +209,6 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         dev_e = []
         dev_labels = []
         dev_fine_labels = []
-        dev_fine_labels_for_metrics = []
         num_skipped_batch = 0
         
         for dev_batch in dev_dataloader:
@@ -237,16 +243,12 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
                 
             if config['energynet']['loss'] in ['margin_ranking', 'pairwise_logistic', 'negative_log_odds']:
                 dev_labels.extend(dev_batch['labels'].cpu().squeeze(-1).tolist())
-                dev_fine_labels_for_metrics.extend((-dev_batch['finegrained_labels']).tolist())
             elif config['energynet']['loss'] in ['mse', 'mse+margin_ranking']:
                 dev_labels.extend(dev_batch['labels'].cpu().squeeze(-1).tolist())
-                dev_fine_labels_for_metrics.extend((-torch.log(dev_batch['finegrained_labels']).tolist()))
             elif (config['energynet']['output_form'] == '2dim_vec') and (config['energynet']['label_column'] == 'finegrained_labels'):
                 dev_labels.extend(dev_batch['labels'].cpu()[:,config['energynet']['energy_col']].tolist())
-                dev_fine_labels_for_metrics.extend((-torch.log(dev_batch['finegrained_labels'])).tolist())
             elif (config['energynet']['label_column'] == 'binary_labels') or (config['energynet']['label_column'] == 'original_labels'):
                 dev_labels.extend(dev_batch['labels'].cpu().tolist())
-                dev_fine_labels_for_metrics.extend((-torch.log(dev_batch['finegrained_labels'])).tolist())
             else:
                 raise NotImplementedError("Invalid loss name provided.")
             
@@ -271,17 +273,29 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         if config['energynet']['loss'] in ['cross_entropy', 'binary_cross_entropy', 'mse', 'mse+margin_ranking']:
             dev_fine_labels_for_metrics[dev_fine_labels_for_metrics == 0] = 1e-10
             dev_fine_labels_for_metrics = (-torch.log(dev_fine_labels_for_metrics)).tolist()
-        
+        elif config['energynet']['loss'] in ['margin_ranking', 'pairwise_logistic', 'negative_log_odds', 'scaled_ranking']:
+            dev_fine_labels_for_metrics = (-dev_fine_labels_for_metrics).tolist()
+        else:
+            raise NotImplementedError
+            
         mse = mean_squared_error(dev_fine_labels_for_metrics, dev_e)
         corr_val = pearsonr(dev_fine_labels_for_metrics, dev_e).statistic
-        ndcg_val = ndcg_score([dev_fine_labels_for_metrics], [dev_e])
+        if config['energynet']['loss'] in ['margin_ranking', 'pairwise_logistic', 'negative_log_odds', 'scaled_ranking']:
+            # ndcg_score function cannot take negative y_true
+            ndcg_val = ndcg_score([[-1*x for x in dev_fine_labels_for_metrics]], [[-1*x for x in dev_e]])
+        else:
+            ndcg_val = ndcg_score([dev_fine_labels_for_metrics], [dev_e])
         
         # calculate metrics only using examples with labels between 0 and 1 exclusive
         dev_e_subset = [e for e, l in zip(dev_e, dev_fine_labels) if (l < 1) and (0 < l)]
         dev_fine_labels_subset = [e for e, l in zip(dev_fine_labels_for_metrics, dev_fine_labels) if (l < 1) and (0 < l)]
         
         corr_subset_val = pearsonr(dev_fine_labels_subset, dev_e_subset).statistic
-        ndcg_subset_val = ndcg_score([dev_fine_labels_subset], [dev_e_subset])
+        if config['energynet']['loss'] in ['margin_ranking', 'pairwise_logistic', 'negative_log_odds', 'scaled_ranking']:
+            # ndcg_score function cannot take negative y_true
+            ndcg_subset_val = ndcg_score([[-1*x for x in dev_fine_labels_subset]], [[-1*x for x in dev_e_subset]])
+        else:
+            ndcg_subset_val = ndcg_score([dev_fine_labels_subset], [dev_e_subset])
         
         # calculate precision, recall, f1 at threshold 0.5
         # we assume pos_label = 0 
@@ -329,24 +343,56 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
     binary_predictions, _ = model(input_ids = binary_batch['input_ids'],
                                     attention_mask = binary_batch['attention_mask'])
     continuous_predictions, _ = model(input_ids = continuous_batch['input_ids'],
-                                    attention_mask = continuous_batch['attention_mask'])
-    # binary loss
-    binary_loss = binary_criterion(torch.cat((binary_predictions, continuous_predictions), dim=0), 
-                                   torch.cat((binary_batch['labels'], continuous_batch['labels']), dim=0))
-    
-    # continuous loss
-    if config['energynet']['add_ranking_loss_setting'] == 2: ## assume binary labels indicate uninanimous votes and treat them as continuous labels
-        print('!!!')
-        predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
-        energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
-        labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
-        higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
-        continuous_loss = continuous_criterion(higher_batch, lower_batch)
+                                attention_mask = continuous_batch['attention_mask'])
+    if config['energynet']['additional_loss']['loss'] == 'cross_entropy':
+        binary_loss = binary_criterion(binary_predictions, binary_batch['labels'])
+    else:
+        # binary loss
+        binary_loss = binary_criterion(torch.cat((binary_predictions, continuous_predictions), dim=0), 
+                                    torch.cat((binary_batch['labels'], continuous_batch['labels']), dim=0))
         
-    elif config['energynet']['add_ranking_loss_setting'] == 3:
-        energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
-        higher_batch, lower_batch = create_pairs_for_ranking(-energy, continuous_batch['finegrained_labels'])
-        continuous_loss = continuous_criterion(higher_batch, lower_batch)
+    # continuous loss
+    if config['energynet']['additional_loss']['setting'] == 2: ## assume binary labels indicate uninanimous votes and treat them as continuous labels
+        if config['energynet']['additional_loss']['loss'] == 'margin_ranking':
+        
+            predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
+            energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
+            labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
+            higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
+            continuous_loss = continuous_criterion(higher_batch, lower_batch)
+            
+        elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
+            
+            predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
+            # print(f"shape of predictions: {predictions.shape}")
+            # predictions = predictions[:, 1] - predictions[:, 0] # using difference in logits as signals
+            # print(f"shape of predictions after taking difference in logits: {predictions.shape}")
+            energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
+            labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
+            higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
+            continuous_loss = continuous_criterion(higher_batch, lower_batch)
+        
+        else:
+            raise NotImplementedError
+        
+    elif config['energynet']['additional_loss']['setting'] == 3:
+        if config['energynet']['additional_loss']['loss'] == 'cross_entropy':
+            labels = continuous_batch['finegrained_labels'].reshape(-1, 1)
+            labels = torch.tile(labels, (1,2))
+            labels[:, 0] = 1 - labels[:, 1]
+            continuous_loss = continuous_criterion(continuous_predictions, labels)
+        elif config['energynet']['additional_loss']['loss'] == 'margin_ranking':    
+            energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
+            higher_batch, lower_batch = create_pairs_for_ranking(-energy, continuous_batch['finegrained_labels'])
+            continuous_loss = continuous_criterion(higher_batch, lower_batch)
+        elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
+            # print(f"shape of continuous predictions: {continuous_predictions.shape}")
+            continuous_predictions = continuous_predictions[:, 1] - continuous_predictions[:, 0]
+            # print(f"shape of continuous predictions after taking difference in logits: {continuous_predictions.shape}")
+            higher_batch, lower_batch = create_pairs_for_ranking(continuous_predictions, continuous_batch['finegrained_labels'])
+            continuous_loss = continuous_criterion(higher_batch, lower_batch)
+        else:
+            raise NotImplementedError
     
     # add losses together
     loss = mixing_weights[0] * binary_loss + mixing_weights[1] * continuous_loss    
@@ -367,13 +413,25 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
 def train_model_one_step(batch, model, optimizer, scheduler, criterion, epoch, overall_step, config):
     
     model.train()
-    predictions, hidden_states = model(input_ids = batch['input_ids'],
-                                    attention_mask = batch['attention_mask'])
+    if config['energynet']['input_form'] == 'xy_concat':
+        half_count = len(batch['input_ids'])//2
+        ## OOM error can arise because xy_concat data collator produces 2x samples given initial set of samples
+        ## run inference twice
+        predictions_1, hidden_states = model(input_ids = batch['input_ids'][:half_count],
+                                        attention_mask = batch['attention_mask'][:half_count])
+        predictions_2, hidden_states = model(input_ids = batch['input_ids'][half_count:],
+                                attention_mask = batch['attention_mask'][half_count:])
+        predictions = torch.cat([predictions_1, predictions_2], dim=0)
+
+    else:   
+        predictions, hidden_states = model(input_ids = batch['input_ids'],
+                                        attention_mask = batch['attention_mask'])
     
     if config['energynet']['loss'] == 'mse': # energy = - log_sigmoid(predictions)
         loss = criterion(torch.sigmoid(predictions), batch['labels'])
     elif ('ranking' in config['energynet']['loss']): # energy = - predictions b/c higher f(x) -> lower energy
-        higher_batch, lower_batch = create_pairs_for_ranking(predictions, batch['labels'])
+        energy = -predictions
+        higher_batch, lower_batch = create_pairs_for_ranking(-energy, batch['labels'])
         loss = criterion(higher_batch, lower_batch)
     else: # cross_entropy, bce # energy = - log_softmax(predictions)[:, 1] b/c higher log p -> lower energy
         loss = criterion(predictions, batch['labels'])

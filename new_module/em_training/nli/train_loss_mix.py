@@ -90,7 +90,7 @@ def main():
         num_train_iters = max(len(train_add_dataloader), num_train_iters)
         train_add_iterator = iter(train_add_dataloader)
         
-        mixing_weights = [float(x) for x in config['energynet']['mixing_weights'].split(', ')]
+        mixing_weights = [float(x) for x in config['energynet']['additional_loss']['mixing_weights'].split(', ')]
         print(mixing_weights)
     
     
@@ -127,8 +127,12 @@ def main():
     else:
         raise NotImplementedError('Not a valid loss name')
         
-    if config['energynet']['add_ranking_loss']:
-        ranking_criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
+    if config['energynet']['additional_loss']['use'] and config['energynet']['additional_loss']['loss'] == 'margin_ranking':
+        ranking_criterion = CustomMarginRankingLoss(margin=config['energynet']['additional_loss']['margin'])
+    elif config['energynet']['additional_loss']['use'] and config['energynet']['additional_loss']['loss'] in ['pairwise_logistic', 'scaled_ranking', 'negative_log_odds']:
+        ranking_criterion = PairwiseLogisticLoss()
+    elif config['energynet']['additional_loss']['use'] and config['energynet']['additional_loss']['loss'] =='cross_entropy':
+        ranking_criterion = nn.CrossEntropyLoss()
     else:
         ranking_criterion = None
         
@@ -207,18 +211,22 @@ def main():
                                      model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_ROC.png")
                                         
                 # Check for improvement
-                if best_loss is None:
-                    best_loss = dev_metrics["eval_loss"]
-                elif dev_metrics["eval_loss"] >= best_loss - min_delta:
-                    if dev_metrics['eval_loss'] < best_loss:
-                        best_loss = dev_metrics['eval_loss']
-                    patience_counter += 1
-                    if (patience_counter >= patience) and (config["energynet"]["early_stopping"]["use"]):
-                        print(f"Early stopping at epoch {epoch}")
-                        break
-                else:
-                    best_loss = dev_metrics["eval_loss"]
-                    patience_counter = 0
+                if config["energynet"]["early_stopping"]["use"]:
+                    
+                    if best_loss is None:
+                        best_loss = dev_metrics["eval_loss"]
+                        print(f"Updating best loss at iteration {i}")
+                    elif dev_metrics["eval_loss"] >= best_loss - min_delta:
+                        if dev_metrics['eval_loss'] < best_loss:
+                            best_loss = dev_metrics['eval_loss']
+                            print(f"Updating best loss at iteration {i}")
+                        patience_counter += 1
+                        if (patience_counter >= patience):
+                            print(f"Early stopping at epoch {epoch}")
+                            break
+                    else:
+                        best_loss = dev_metrics["eval_loss"]
+                        patience_counter = 0
             else:
                 wandb.log(train_metrics)
     
