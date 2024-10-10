@@ -24,9 +24,6 @@ class NLI_Dataset(Dataset):
             return (sample['premise'], sample['hypothesis'], sample[self.label_column], sample['finegrained_labels'])
         else:
             return (sample['premise'], sample['hypothesis'], sample[self.label_column], [None for _ in range(len(sample))])
-   
-    # def __getitem__(self, idx):
-    #     return idx
 
     def set_label_column(self, label_column):
         self.label_column = label_column
@@ -242,46 +239,6 @@ class NLI_TrainBatchSampler_Binary(Sampler):
         
     def __len__(self):
         return self.num_batches
-
-# class NLI_TrainBatchSampler_Combined(Sampler):
-    
-#     def __init__(self, binary_examples:pd.DataFrame, continuous_examples:pd.DataFrame, batch_size, oversample_minority = True):
-#         self.binary_examples = binary_examples
-#         self.continuous_examples = continuous_examples
-#         self.batch_size = batch_size
-#         self.oversample_minority = oversample_minority
-        
-#         self.binary_sampler = self.get_binary_sampler()
-#         self.continuous_sampler = self.get_continuous_sampler()
-#         self.num_iters = max(len(self.binary_sampler), len(self.continuous_sampler))
-            
-#     def get_binary_sampler(self):
-#         return NLI_TrainBatchSampler_Binary(self.binary_examples, self.batch_size, self.oversample_minority)
-    
-#     def get_continuous_sampler(self):
-#         return NLI_TrainBatchSampler_Continuous(self.continuous_examples, self.batch_size, self.oversample_minority)
-        
-        
-#     def __iter__(self):
-        
-#         self.rsampler_binary = iter(self.binary_sampler)
-#         self.rsampler_continuous = iter(self.continuous_sampler)
-        
-#         for _ in range(self.num_iters):
-#             try:
-#                 binary_batch = next(self.rsampler_binary)
-#             except:
-#                 self.rsampler_binary = iter(self.get_binary_sampler())
-#                 binary_batch = next(self.rsampler_binary)
-#             try:
-#                 continuous_batch = next(self.rsampler_continuous)
-#             except:
-#                 self.rsampler_continuous = iter(self.get_continuous_sampler())
-#                 continuous_batch = next(self.rsampler_continuous)
-#             yield binary_batch, continuous_batch
-        
-#     def __len__(self):
-#         return self.num_iters
     
 class NLI_DataLoader:
     
@@ -295,8 +252,21 @@ class NLI_DataLoader:
         hypotheses = [x[1] for x in batch]
         labels = [x[2] for x in batch]
         finegrained_labels = [x[3] for x in batch]
+
+        if (self.config['energynet'].get('input_form') is None) or (self.config['energynet']['input_form'] == 'x_only'):  
+            sequences = [self.tokenizer.bos_token + p + self.tokenizer.sep_token + h + self.tokenizer.eos_token for p, h in zip(premises, hypotheses)]
+                
+        elif self.config['energynet']['input_form'] == 'xy_concat':
+            sequences_cons = [self.tokenizer.bos_token + p + self.tokenizer.sep_token + h + self.tokenizer.sep_token + "consistent" + self.tokenizer.eos_token for p, h in zip(premises, hypotheses)]
+            sequences_incons = [self.tokenizer.bos_token + p + self.tokenizer.sep_token + h + self.tokenizer.sep_token + "inconsistent" + self.tokenizer.eos_token for p, h in zip(premises, hypotheses)]
+            sequences = sequences_cons + sequences_incons
+            
+            ## for sequence_incons, labels need to be flipped (b/c current labels are proba of consistency or class 1 indicating consistency)
+            labels_incons = [1-x for x in labels]
+            finegrained_labels_incons = [1-x for x in finegrained_labels]
+            labels = labels + labels_incons
+            finegrained_labels = finegrained_labels + finegrained_labels_incons
         
-        sequences = [self.tokenizer.bos_token + p + self.tokenizer.sep_token + h + self.tokenizer.eos_token for p, h in zip(premises, hypotheses)]
         tokenized_sequences = self.tokenizer(sequences, padding=True, truncation=True, return_tensors='pt')
         if (self.config['energynet']['output_form'] == 'real_num') and (self.config['energynet']['label_column'] == 'finegrained_labels'):
             labels = torch.Tensor(labels).reshape(-1, 1)

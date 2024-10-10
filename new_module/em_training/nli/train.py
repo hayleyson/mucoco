@@ -19,13 +19,13 @@ from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_fscore_su
 import seaborn as sns
 
 from new_module.em_training.nli.models import EncoderModel
-from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader
+from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader, NLI_TrainBatchSampler_Binary
 from new_module.em_training.nli.train_modules import *
 from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, PairwiseLogisticLoss, MSE_MarginRankingLoss
 
 def main():
     
-    config = load_config('new_module/em_training/config.yaml')
+    config = load_config('new_module/em_training/config_xy_concat.yaml')
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     ## add more elaborate dirs in ckpt_save_path
@@ -61,11 +61,15 @@ def main():
     
     if config['energynet']['add_train_data']:
         train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
+        if (config['energynet'].get('fill_missing_finegrained') is not None) and (config['energynet']['fill_missing_finegrained']):
+            print(f"Num missing finegrained labels before filling: {train_add_data['finegrained_labels'].isna().sum()}")
+            train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'finegrained_labels'] = train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'binary_labels']
+            print(f"Num missing finegrained labels after filling: {train_add_data['finegrained_labels'].isna().sum()}")
         train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
 
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']
     dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
-    # dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
+    dev_data = dev_data.sample(frac=1, random_state=0) # shuffle rows to make sure margin ranking loss works.
     
     print(f"# train samples: {len(train_data)}, # dev samples: {len(dev_data)}")
     
@@ -74,23 +78,16 @@ def main():
     dev_dataset = NLI_Dataset(dev_data, label_column=config['energynet']['label_column'])
     
     if config['energynet']['binary_loader'] == 'balanced':
-        train_dataloader = NLI_DataLoader(dataset=train_dataset, 
-                                      config = config, 
-                                      mode='train', 
-                                      tokenizer=model.tokenizer,
-                                      allow_oversample=True).get_dataloader()
+        binary_batchsampler = NLI_TrainBatchSampler_Binary(train_data, config['energynet']['batch_size']['binary'], oversample_minority = True)
+        train_dataloader = NLI_DataLoader(config = config,
+                                            tokenizer = model.tokenizer).get_dataloader(train_dataset, batch_size=None, batch_sampler=binary_batchsampler)
     else:
-        train_dataloader = NLI_DataLoader(dataset=train_dataset, 
-                                      config = config, 
-                                      mode='train', 
-                                      tokenizer=model.tokenizer,
-                                      allow_oversample=True).get_dataloader()
+        train_dataloader = NLI_DataLoader(config = config,
+                                        tokenizer = model.tokenizer).get_dataloader(train_dataset, batch_size=config['energynet']['batch_size']['binary'], batch_sampler=None, shuffle=True)
     
-    dev_dataloader = NLI_DataLoader(dataset=dev_dataset, 
-                                      config = config, 
-                                      mode='dev', 
-                                      tokenizer=model.tokenizer,
-                                      allow_oversample=True).get_dataloader()
+    
+    dev_dataloader = NLI_DataLoader(config = config,
+                                     tokenizer = model.tokenizer).get_dataloader(dev_dataset, batch_size=config['energynet']['batch_size']['continuous'], batch_sampler=None, shuffle=False)
     
     # Define the optimizer
     try:
@@ -107,8 +104,8 @@ def main():
     except:
         optimizer = AdamW(model.parameters(),lr=max_lr, weight_decay=weight_decay)
 
-    num_warmup_steps = len(train_dataloader)*num_epochs*0.1
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_dataloader)*num_epochs)
+    num_training_steps = len(train_dataloader) * num_epochs
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_training_steps*0.1, num_training_steps=num_training_steps)
     # scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=len(train_dataloader)*num_epochs,
                                                                 #    num_cycles=num_epochs)
     
@@ -119,7 +116,7 @@ def main():
         criterion = nn.MSELoss()
     elif config['energynet']['loss'] == 'margin_ranking':
         criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
-    elif config['energynet']['loss'] == 'negative_log_odds':
+    elif config['energynet']['loss'] in ['pairwise_logistic', 'scaled_ranking', 'negative_log_odds']:
         criterion = PairwiseLogisticLoss()
     elif config['energynet']['loss'] == 'mse+margin_ranking':
         criterion = MSE_MarginRankingLoss(weights = [1.,1.], 
@@ -127,20 +124,12 @@ def main():
     else:
         raise NotImplementedError('Not a valid loss name')
         
-    if config['energynet']['add_ranking_loss']:
-        ranking_criterion = CustomMarginRankingLoss(margin=config['energynet']['margin'])
-    else:
-        ranking_criterion = None
-        
     overall_step = 0
     # eval_metric = 'pearsonr'
     # eval_goal = 'maximize'
     # best_val_metric = float('inf') if eval_goal == 'minimize' else -1000.
-    eval_metrics = ['pearsonr', 'loss']
-    eval_goals = ['maximize', 'minimize']
-    if config['energynet']['add_ranking_loss']:
-        eval_metrics.append('add_ranking_loss')
-        eval_goals.append('minimize')
+    eval_metrics = ['ndcg', 'pearsonr','pearsonr_subset', 'loss']
+    eval_goals = ['maximize', 'maximize','maximize', 'minimize']
     best_val_metrics = [float('inf') if eval_goal == 'minimize' else -1000. for eval_goal in eval_goals]
     
     # Early stopping parameters
@@ -154,12 +143,12 @@ def main():
         
         for i, batch in enumerate(train_dataloader):
             
-            train_metrics = train_model_one_step(batch, model, optimizer, scheduler, criterion, ranking_criterion, epoch, overall_step, config)
+            train_metrics = train_model_one_step(batch, model, optimizer, scheduler, criterion, epoch, overall_step, config)
             overall_step += 1
             
             if overall_step % config['energynet']['eval_every'] == 0:
                 
-                dev_metrics = validate_model(dev_dataloader, model, criterion, ranking_criterion, config, epoch, overall_step)
+                dev_metrics = validate_model(dev_dataloader, model, criterion, config, epoch, overall_step)
                 all_metrics = {**dev_metrics, **train_metrics}
                 wandb.log(all_metrics)
                 try: 
@@ -190,18 +179,22 @@ def main():
                                      model_path.split('.pth')[0] + f"_{eval_metrics[idx]}_ROC.png")
                     
                 # Check for improvement
-                if best_loss is None:
-                    best_loss = dev_metrics["eval_loss"]
-                elif dev_metrics["eval_loss"] >= best_loss - min_delta:
-                    if dev_metrics['eval_loss'] < best_loss:
-                        best_loss = dev_metrics['eval_loss']
-                    patience_counter += 1
-                    if (patience_counter >= patience) and (config["energynet"]["early_stopping"]):
-                        print(f"Early stopping at epoch {epoch}")
-                        break
-                else:
-                    best_loss = dev_metrics["eval_loss"]
-                    patience_counter = 0    
+                if config["energynet"]["early_stopping"]["use"]:
+                    
+                    if best_loss is None:
+                        best_loss = dev_metrics["eval_loss"]
+                        print(f"Updating best loss at iteration {i}")
+                    elif dev_metrics["eval_loss"] >= best_loss - min_delta:
+                        if dev_metrics['eval_loss'] < best_loss:
+                            best_loss = dev_metrics['eval_loss']
+                            print(f"Updating best loss at iteration {i}")
+                        patience_counter += 1
+                        if (patience_counter >= patience):
+                            print(f"Early stopping at epoch {epoch}")
+                            break
+                    else:
+                        best_loss = dev_metrics["eval_loss"]
+                        patience_counter = 0
             else:
                 wandb.log(train_metrics)
     

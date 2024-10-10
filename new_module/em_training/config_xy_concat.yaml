@@ -1,0 +1,36 @@
+energynet:
+  base_model: roberta-large
+  output_form: real_num
+  input_form: xy_concat
+  energy_col: 0
+  label_column: binary_labels
+  batch_size: 
+    binary: 16
+    continuous: 16
+  num_epochs: 3
+  optimizer: adamw
+  max_lr: 1e-5
+  weight_decay: 0.03
+  loss: margin_ranking
+  margin: 1
+  additional_loss:
+    use: false
+    loss: n/a
+    margin: n/a
+    setting: n/a
+    mixing_weights: n/a
+  add_train_data: true
+  fill_missing_finegrained: false
+  eval_every: 100
+  early_stopping: 
+    use: false
+    min_delta: 0.0
+    patience: 5
+  binary_loader: balanced
+  ckpt_save_path: models/nli
+  dataset_path: data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl
+
+locate:
+  type: gradnorm
+
+device: cuda
