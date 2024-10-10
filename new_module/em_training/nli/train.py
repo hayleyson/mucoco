@@ -19,7 +19,7 @@ from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_fscore_su
 import seaborn as sns
 
 from new_module.em_training.nli.models import EncoderModel
-from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader, NLI_TrainBatchSampler_Binary
+from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader, NLI_TrainBatchSampler_Binary, NLI_TrainBatchSampler_Continuous
 from new_module.em_training.nli.train_modules import *
 from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, PairwiseLogisticLoss, MSE_MarginRankingLoss
 
@@ -78,7 +78,11 @@ def main():
     dev_dataset = NLI_Dataset(dev_data, label_column=config['energynet']['label_column'])
     
     if config['energynet']['binary_loader'] == 'balanced':
-        binary_batchsampler = NLI_TrainBatchSampler_Binary(train_data, config['energynet']['batch_size']['binary'], oversample_minority = True)
+        if config['energynet']['label_column'] == 'binary_labels':
+            binary_batchsampler = NLI_TrainBatchSampler_Binary(train_data, config['energynet']['batch_size']['binary'], oversample_minority = True)
+        elif config['energynet']['label_column'] == 'finegrained_labels':
+            print(f"Using batch sampler that balances the ratio of finegrained labels to 2:1:1:2 for 0, (0,0.5), [0.5, 1), 1.")
+            binary_batchsampler = NLI_TrainBatchSampler_Continuous(train_data, config['energynet']['batch_size']['binary'], oversample_minority = True)
         train_dataloader = NLI_DataLoader(config = config,
                                             tokenizer = model.tokenizer).get_dataloader(train_dataset, batch_size=None, batch_sampler=binary_batchsampler)
     else:

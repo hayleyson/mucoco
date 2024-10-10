@@ -3,7 +3,7 @@ energynet:
   output_form: real_num
   input_form: xy_concat
   energy_col: 0
-  label_column: binary_labels
+  label_column: finegrained_labels
   batch_size: 
     binary: 16
     continuous: 16
@@ -20,7 +20,7 @@ energynet:
     setting: n/a
     mixing_weights: n/a
   add_train_data: true
-  fill_missing_finegrained: false
+  fill_missing_finegrained: true
   eval_every: 100
   early_stopping: 
     use: false
