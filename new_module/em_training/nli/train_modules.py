@@ -340,59 +340,65 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
     
     model.train()
     # inference
-    binary_predictions, _ = model(input_ids = binary_batch['input_ids'],
-                                    attention_mask = binary_batch['attention_mask'])
+    # binary_predictions, _ = model(input_ids = binary_batch['input_ids'],
+    #                                 attention_mask = binary_batch['attention_mask'])
     continuous_predictions, _ = model(input_ids = continuous_batch['input_ids'],
                                 attention_mask = continuous_batch['attention_mask'])
-    if config['energynet']['additional_loss']['loss'] == 'cross_entropy':
-        binary_loss = binary_criterion(binary_predictions, binary_batch['labels'])
-    else:
-        # binary loss
-        binary_loss = binary_criterion(torch.cat((binary_predictions, continuous_predictions), dim=0), 
-                                    torch.cat((binary_batch['labels'], continuous_batch['labels']), dim=0))
+    
+    binary_loss = binary_criterion(continuous_predictions, continuous_batch['labels'])
+    # if config['energynet']['additional_loss']['loss'] == 'cross_entropy':
+    #     binary_loss = binary_criterion(binary_predictions, binary_batch['labels'])
+    # else:
+    #     # binary loss
+    #     binary_loss = binary_criterion(torch.cat((binary_predictions, continuous_predictions), dim=0), 
+    #                                 torch.cat((binary_batch['labels'], continuous_batch['labels']), dim=0))
         
-    # continuous loss
-    if config['energynet']['additional_loss']['setting'] == 2: ## assume binary labels indicate uninanimous votes and treat them as continuous labels
-        if config['energynet']['additional_loss']['loss'] == 'margin_ranking':
+    energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
+    labels = continuous_batch['finegrained_labels']
+    higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
+    continuous_loss = continuous_criterion(higher_batch, lower_batch)
+    # # continuous loss
+    # if config['energynet']['additional_loss']['setting'] == 2: ## assume binary labels indicate uninanimous votes and treat them as continuous labels
+    #     if config['energynet']['additional_loss']['loss'] == 'margin_ranking':
         
-            predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
-            energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
-            labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
-            higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
-            continuous_loss = continuous_criterion(higher_batch, lower_batch)
+    #         predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
+    #         energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
+    #         labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
+    #         higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
+    #         continuous_loss = continuous_criterion(higher_batch, lower_batch)
             
-        elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
+    #     elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
             
-            predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
-            # print(f"shape of predictions: {predictions.shape}")
-            # predictions = predictions[:, 1] - predictions[:, 0] # using difference in logits as signals
-            # print(f"shape of predictions after taking difference in logits: {predictions.shape}")
-            energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
-            labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
-            higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
-            continuous_loss = continuous_criterion(higher_batch, lower_batch)
+    #         predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
+    #         # print(f"shape of predictions: {predictions.shape}")
+    #         # predictions = predictions[:, 1] - predictions[:, 0] # using difference in logits as signals
+    #         # print(f"shape of predictions after taking difference in logits: {predictions.shape}")
+    #         energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
+    #         labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
+    #         higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
+    #         continuous_loss = continuous_criterion(higher_batch, lower_batch)
         
-        else:
-            raise NotImplementedError
+    #     else:
+    #         raise NotImplementedError
         
-    elif config['energynet']['additional_loss']['setting'] == 3:
-        if config['energynet']['additional_loss']['loss'] == 'cross_entropy':
-            labels = continuous_batch['finegrained_labels'].reshape(-1, 1)
-            labels = torch.tile(labels, (1,2))
-            labels[:, 0] = 1 - labels[:, 1]
-            continuous_loss = continuous_criterion(continuous_predictions, labels)
-        elif config['energynet']['additional_loss']['loss'] == 'margin_ranking':    
-            energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
-            higher_batch, lower_batch = create_pairs_for_ranking(-energy, continuous_batch['finegrained_labels'])
-            continuous_loss = continuous_criterion(higher_batch, lower_batch)
-        elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
-            # print(f"shape of continuous predictions: {continuous_predictions.shape}")
-            continuous_predictions = continuous_predictions[:, 1] - continuous_predictions[:, 0]
-            # print(f"shape of continuous predictions after taking difference in logits: {continuous_predictions.shape}")
-            higher_batch, lower_batch = create_pairs_for_ranking(continuous_predictions, continuous_batch['finegrained_labels'])
-            continuous_loss = continuous_criterion(higher_batch, lower_batch)
-        else:
-            raise NotImplementedError
+    # elif config['energynet']['additional_loss']['setting'] == 3:
+    #     if config['energynet']['additional_loss']['loss'] == 'cross_entropy':
+    #         labels = continuous_batch['finegrained_labels'].reshape(-1, 1)
+    #         labels = torch.tile(labels, (1,2))
+    #         labels[:, 0] = 1 - labels[:, 1]
+    #         continuous_loss = continuous_criterion(continuous_predictions, labels)
+    #     elif config['energynet']['additional_loss']['loss'] == 'margin_ranking':    
+    #         energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
+    #         higher_batch, lower_batch = create_pairs_for_ranking(-energy, continuous_batch['finegrained_labels'])
+    #         continuous_loss = continuous_criterion(higher_batch, lower_batch)
+    #     elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
+    #         # print(f"shape of continuous predictions: {continuous_predictions.shape}")
+    #         continuous_predictions = continuous_predictions[:, 1] - continuous_predictions[:, 0]
+    #         # print(f"shape of continuous predictions after taking difference in logits: {continuous_predictions.shape}")
+    #         higher_batch, lower_batch = create_pairs_for_ranking(continuous_predictions, continuous_batch['finegrained_labels'])
+    #         continuous_loss = continuous_criterion(higher_batch, lower_batch)
+    #     else:
+    #         raise NotImplementedError
     
     # add losses together
     loss = mixing_weights[0] * binary_loss + mixing_weights[1] * continuous_loss    

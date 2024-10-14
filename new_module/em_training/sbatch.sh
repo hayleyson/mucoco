@@ -1,9 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=0-48:00:00
+#SBATCH --time=0-72:00:00
 #SBATCH --mem=20GB
-#SBATCH --nodelist=n02
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=nli_energy
 #SBATCH --output='new_module/_slurm_outs/####_%j.out'
@@ -20,4 +19,4 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-srun python new_module/em_training/nli/train.py 
+srun python new_module/em_training/nli/train_loss_mix.py 
