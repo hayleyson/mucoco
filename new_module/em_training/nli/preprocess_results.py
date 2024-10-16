@@ -4,9 +4,9 @@ import json
 from glob import glob
 import datetime
 
-time_keys = """1728306755
-1728302714
-1728302774""".split()
+time_keys = """1728404380
+1728436169
+1727850952""".split()
 
 results_all_time_keys = []
 for time_key in time_keys:
@@ -25,6 +25,12 @@ for time_key in time_keys:
         result_contents.append(result_content)
 
     results = pd.DataFrame(result_contents)
+    results_criterion = results['criterion']
+    results_timekey = results['time_key']
+    del results['criterion']
+    del results['time_key']
+    results.insert(0, 'criterion', results_criterion)
+    results.insert(0, 'time_key', results_timekey)
     results.to_csv(f'{result_dir}/results.csv', index=False)
     
     results_all_time_keys.append(results)
