@@ -140,8 +140,8 @@ def main():
     # eval_metric = 'pearsonr'
     # eval_goal = 'maximize'
     # best_val_metric = float('inf') if eval_goal == 'minimize' else -1000.
-    eval_metrics = ['ndcg', 'pearsonr','pearsonr_subset', 'loss', 'continuous_loss']
-    eval_goals = ['maximize', 'maximize','maximize', 'minimize', 'minimize']
+    eval_metrics = ['loss','pearsonr']
+    eval_goals = ['minimize','maximize']
     best_val_metrics = [float('inf') if eval_goal == 'minimize' else -1000. for eval_goal in eval_goals]
     
     # Early stopping parameters

@@ -25,7 +25,7 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 
 def main():
     
-    config = load_config('new_module/em_training/config_xy_concat.yaml')
+    config = load_config('new_module/em_training/config.yaml')
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     ## add more elaborate dirs in ckpt_save_path

@@ -413,7 +413,7 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
 def train_model_one_step(batch, model, optimizer, scheduler, criterion, epoch, overall_step, config):
     
     model.train()
-    if config['energynet']['input_form'] == 'xy_concat':
+    if config['energynet'].get('input_form', 'x_only') == 'xy_concat':
         half_count = len(batch['input_ids'])//2
         ## OOM error can arise because xy_concat data collator produces 2x samples given initial set of samples
         ## run inference twice
