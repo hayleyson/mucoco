@@ -91,6 +91,10 @@ def main():
     if config['energynet']['add_train_data']:
         train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
         print(f"# train samples with binary labels only: {len(train_add_data)}, # train samples with finegrained labels: {len(train_data)}, # dev samples: {len(dev_data)}")
+        if (config['energynet'].get('fill_missing_finegrained', False)) or (config['energynet']['additional_loss']['setting'] == 2):
+            print(f"Num missing finegrained labels before filling: {train_add_data['finegrained_labels'].isna().sum()}")
+            train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'finegrained_labels'] = train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'binary_labels']
+            print(f"Num missing finegrained labels after filling: {train_add_data['finegrained_labels'].isna().sum()}")
     
         train_add_dataset = NLI_Dataset(train_add_data, label_column=config['energynet']['label_column'])
         binary_batchsampler = NLI_TrainBatchSampler_Binary(train_add_data, config['energynet']['batch_size']['binary'], oversample_minority = True)

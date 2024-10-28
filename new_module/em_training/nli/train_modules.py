@@ -121,7 +121,11 @@ def validate_model_loss_mix(dev_dataloader, model, binary_criterion, continuous_
             
             dev_predictions, _ = model(input_ids = dev_batch['input_ids'],
                                        attention_mask = dev_batch['attention_mask'])
-            dev_e_ = -torch.log_softmax(dev_predictions, dim=-1)[:, config['energynet']['energy_col']]
+            if config['energynet']['output_form'] == '2dim_vec':
+                dev_e_ = -torch.log_softmax(dev_predictions, dim=-1)[:, config['energynet']['energy_col']]
+                
+            else:
+                dev_e_ =-torch.log(1 - torch.softmax(dev_predictions, dim=-1)[:, config['energynet']['energy_col']])
             dev_e.extend(dev_e_.tolist()) 
             dev_labels.extend(dev_batch['labels'].cpu().tolist())
             dev_fine_labels.extend(dev_batch['finegrained_labels'].tolist())
@@ -367,19 +371,22 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
         if config['energynet']['additional_loss']['loss'] == 'margin_ranking':
         
             predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
-            energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
-            labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
+            if config['energynet']['output_dim'] == '2dim_vec':
+                energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
+            elif config['energynet']['output_dim'] == '3dim_vec':
+                energy = -torch.log(1-torch.softmax(predictions, dim=-1)[:, config['energynet']['energy_col']])
+            labels = torch.cat((binary_batch['finegrained_labels'].float(), continuous_batch['finegrained_labels']),dim=0)
             higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
             continuous_loss = continuous_criterion(higher_batch, lower_batch)
             
         elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
             
             predictions = torch.cat((binary_predictions, continuous_predictions), dim=0)
-            # print(f"shape of predictions: {predictions.shape}")
-            # predictions = predictions[:, 1] - predictions[:, 0] # using difference in logits as signals
-            # print(f"shape of predictions after taking difference in logits: {predictions.shape}")
-            energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
-            labels = torch.cat((binary_batch['labels'].float(), continuous_batch['finegrained_labels']),dim=0)
+            if config['energynet']['output_dim'] == '2dim_vec':
+                energy = -torch.log_softmax(predictions, dim=-1)[:, config['energynet']['energy_col']]
+            elif config['energynet']['output_dim'] == '3dim_vec':
+                energy = -torch.log(1-torch.softmax(predictions, dim=-1)[:, config['energynet']['energy_col']])
+            labels = torch.cat((binary_batch['finegrained_labels'].float(), continuous_batch['finegrained_labels']),dim=0)
             higher_batch, lower_batch = create_pairs_for_ranking(-energy, labels)
             continuous_loss = continuous_criterion(higher_batch, lower_batch)
         
@@ -393,13 +400,17 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
             labels[:, 0] = 1 - labels[:, 1]
             continuous_loss = continuous_criterion(continuous_predictions, labels)
         elif config['energynet']['additional_loss']['loss'] == 'margin_ranking':    
-            energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
+            if config['energynet']['output_dim'] == '2dim_vec':
+                energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
+            elif config['energynet']['output_dim'] == '3dim_vec':
+                energy = -torch.log(1-torch.softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']])
             higher_batch, lower_batch = create_pairs_for_ranking(-energy, continuous_batch['finegrained_labels'])
             continuous_loss = continuous_criterion(higher_batch, lower_batch)
         elif config['energynet']['additional_loss']['loss'] == 'pairwise_logistic':
-            # print(f"shape of continuous predictions: {continuous_predictions.shape}")
-            continuous_predictions = continuous_predictions[:, 1] - continuous_predictions[:, 0]
-            # print(f"shape of continuous predictions after taking difference in logits: {continuous_predictions.shape}")
+            if config['energynet']['output_dim'] == '2dim_vec':
+                energy = -torch.log_softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']]
+            elif config['energynet']['output_dim'] == '3dim_vec':
+                energy = -torch.log(1-torch.softmax(continuous_predictions, dim=-1)[:, config['energynet']['energy_col']])
             higher_batch, lower_batch = create_pairs_for_ranking(continuous_predictions, continuous_batch['finegrained_labels'])
             continuous_loss = continuous_criterion(higher_batch, lower_batch)
         else:
