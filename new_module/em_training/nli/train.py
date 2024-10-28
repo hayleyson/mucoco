@@ -132,8 +132,8 @@ def main():
     # eval_metric = 'pearsonr'
     # eval_goal = 'maximize'
     # best_val_metric = float('inf') if eval_goal == 'minimize' else -1000.
-    eval_metrics = ['ndcg', 'pearsonr','pearsonr_subset', 'loss']
-    eval_goals = ['maximize', 'maximize','maximize', 'minimize']
+    eval_metrics = ['pearsonr', 'loss']
+    eval_goals = ['maximize', 'minimize']
     best_val_metrics = [float('inf') if eval_goal == 'minimize' else -1000. for eval_goal in eval_goals]
     
     # Early stopping parameters
@@ -202,7 +202,8 @@ def main():
             else:
                 wandb.log(train_metrics)
     
-    
+    # copy what's inside the model save directory to wandb server
+    wandb.save(os.path.dirname(config['model_path']))
 
 # ToDo. 무호코드 참고해서 sweep 하는 부분 추가하기
 if __name__ == "__main__":
