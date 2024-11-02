@@ -20,4 +20,4 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-srun python new_module/em_training/nli/train.py 
+srun python new_module/em_training/nli/train_loss_mix.py 

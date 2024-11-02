@@ -134,7 +134,6 @@ slurm_output/
 models*/*
 hf_cache
 wandb
-data
 notebooks/results
 outputs
 .vscode

@@ -97,6 +97,54 @@ def get_word2char(row: pd.Series, ws: str, words_col: str) -> dict:
         
     return word2char
 
+def get_word2tok(row: pd.Series, tokens_col: str, words_col: str, ws: str=None) -> dict:
+    """
+    A function that take a list of words and a corresponding list of tokens 
+    into a mapping between each word's index and its corresponding token indexes.
+    @param row: A row from dataframe
+    @return word2char: A dictionary with word's location index as keys and tuples of corresponding token location indexes as values.
+
+    Example:
+    row=pd.Series()
+    row['words']=['wearing', 'games', 'and', 'holy', '****ing', 'shit', 'do', 'I', 'hate', 'horse', 'wearing', 'games.']
+    row['tokens']=[86, 6648, 1830, 290, 11386, 25998, 278, 7510, 466, 314, 5465, 8223, 5762, 1830, 13]
+    word2tok=get_word2tok(row)
+    word2tok
+    {0: [0, 1],
+    1: [2],
+    2: [3],
+    ...
+    10: [12],
+    11: [13, 14]}
+    """
+    global tokenizer
+    
+    jl, jr, k = 0, 0, 0
+    grouped_tokens = []
+    if ws is not None:
+        while jr <= len(row[tokens_col])+1 and k < len(row[words_col]):
+            # print(f"{jl}, {jr}, {k}: {tokenizer.decode(row[tokens_col][jl:jr]).strip(' ')}")
+            if tokenizer.decode(row[tokens_col][jl:jr]).strip(' ') == row[words_col][k]:
+                grouped_tokens.append(list(range(jl,jr)))
+                k += 1
+                jl = jr
+                jr += 1
+            else:
+                jr += 1
+        word2tok = dict(zip(range(len(grouped_tokens)), grouped_tokens))
+    else:
+        while jr <= len(row[tokens_col])+1 and k < len(row[words_col]):
+            # print(f"{jl}, {jr}, {k}: {tokenizer.decode(row[tokens_col][jl:jr]).strip()}")
+            if tokenizer.decode(row[tokens_col][jl:jr]).strip() == row[words_col][k]:
+                grouped_tokens.append(list(range(jl,jr)))
+                k += 1
+                jl = jr
+                jr += 1
+            else:
+                jr += 1
+        word2tok = dict(zip(range(len(grouped_tokens)), grouped_tokens))
+    return word2tok
+
 def kv_swap(x):
 
     return_dict=dict()
@@ -293,7 +341,10 @@ def handle_snli():
     merged_labels['premise_char2tok']=merged_labels['premise_tok2char'].apply(kv_swap)
     merged_labels['premise_tokens_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="premise_char_labels", char2tok_col="premise_char2tok", tokens_col="premise_tokens"),axis=1)
 
-    merged_labels = merged_labels[['pairID', 'premise', 'hypothesis', 'gold_label', 'hypothesis_words', 'premise_words', 'hypothesis_tokens', 'premise_tokens', 
+    merged_labels['hypothesis_word2tok'] = merged_labels.apply(lambda x: get_word2tok(x, 'hypothesis_tokens', 'hypothesis_words'), axis=1)
+    merged_labels['hypothesis_tok2word'] = merged_labels['hypothesis_word2tok'].apply(kv_swap)
+    
+    merged_labels = merged_labels[['pairID', 'premise', 'hypothesis', 'gold_label', 'hypothesis_words', 'premise_words', 'hypothesis_tokens', 'premise_tokens', 'hypothesis_word2tok', 'hypothesis_tok2word',
         'premise_char_labels', 'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_tokens_labels', 'premise_word_labels', 'premise_tokens_labels']]
 
     merged_labels.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/snli_locate_labels.jsonl', orient='records', lines=True)
@@ -476,7 +527,10 @@ def handle_mnli():
     merged_labels['premise_char2tok']=merged_labels['premise_tok2char'].apply(kv_swap)
     merged_labels['premise_tokens_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="premise_char_labels", char2tok_col="premise_char2tok", tokens_col="premise_tokens"),axis=1)
 
-    merged_labels = merged_labels[['pairID', 'premise', 'hypothesis', 'gold_label', 'hypothesis_words', 'premise_words', 'hypothesis_tokens', 'premise_tokens', 
+    merged_labels['hypothesis_word2tok'] = merged_labels.apply(lambda x: get_word2tok(x, 'hypothesis_tokens', 'hypothesis_words'), axis=1)
+    merged_labels['hypothesis_tok2word'] = merged_labels['hypothesis_word2tok'].apply(kv_swap)
+
+    merged_labels = merged_labels[['pairID', 'premise', 'hypothesis', 'gold_label', 'hypothesis_words', 'premise_words', 'hypothesis_tokens', 'premise_tokens', 'hypothesis_word2tok', 'hypothesis_tok2word',
         'premise_char_labels', 'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_tokens_labels', 'premise_word_labels', 'premise_tokens_labels']]
 
     merged_labels.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/mnli_matched_locate_labels.jsonl', orient='records', lines=True)
