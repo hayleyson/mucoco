@@ -84,10 +84,10 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
     return list(set(top_masks_final_final))
 
 class LocateMachine:
-    def __init__(self, model, tokenizer, args):
+    def __init__(self, model, tokenizer, task):
         self.model = model
         self.tokenizer = tokenizer
-        self.task = args.task
+        self.task = task
         try:
             self.device = model.device
         except:
@@ -99,10 +99,11 @@ class LocateMachine:
         stopwords = [" and", " of", " or", " so"] + punctuations + [token for token in self.tokenizer.special_tokens_map.values()]
         self.stopwords_ids = self.tokenizer.batch_encode_plus(stopwords, return_tensors="pt",add_special_tokens=False)['input_ids'].squeeze().to(self.device)
 
-    def locate_main(self, prediction: List[str], method, max_num_tokens = 6, unit="word",**kwargs):
+    def locate_main(self, prediction, method, max_num_tokens = 6, unit="word",**kwargs):
         
-
-        if self.task == "nli":
+        if kwargs['tokenized_input']:
+            batch = prediction
+        elif self.task == "nli":
             batch = self.tokenizer(prediction, add_special_tokens=True, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
         else:
             batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
@@ -136,7 +137,12 @@ class LocateMachine:
             except:
                 softmax=torch.nn.Softmax(dim=-1)
                 probs = softmax(logits)[:, kwargs['label_id']]
-            probs.sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
+            if (kwargs['use_energy']) and (kwargs['multiclass_ce']):
+                (-torch.log(1-probs)).sum().backward(retain_graph=True)
+            elif (kwargs['use_energy']):
+                (-torch.log(probs)).sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
+            else:
+                probs.sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
             ## layer.grad : (batch_size, seq_len, hidden_size)
             norm = torch.norm(layer.grad, dim=-1)
             ## norm : (batch_size, seq_len)
@@ -211,6 +217,9 @@ class LocateMachine:
         masked_sequence_text = self.tokenizer.batch_decode(
             [x[:lengths[i]] for i, x in enumerate(batch.input_ids.tolist())]
         )
+        
+        if kwargs['return_scores']:
+            return masked_sequence_text, token_wise_scores
         return masked_sequence_text
     
 if __name__ == "__main__":

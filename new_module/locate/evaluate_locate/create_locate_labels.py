@@ -331,7 +331,7 @@ def handle_snli():
 
     merged_labels['hypothesis_tok2char'] = merged_labels.apply(lambda x: get_tok2char(x, 'hypothesis_tokens', 'hypothesis'), axis=1)
     merged_labels['hypothesis_char2tok']=merged_labels['hypothesis_tok2char'].apply(kv_swap)
-    merged_labels['hypothesis_tokens_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="hypothesis_char_labels", char2tok_col="hypothesis_char2tok", tokens_col="hypothesis_tokens"),axis=1)
+    merged_labels['hypothesis_token_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="hypothesis_char_labels", char2tok_col="hypothesis_char2tok", tokens_col="hypothesis_tokens"),axis=1)
 
     merged_labels['premise_word2char'] = merged_labels.apply(lambda x: get_word2char(x, ' ', 'premise_words'), axis=1)
     merged_labels['premise_char2word']=merged_labels['premise_word2char'].apply(kv_swap)
@@ -339,13 +339,19 @@ def handle_snli():
 
     merged_labels['premise_tok2char'] = merged_labels.apply(lambda x: get_tok2char(x, 'premise_tokens', 'premise'), axis=1)
     merged_labels['premise_char2tok']=merged_labels['premise_tok2char'].apply(kv_swap)
-    merged_labels['premise_tokens_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="premise_char_labels", char2tok_col="premise_char2tok", tokens_col="premise_tokens"),axis=1)
+    merged_labels['premise_token_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="premise_char_labels", char2tok_col="premise_char2tok", tokens_col="premise_tokens"),axis=1)
 
+    # add mapping from words to tokens and vice versa
     merged_labels['hypothesis_word2tok'] = merged_labels.apply(lambda x: get_word2tok(x, 'hypothesis_tokens', 'hypothesis_words'), axis=1)
     merged_labels['hypothesis_tok2word'] = merged_labels['hypothesis_word2tok'].apply(kv_swap)
     
+    # add binarized labels for hypothesis
+    merged_labels["hypothesis_word_labels_binary"] = merged_labels["hypothesis_word_labels"].apply(lambda x: [1 if y>=0.5 else 0 for y in x])
+    merged_labels["hypothesis_token_labels_binary"] = merged_labels["hypothesis_token_labels"].apply(lambda x: [1 if y>=0.5 else 0 for y in x])
+
     merged_labels = merged_labels[['pairID', 'premise', 'hypothesis', 'gold_label', 'hypothesis_words', 'premise_words', 'hypothesis_tokens', 'premise_tokens', 'hypothesis_word2tok', 'hypothesis_tok2word',
-        'premise_char_labels', 'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_tokens_labels', 'premise_word_labels', 'premise_tokens_labels']]
+        'premise_char_labels', 'premise_word_labels', 'premise_token_labels', 
+        'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_word_labels_binary', 'hypothesis_token_labels', 'hypothesis_token_labels_binary']]
 
     merged_labels.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/snli_locate_labels.jsonl', orient='records', lines=True)
 
@@ -514,7 +520,7 @@ def handle_mnli():
 
     merged_labels['hypothesis_tok2char'] = merged_labels.apply(lambda x: get_tok2char(x, 'hypothesis_tokens', 'hypothesis'), axis=1)
     merged_labels['hypothesis_char2tok']=merged_labels['hypothesis_tok2char'].apply(kv_swap)
-    merged_labels['hypothesis_tokens_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="hypothesis_char_labels", char2tok_col="hypothesis_char2tok", tokens_col="hypothesis_tokens"),axis=1)
+    merged_labels['hypothesis_token_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="hypothesis_char_labels", char2tok_col="hypothesis_char2tok", tokens_col="hypothesis_tokens"),axis=1)
 
     merged_labels['premise_word2char'] = merged_labels.apply(lambda x: get_word2char(x, ' ', 'premise_words'), axis=1)
     merged_labels['premise_char2word']=merged_labels['premise_word2char'].apply(kv_swap)
@@ -525,13 +531,19 @@ def handle_mnli():
 
     merged_labels['premise_tok2char'] = merged_labels.apply(lambda x: get_tok2char(x, 'premise_tokens', 'premise'), axis=1)
     merged_labels['premise_char2tok']=merged_labels['premise_tok2char'].apply(kv_swap)
-    merged_labels['premise_tokens_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="premise_char_labels", char2tok_col="premise_char2tok", tokens_col="premise_tokens"),axis=1)
+    merged_labels['premise_token_labels']=merged_labels.apply(lambda x: char_label_to_token_label(x, char_labels_col="premise_char_labels", char2tok_col="premise_char2tok", tokens_col="premise_tokens"),axis=1)
 
+    # add mapping from words to tokens and vice versa
     merged_labels['hypothesis_word2tok'] = merged_labels.apply(lambda x: get_word2tok(x, 'hypothesis_tokens', 'hypothesis_words'), axis=1)
     merged_labels['hypothesis_tok2word'] = merged_labels['hypothesis_word2tok'].apply(kv_swap)
 
+    # add binarized labels for hypothesis
+    merged_labels["hypothesis_word_labels_binary"] = merged_labels["hypothesis_word_labels"].apply(lambda x: [1 if y>=0.5 else 0 for y in x])
+    merged_labels["hypothesis_token_labels_binary"] = merged_labels["hypothesis_token_labels"].apply(lambda x: [1 if y>=0.5 else 0 for y in x])
+
     merged_labels = merged_labels[['pairID', 'premise', 'hypothesis', 'gold_label', 'hypothesis_words', 'premise_words', 'hypothesis_tokens', 'premise_tokens', 'hypothesis_word2tok', 'hypothesis_tok2word',
-        'premise_char_labels', 'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_tokens_labels', 'premise_word_labels', 'premise_tokens_labels']]
+        'premise_char_labels', 'premise_word_labels', 'premise_token_labels', 
+        'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_word_labels_binary', 'hypothesis_token_labels', 'hypothesis_token_labels_binary']]
 
     merged_labels.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/mnli_matched_locate_labels.jsonl', orient='records', lines=True)
 

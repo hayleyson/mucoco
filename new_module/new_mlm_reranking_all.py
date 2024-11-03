@@ -198,7 +198,7 @@ def main(config):
     # lossfns[1].tokenizer = loss2tokenizer[config["losses"][1]]
 
     # define an object to locate problematic phrases
-    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, build_loss_args)
+    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
 
     label_ids = config["target_label_ids"]  # target label's ids for each loss
 
