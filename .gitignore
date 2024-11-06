@@ -136,7 +136,6 @@ hf_cache
 wandb
 data
 notebooks/results
-outputs
 .vscode
 *.tar.gz
 *.pem

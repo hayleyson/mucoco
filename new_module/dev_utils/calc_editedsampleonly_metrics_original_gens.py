@@ -97,11 +97,11 @@ for i, run_id in enumerate(run_ids):
     outputs_reformat = reformat(outputs)
     
     print(outputs_reformat)
-    outputs_reformat.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}_unraveled.jsonl"]), lines=True, orient='records')
+    # outputs_reformat.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}_unraveled.jsonl"]), lines=True, orient='records')
 
     outputs=ravel(outputs)
     # print(outputs)
-    outputs.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}.jsonl"]), lines=True, orient='records')
+    # outputs.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}.jsonl"]), lines=True, orient='records')
 
 
 
