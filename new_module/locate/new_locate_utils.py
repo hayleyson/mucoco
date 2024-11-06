@@ -101,7 +101,7 @@ class LocateMachine:
 
     def locate_main(self, prediction, method, max_num_tokens = 6, unit="word",**kwargs):
         
-        if kwargs['tokenized_input']:
+        if kwargs.get('tokenized_input', False):
             batch = prediction
         elif self.task == "nli":
             batch = self.tokenizer(prediction, add_special_tokens=True, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
@@ -137,10 +137,12 @@ class LocateMachine:
             except:
                 softmax=torch.nn.Softmax(dim=-1)
                 probs = softmax(logits)[:, kwargs['label_id']]
-            if (kwargs['use_energy']) and (kwargs['multiclass_ce']):
+            if (kwargs.get('use_energy', False)) and (self.model.params['energynet']['output_form'] == '3dim_vec'):
                 (-torch.log(1-probs)).sum().backward(retain_graph=True)
-            elif (kwargs['use_energy']):
-                (-torch.log(probs)).sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
+            elif (kwargs.get('use_energy', False)) and (self.model.params['energynet']['output_form'] == '2dim_vec'):
+                (-torch.log(probs)).sum().backward(retain_graph=True) 
+            elif (kwargs.get('use_energy', False)) and (self.model.params['energynet']['output_form'] == 'real_num'):
+                (-(probs)).sum().backward(retain_graph=True) 
             else:
                 probs.sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
             ## layer.grad : (batch_size, seq_len, hidden_size)
@@ -154,7 +156,7 @@ class LocateMachine:
         # create a mask to exclude special tokens (incl. PAD), stop words, etc. (e.g. premise for nli task) from being located.
         exclude_mask = (batch.attention_mask == 0) | torch.isin(batch.input_ids, self.stopwords_ids)
         if self.task == "nli":
-            # sentence structure after encoding : <s> ...(premise)... </s></s> ...(hypothesis)... </s> 
+            # sentence structure after encoding : <s> ...(premise)... </s></s> ...(hypothesis)... </s> or <s> ...(premise)... </s> ...(hypothesis)... </s> 
             # mask before the first occurrence of </s> token
             premise_mask = torch.zeros_like(batch.input_ids).bool()
             indices = (batch.input_ids == self.tokenizer.sep_token_id).nonzero(as_tuple=False)
@@ -166,6 +168,21 @@ class LocateMachine:
                 first_occurence = all_occurences[0, 1]
                 premise_mask[i, :first_occurence] = True
             exclude_mask |= premise_mask
+        
+        if (self.task == "nli") and (kwargs.get('input_includes_y', False)):
+            # if input_includes_y, then tokenized_input must also be True
+            # sentence structure after encoding : <s> ...(premise)... </s> ...(hypothesis)... </s> ...(label)... </s>
+            # mask after the second occurrence of </s> token
+            label_mask = torch.zeros_like(batch.input_ids).bool()
+            indices = (batch.input_ids == self.tokenizer.sep_token_id).nonzero(as_tuple=False)
+            for i in range(batch.input_ids.size(0)):
+                all_occurences = indices[indices[:, 0] == i]
+                if len(all_occurences) == 0:
+                    print(prediction[i])
+                    print(batch.input_ids[i])
+                second_occurence = all_occurences[1, 1]
+                label_mask[i, second_occurence:] = True
+            exclude_mask |= label_mask            
         
         
         # fill -inf at excluded locations and take softmax
@@ -218,7 +235,7 @@ class LocateMachine:
             [x[:lengths[i]] for i, x in enumerate(batch.input_ids.tolist())]
         )
         
-        if kwargs['return_scores']:
+        if kwargs.get('return_scores',False):
             return masked_sequence_text, token_wise_scores
         return masked_sequence_text
     
