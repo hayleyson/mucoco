@@ -20,4 +20,5 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
+git checkout nli
 srun python new_module/em_training/nli/train.py 
