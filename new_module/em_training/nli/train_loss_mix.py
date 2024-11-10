@@ -3,6 +3,7 @@ import yaml
 import math
 import time
 import shutil
+import random
 
 import json
 import wandb
@@ -25,8 +26,13 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 
 def main():
     
-    config = load_config('new_module/em_training/config.yaml')
+    config = load_config('new_module/em_training/config_loss_mix.yaml')
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    ## set seed
+    seed = random.randint(0,1000)
+    config['seed'] = seed
+    set_seed(seed)  
     
     ## add more elaborate dirs in ckpt_save_path
     model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}".replace('-', '_')

@@ -3,6 +3,7 @@ import yaml
 import math
 import time
 import shutil
+import random
 
 import json
 import wandb
@@ -26,6 +27,12 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 def main():
     
     config = load_config('new_module/em_training/config.yaml')
+    
+    ## set seed
+    seed = random.randint(0,1000)
+    config['seed'] = seed
+    set_seed(seed)   
+    
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     ## add more elaborate dirs in ckpt_save_path

@@ -2,6 +2,7 @@ import os
 import yaml
 import math
 import time
+import random
 
 import json
 import wandb
@@ -17,6 +18,16 @@ from scipy.stats import pearsonr
 import seaborn as sns
 
 from new_module.em_training.nli.losses import create_pairs_for_ranking
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def load_config(config_path):
     with open(config_path, 'r') as f:

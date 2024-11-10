@@ -13,11 +13,11 @@ energynet:
   loss: binary_cross_entropy
   margin: n/a
   additional_loss:
-    use: false
-    loss: n/a
-    margin: n/a
-    setting: n/a
-    mixing_weights: n/a
+    use: true
+    loss: margin_ranking
+    margin: 1.0
+    setting: 2
+    mixing_weights: 1, 1
   fill_missing_finegrained: true
   add_train_data: true
   eval_every: 100
