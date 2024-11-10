@@ -6,8 +6,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/t_bv0_clsf_%j.out'
 
-source /home/hyeryung/.bashrc
-source /home/hyeryung/miniconda3/etc/profile.d/conda.sh
+source /home/ubuntu/.bashrc
+source /home/ubuntu/miniconda3/etc/profile.d/conda.sh
+conda init
 conda activate loc-edit
 
 export PYTHONPATH=.
@@ -228,7 +229,9 @@ srun python new_module/new_mlm_reranking_all.py \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --locate_method grad_norm \
---server_time_limit 12 \
+--server_time_limit 48 \
+--consider_prompt_for_cand_gen \
 --device cuda \
+--max_tokens_per_span 3 \
 --cache_dir /data/hyeryung/hf_cache \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification
