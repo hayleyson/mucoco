@@ -231,7 +231,7 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         
         target_style = run.config.get("target_style", "")
     else:
-        output_file = "results.txt"
+        output_file = f"{generations_file_path.split('/')[-1]}-results.txt"
         task = kwargs.get("task", "")
         target_style = kwargs.get("target_style", "")
         
@@ -244,9 +244,11 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
 
     if "ppl-big" in metricset: #GPT2-XL
         logger.debug("big")
-        
-        eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
-        eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
+        eval_model_name = "Qwen/Qwen2.5-14B"
+        eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, torch_dtype = torch.float16).to(device)
+        eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
+        # eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
+        # eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
         torch.cuda.empty_cache()
         with torch.no_grad():
             ppl, total_ppl = conditional_perplexity(generations_df, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
