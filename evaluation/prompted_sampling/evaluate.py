@@ -275,13 +275,17 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
         fout = open(write_file, "w")
 
     # for every prompt
-    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating PPL'):
+    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating PPL', mininterval=5):
         # prompt_input_ids = torch.LongTensor([row.prompt['tokens']]).to(device)
         prompt = row.prompt['text']
+
+        prompt_is_empty = False
         if prompt == "":
-            prompt = tokenizer.bos_token
+            prompt = tokenizer.bos_token if tokenizer.bos_token else " "
+            prompt_is_empty = True
         prompt_input_ids = tokenizer.encode(prompt, return_tensors='pt').to(device)
-        if not (prompt_input_ids.shape[1] == 1 and prompt_input_ids[0].tolist()[0] == tokenizer.bos_token_id): # this means unconditional, prompt is BOS token (verify)
+        #if not (prompt_input_ids.shape[1] == 1 and prompt_input_ids[0].tolist()[0] == tokenizer.bos_token_id): # this means unconditional, prompt is BOS token (verify)
+        if not prompt_is_empty:
             prompt_loss = model(prompt_input_ids, labels=prompt_input_ids)[0] * (prompt_input_ids.shape[1]-1)
             # print("in")
         else:
@@ -297,10 +301,11 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
             # print(f'{prompt}{gen}')
             # print(full_input_ids)
             full_loss = model(full_input_ids, labels=full_input_ids)[0] * (full_input_ids.shape[1]-1)
+
             loss = (full_loss - prompt_loss) / (full_input_ids.shape[1] - prompt_input_ids.shape[1])
 
             ppl = np.exp(loss.item())
-            # print(ppl)
+
             # input()
             if ppl < 100:   # for sanity
                 goodperplexities.append(ppl)
@@ -323,10 +328,10 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
             # input()
             if write_file is not None:
                 fout.write(f"{ppl}, {(full_loss - prompt_loss).item()}, {(full_input_ids.shape[1] - prompt_input_ids.shape[1])}\n")
-        
         # input("ok")
     
     print(np.nanmean(goodperplexities), len(goodperplexities), len(perplexities), g)
+    print(perplexities)
     # return np.nanmean(perplexities), np.exp(total_nll/total_tokens)
     if include_trimmed_mean:
         notna_perplexities = perplexities[np.isnan(perplexities)]
@@ -377,7 +382,8 @@ def fluency_classify(generations_df, output_file=None):
     
     accuracies = []
     all_prediction_labels = []
-    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation fluency'):
+    all_prediction_scores = []
+    for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Scoring generation fluency', mininterval=5):
         prompt = row.prompt['text']
         generations = [gen['text'] for gen in row['generations']]
         sentences_for_prompt= []
@@ -394,9 +400,12 @@ def fluency_classify(generations_df, output_file=None):
 
         prediction_labels = [prediction["label"] for prediction in predictions_for_prompt]
         all_prediction_labels += prediction_labels
+        prediction_scores = [str(prediction["score"]) for prediction in predictions_for_prompt]
+        all_prediction_scores += prediction_scores
         
     with open(output_file, "w") as fout:
         fout.write("\n".join(all_prediction_labels))
+        fout.write("\n".join(all_prediction_scores))
 
     accuracy = np.array(all_prediction_labels) == "LABEL_1" ## LABEL_1 is acceptable
     accuracy = np.nanmean(accuracy.astype("float32"))
@@ -1144,6 +1153,81 @@ def toxicity_score_int(generations_df, toxicity_file, device, checkpoint_path, m
     return (np.nanmean(avg_max_toxicity), sum(toxic_probability_p)/len(toxic_probability_p), \
             np.nanmean(avg_toxicity), sum(toxic_probability_s)/len(toxic_probability_s))
     
+def nli_score(generations_df, write_file, device='cuda'):
+    model_paths = [
+    "ynie/roberta-large-snli_mnli_fever_anli_R1_R2_R3-nli",
+    "cross-encoder/nli-roberta-base",
+    "cross-encoder/nli-deberta-v3-base"
+]
+    models = []
+    tokenizers = []
+    for model_path in model_paths:
+        model = AutoModelForSequenceClassification.from_pretrained(model_path).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        models.append(model)
+        tokenizers.append(tokenizer)
+
+    # 클래스별 확률 합산 변수 초기화
+    total_entail_prob = 0
+    total_neutral_prob = 0
+    total_contradiction_prob = 0
+    total_count = 0
+
+    results = []
+    # 각 row에 대해 NLI 점수 계산
+    for _, row in tqdm(generations_df.iterrows(), total=len(generations_df), desc='NLI classifying...', mininterval=5):
+        premise = row['prompt']['text']
+        hypotheses = [gen['text'] for gen in row['generations']]
+
+        # 각 hypothesis에 대해 NLI 평가
+        for hypothesis in hypotheses:
+            entail_prob_sum = 0
+            neutral_prob_sum = 0
+            contradiction_prob_sum = 0
+            
+            # 각 모델에 대해 예측 수행
+            for model, tokenizer in zip(models, tokenizers):
+                # 토큰화 및 텐서 변환
+                inputs = tokenizer(premise, hypothesis, return_tensors='pt', truncation=True, padding=True).to(device)
+
+                with torch.no_grad():
+                    outputs = model(**inputs)
+                    probs = torch.softmax(outputs.logits, dim=-1).squeeze()  # 예측 확률 계산
+
+                # 각 클래스 확률 합산
+                entail_prob_sum += probs[0].item()
+                neutral_prob_sum += probs[1].item()
+                contradiction_prob_sum += probs[2].item()
+
+            # 각 hypothesis에 대한 모델 평균 확률 계산 및 누적
+            entail_prob_avg = entail_prob_sum / len(models)
+            neutral_prob_avg = neutral_prob_sum / len(models)
+            contradiction_prob_avg = contradiction_prob_sum / len(models)
+
+            total_entail_prob += entail_prob_avg
+            total_neutral_prob += neutral_prob_avg
+            total_contradiction_prob += contradiction_prob_avg
+            total_count += 1
+
+            results.append({
+                "premise": premise,
+                "hypothesis": hypothesis,
+                "entailment_prob": entail_prob_avg,
+                "neutral_prob": neutral_prob_avg,
+                "contradiction_prob": contradiction_prob_avg
+            })
+
+    # 전체 데이터에 대한 평균 확률 계산
+    avg_nli_entail = total_entail_prob / total_count
+    avg_nli_neutral = total_neutral_prob / total_count
+    avg_nli_contradiction = total_contradiction_prob / total_count
+
+    if write_file:
+        with open(write_file, 'w') as f:
+            for result in results:
+                f.write(f"{result}\n")
+
+    return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction
 
 def formality_score_ext(generations_df, output_file, device):
     

@@ -24,6 +24,7 @@ from evaluation.prompted_sampling.evaluate import (
     toxicity_score_energy,
     toxicity_score_int,
     toxicity_score_mucola,
+    nli_score
 )
 
 ## logging-related
@@ -67,6 +68,18 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
         
         source_predictions_ = pd.DataFrame({'source': sources, 'prediction': predictions['generations'].tolist()}) 
         
+    # TODO
+    # nli does not need any source files
+    elif task == 'nli':
+        sources = pd.read_json(sources_file, lines=True)
+        sources['premise']=sources.prompt.apply(lambda x: x['premise'])
+        sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
+
+        predictions = pd.read_json(outputs_file, lines=True)
+        sources['generation']=predictions.generations.apply(lambda x: x[0]['text'])
+
+        source_predictions_ = sources.rename(columns={'hypothesis': 'source', 'generation':'prediction'})
+
     ## start evaluation
     ## -- BLEU, SBLEU
     # https://huggingface.co/spaces/evaluate-metric/sacrebleu
@@ -114,6 +127,14 @@ def unravel(outputs_df):
     outputs_df = outputs_df.dropna().reset_index(drop=True)
     return outputs_df
 
+def unravel_nli(outputs_df):
+    outputs_df=outputs_df.explode('generations',ignore_index=True)
+    outputs_df['prompt']=outputs_df['prompt'].apply(lambda x: x['premise'])
+    outputs_df['source'] = outputs_df['prompt'].apply(lambda x: x['hypothesis'])
+    outputs_df['generations']=outputs_df['generations'].apply(lambda x: x['text'] if isinstance(x, dict) else x)
+    outputs_df = outputs_df.dropna().reset_index(drop=True)
+    return outputs_df
+
 def unravel_toxicity_data(df):
     df['toxicity']=df['allresponses'].apply(lambda x: [x[0]['attributeScores']['TOXICITY']['summaryScore']['value'] for x in list(x.values())])
     df=df.explode('toxicity',ignore_index=True)
@@ -134,14 +155,21 @@ def save_qualitative_results(task,
     elif (task=='formality'):
         with open(source_file_path, 'r') as f:
             source = [_line.rstrip('\n') for _line in f.readlines()]
-    
+
+    # elif (task =='nli'):
+    #     source = pd.read_json(outputs_file_path, lines=True)
+        
     outputs = pd.read_json(outputs_file_path, lines=True)
     ppl = pd.read_csv(ppl_results_path, header=None)
+
     if (task=='toxicity') or (task=='sentiment'):
         constraint_sat = pd.read_json(constraint_results_path, lines=True)
     elif (task=='formality'):
         constraint_sat = pd.read_csv(constraint_results_path, header=None)
-    contents_prsrv=pd.read_csv(contents_prsrv_results_path)
+    
+    # elif (task=='nli'):
+    #     constraint_sat = pd.read_json(constraint_results_path, lines=True)
+    # contents_prsrv=pd.read_csv(contents_prsrv_results_path)
 
 
     # preprocess files
@@ -153,8 +181,12 @@ def save_qualitative_results(task,
         source = source[['prompt','generations']].copy()
     elif (task=='formality'):
         source = pd.DataFrame({'prompt': ["" for _ in range(len(source))], 'generations': source})
+
     outputs = unravel(outputs)
 
+    # if (task=='nli'):
+    #     source = unravel_nli(source)[['prompt', 'source']].rename(columns={'source':'generations'})
+    #     outputs = unravel_nli(source)
     ## key (row index), value
     ppl = ppl.iloc[:, 0].copy()
 
@@ -167,6 +199,8 @@ def save_qualitative_results(task,
         constraint_sat = constraint_sat['score'].copy()
     elif task == 'formality':
         constraint_sat = constraint_sat.iloc[:, 0].copy()
+    #elif task == 'nli':
+        
                                 
     contents_prsrv = contents_prsrv['sbert_score'].copy()
 
@@ -174,6 +208,12 @@ def save_qualitative_results(task,
 
     final_df.columns=['prompt','original','edited','ppl','constraint_sat','sbert_score']
     final_df.to_excel(qual_results_path,index=False)
+
+def rename_df_for_nli(dataframe, col_name='premise'):
+    # rename target column for evaluation
+    result_df = dataframe.copy()
+    result_df['prompt'] = dataframe['prompt'].apply(lambda x: {'text': x[col_name]})
+    return result_df[['prompt', 'generations']]
 
 
 def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
@@ -187,6 +227,7 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
       
     generations_df = pd.read_json(generations_file_path, lines=True) 
     logger.debug(generations_df.shape)
+
 
     metricset = set(metrics.strip().lower().split(","))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -250,11 +291,25 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         # eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
         # eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
         torch.cuda.empty_cache()
+        if task=='nli':
+            generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
+        else:
+            generations_df2 = generations_df
         with torch.no_grad():
-            ppl, total_ppl = conditional_perplexity(generations_df, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
+            ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
         if run_path != "":
             run.summary.update({'ppl': ppl, 'total_ppl': total_ppl})
         fp.write(f'ppl: {ppl}, total_ppl: {total_ppl}\n')
+    
+    if 'nli' in metricset:
+        logger.debug("nli-ensemble")
+        generations_df2 = rename_df_for_nli(generations_df, 'premise')
+        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
+        if run_path != "":
+            run.summary.update({'avg_nli_entail': avg_nli_entail, 'avg_nli_neutral': avg_nli_neutral,
+                'avg_nli_contradiction': avg_nli_contradiction})
+        fp.write(f'avg_nli_entail: {avg_nli_entail}, avg_nli_neutral: {avg_nli_neutral}, avg_nli_contradiction: {avg_nli_contradiction}\n')
 
     if 'toxicity' in metricset:
         logger.debug("toxicity-external")
@@ -344,7 +399,12 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         fp.write(f'repetition_rate: {rep_rate}\n')
         
     if "fluency" in metricset:
-        fluency = fluency_classify(generations_df, output_dir / (output_file+".fluency"))
+        if task == 'nli':
+            generations_df = rename_df_for_nli(generations_df, 'premise')
+            generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
+        else:
+            generations_df2 = generations_df
+        fluency = fluency_classify(generations_df2, output_dir / (output_file+".fluency"))
         if run_path != "":
             run.summary.update({'fluent_proba': fluency})
         fp.write(f'fluent_proba: {fluency}\n')
@@ -386,6 +446,8 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
             constraint_suffix = 'sentiment_ext'
         elif task == 'formality':
             constraint_suffix = 'formality_ext'
+        elif task == 'nli':
+            constraint_suffix = 'nli'
             
         save_qualitative_results(task,
                                 kwargs['source_file_path'], 
