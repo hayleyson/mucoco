@@ -34,16 +34,23 @@ def main():
     config['seed'] = seed
     set_seed(seed)  
     
-    ## add more elaborate dirs in ckpt_save_path
-    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}".replace('-', '_')
-    model_dir_2 = str(int(time.time()))
+    
+    # init wandb run 
+    run = wandb.init(config=config, entity="hayleyson", project="nli_energynet")
+    run_config = wandb.config
+    
+    # set model path
+    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}".replace('-', '_')
+    model_dir_2 = run.id
     config['energynet']['ckpt_save_path'] = f"{config['energynet']['ckpt_save_path']}/{model_dir_1}/{model_dir_2}"
     model_path = f"{config['energynet']['ckpt_save_path']}/best_model.pth"
     config['model_path'] = model_path
-    
-    runname = f"{config['energynet']['base_model']}_{config['energynet']['output_form']}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{model_dir_2}"
-    run = wandb.init(config=config, entity="hayleyson", project="nli_energynet")
-    run_config = wandb.config
+    # update wandb config with model paths
+    run.config['energynet'].update({'ckpt_save_path': config['energynet']['ckpt_save_path']})
+    run.config.update({'model_path': config['model_path']})
+    # set run name
+    runname = f"{config['energynet']['base_model']}_{config['energynet']['output_form']}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}"
+    wandb.run.name = runname
     try:
         config['energynet']['batch_size'] = run_config.batch_size
         config['energynet']['max_lr'] = run_config.max_lr
@@ -51,7 +58,7 @@ def main():
         config['energynet']['num_epochs'] = run_config.num_epochs
     except:
         pass
-    wandb.run.name = runname
+    
     
     model = EncoderModel(config)
     model = model.to(config['device'])
