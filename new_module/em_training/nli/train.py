@@ -33,7 +33,6 @@ def main():
     config['seed'] = seed
     set_seed(seed)   
     
-    
     # init wandb run 
     run = wandb.init(config=config, entity="hayleyson", project="nli_energynet")
     run_config = wandb.config
@@ -212,9 +211,6 @@ def main():
                         patience_counter = 0
             else:
                 wandb.log(train_metrics)
-    
-    # copy what's inside the model save directory to wandb server
-    wandb.save(os.path.dirname(config['model_path']))
 
 # ToDo. 무호코드 참고해서 sweep 하는 부분 추가하기
 if __name__ == "__main__":

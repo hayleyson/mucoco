@@ -34,7 +34,6 @@ def main():
     config['seed'] = seed
     set_seed(seed)  
     
-    
     # init wandb run 
     run = wandb.init(config=config, entity="hayleyson", project="nli_energynet")
     run_config = wandb.config
@@ -58,7 +57,6 @@ def main():
         config['energynet']['num_epochs'] = run_config.num_epochs
     except:
         pass
-    
     
     model = EncoderModel(config)
     model = model.to(config['device'])
@@ -246,7 +244,6 @@ def main():
                         patience_counter = 0
             else:
                 wandb.log(train_metrics)
-    
     
 
 # ToDo. 무호코드 참고해서 sweep 하는 부분 추가하기
