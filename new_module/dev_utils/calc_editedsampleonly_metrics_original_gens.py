@@ -55,7 +55,7 @@ def unravel_toxicity_data(df):
 # "wgarjlit",
 # "8qv0f6o3",]
 
-run_ids = ["q7tlrfcl",]
+run_ids = ["r7kykwge",]
 ## edited index를 뽑아오고
 ## get common indexs
 
@@ -82,7 +82,7 @@ for run_id in run_ids:
 # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
-output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl"]
+output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl"]
 
 
 for i, run_id in enumerate(run_ids):
@@ -97,11 +97,11 @@ for i, run_id in enumerate(run_ids):
     outputs_reformat = reformat(outputs)
     
     print(outputs_reformat)
-    outputs_reformat.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}_unraveled.jsonl"]), lines=True, orient='records')
+    # outputs_reformat.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}_unraveled.jsonl"]), lines=True, orient='records')
 
     outputs=ravel(outputs)
     # print(outputs)
-    outputs.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}.jsonl"]), lines=True, orient='records')
+    # outputs.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}.jsonl"]), lines=True, orient='records')
 
 
 

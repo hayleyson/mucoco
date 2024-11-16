@@ -4,6 +4,8 @@ import os
 import sys
 from pathlib import Path
 
+import json
+from openai import OpenAI
 import evaluate
 import numpy as np
 import pandas as pd
@@ -25,6 +27,9 @@ from evaluation.prompted_sampling.evaluate import (
     toxicity_score_int,
     toxicity_score_mucola,
     nli_score
+    sentiment_classify_gpt4o,
+    contents_preservation_metrics,
+    save_qualitative_results
 )
 
 ## logging-related
@@ -283,13 +288,27 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
     else:
         fp = open(output_dir / output_file, 'w')
 
-    if "ppl-big" in metricset: #GPT2-XL
+    if "ppl-qwen" in metricset: #GPT2-XL
         logger.debug("big")
         eval_model_name = "Qwen/Qwen2.5-14B"
         eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, torch_dtype = torch.float16).to(device)
         eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
-        # eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
-        # eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
+        torch.cuda.empty_cache()
+        if task=='nli':
+            generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
+        else:
+            generations_df2 = generations_df
+        with torch.no_grad():
+            ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big-qwen"))
+        if run_path != "":
+            run.summary.update({'ppl_qwen': ppl, 'total_ppl_qwen': total_ppl})
+        fp.write(f'ppl_qwen: {ppl}, total_ppl_qwen: {total_ppl}\n')
+
+    if "ppl-big" in metricset: #GPT2-XL
+        logger.debug("big")
+        eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
+        eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
         torch.cuda.empty_cache()
         if task=='nli':
             generations_df2 = rename_df_for_nli(generations_df, 'premise')
@@ -370,6 +389,18 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
                                 'positive_proba_p_std': std_positive_proba_p,
                                 'avg_positivity': avg_positivity})
         fp.write(f'positive_proba: {positive_proba}, positive_proba_p_std: {std_positive_proba_p}, avg_positivity: {avg_positivity}\n')
+       
+    if 'sentiment-gpt4o' in metricset:
+        logger.debug("sentiment-gpt4o")
+        positive_proba, std_positive_proba_p = sentiment_classify_gpt4o(generations_df, output_dir / (output_file+".sentiment_gpt4o"))
+        if run_path != "":
+            # run.summary.update({"avg_sentiment": None, "positive_proba": None, 
+            #                 "avg_positive_proba_p": None, "std_positive_proba_p": None, 
+            #                 "positive_proba_p_avg": None, "positive_proba_s": None})
+            run.summary.update({'positive_proba_gpt4o': positive_proba, 
+                                'positive_proba_std_gpt4o': std_positive_proba_p})
+        fp.write(f'positive_proba_gpt4o: {positive_proba}, positive_proba_std_gpt4o: {std_positive_proba_p}\n')
+       
         
     if 'sentiment-int' in metricset:
         logger.debug("sentiment-internal")

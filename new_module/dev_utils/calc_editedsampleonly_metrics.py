@@ -45,7 +45,9 @@ def unravel_toxicity_data(df):
 # "8qv0f6o3",
 # "bx3qb540"]
 
-run_ids = ["q7tlrfcl"]
+task="toxicity"
+
+run_ids = ["r7kykwge"]
 ## edited index를 뽑아오고
 ## get common indexs
 
@@ -131,65 +133,107 @@ for run_id in run_ids:
         metric_value = result.loc[~result['repeated_phrase'].isna(),:].shape[0]/result.shape[0]
     repetitions_metrics.append(metric_value)
 
-## toxicity
-metric='toxicity'
-avg_toxicity_metrics=[]
-toxic_proba_metrics=[]
-toxic_proba_75_metrics=[]
-for run_id in run_ids:
+if task == "toxicity":
+    ## toxicity
+    metric='toxicity'
+    avg_toxicity_metrics=[]
+    toxic_proba_metrics=[]
+    toxic_proba_75_metrics=[]
+    for run_id in run_ids:
 
-    result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
-    if len(result_file) == 0:
-        result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
-
-    if metric in ['repetitions','toxicity']:
-        result=pd.read_json(result_file[0],lines=True)
-    else:
-        result=pd.read_csv(result_file[0],header=None)
-
-    if result.empty:
-        result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_filled.txt.{metric}")
+        result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
         if len(result_file) == 0:
-            result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_filled.txt.{metric}")
+            result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
+
+        if metric in ['repetitions','toxicity']:
+            result=pd.read_json(result_file[0],lines=True)
+        else:
+            result=pd.read_csv(result_file[0],header=None)
+
+        if result.empty:
+            result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_filled.txt.{metric}")
+            if len(result_file) == 0:
+                result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_filled.txt.{metric}")
+            # print(result_file[0])
+            if metric in ['repetitions','toxicity']:
+                result=pd.read_json(result_file[0],lines=True)
+            else:
+                result=pd.read_csv(result_file[0],header=None)
+        # print(result)
+        result=unravel_toxicity_data(result)
+        result=result.loc[edited_ixs[run_id]]
+        avg_toxicity=result['toxicity'].mean()
+        toxic_proba=result['toxicity'].apply(lambda x: 1 if x>0.5 else 0).mean()
+        toxic_proba_75=result['toxicity'].apply(lambda x: 1 if x>0.75 else 0).mean()
+        avg_toxicity_metrics.append(avg_toxicity)
+        toxic_proba_metrics.append(toxic_proba)
+        toxic_proba_75_metrics.append(toxic_proba_75)
+        
+        
+    ## toxicity_int
+    metric='toxicity_int'
+    avg_toxicity_metrics_int=[]
+    toxic_proba_metrics_int=[]
+    toxic_proba_75_metrics_int=[]
+    for run_id in run_ids:
+
+        result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
+        if len(result_file) == 0:
+            result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
         # print(result_file[0])
         if metric in ['repetitions','toxicity']:
             result=pd.read_json(result_file[0],lines=True)
         else:
             result=pd.read_csv(result_file[0],header=None)
-    # print(result)
-    result=unravel_toxicity_data(result)
-    result=result.loc[edited_ixs[run_id]]
-    avg_toxicity=result['toxicity'].mean()
-    toxic_proba=result['toxicity'].apply(lambda x: 1 if x>0.5 else 0).mean()
-    toxic_proba_75=result['toxicity'].apply(lambda x: 1 if x>0.75 else 0).mean()
-    avg_toxicity_metrics.append(avg_toxicity)
-    toxic_proba_metrics.append(toxic_proba)
-    toxic_proba_75_metrics.append(toxic_proba_75)
-    
-    
-## toxicity_int
-metric='toxicity_int'
-avg_toxicity_metrics_int=[]
-toxic_proba_metrics_int=[]
-toxic_proba_75_metrics_int=[]
-for run_id in run_ids:
+        
+        result=result.loc[edited_ixs[run_id]]
+        avg_toxicity=result[0].mean()
+        toxic_proba=result[0].apply(lambda x: 1 if x>0.5 else 0).mean()
+        toxic_proba_75=result[0].apply(lambda x: 1 if x>0.75 else 0).mean()
+        avg_toxicity_metrics_int.append(avg_toxicity)
+        toxic_proba_metrics_int.append(toxic_proba)
+        toxic_proba_75_metrics_int.append(toxic_proba_75)
+        
+elif task == "sentiment":
+    ## sentiment_ext
+    metric='sentiment_ext'
+    positive_proba_metrics=[]
+    for run_id in run_ids:
 
-    result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
-    if len(result_file) == 0:
-        result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
-    # print(result_file[0])
-    if metric in ['repetitions','toxicity']:
-        result=pd.read_json(result_file[0],lines=True)
-    else:
-        result=pd.read_csv(result_file[0],header=None)
+        result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
+        if len(result_file) == 0:
+            result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_epsilon*-test.txt.{metric}")
+        # print(result_file[0])
+        if metric in ['repetitions','toxicity', 'sentiment_ext']:
+            result=pd.read_json(result_file[0],lines=True)
+        else:
+            result=pd.read_csv(result_file[0],header=None)
+        
+        result=result.loc[edited_ixs[run_id]]
+        positive_proba=result['label'].apply(lambda x: 1 if x == "POSITIVE" else 0).mean()
+        positive_proba_metrics.append(positive_proba)
     
-    result=result.loc[edited_ixs[run_id]]
-    avg_toxicity=result[0].mean()
-    toxic_proba=result[0].apply(lambda x: 1 if x>0.5 else 0).mean()
-    toxic_proba_75=result[0].apply(lambda x: 1 if x>0.75 else 0).mean()
-    avg_toxicity_metrics_int.append(avg_toxicity)
-    toxic_proba_metrics_int.append(toxic_proba)
-    toxic_proba_75_metrics_int.append(toxic_proba_75)
+    ## sentiment_gpt4o
+    metric='sentiment_gpt4o'
+    positive_proba_gpt4o_metrics=[]
+    for run_id in run_ids:
+
+        result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/*_epsilon*-test.txt.{metric}")
+        if len(result_file) == 0:
+            result_file=glob(f"outputs/toxicity/**/*{run_id}*/*_epsilon*-test.txt.{metric}")
+        if len(result_file) == 0:
+            positive_proba_gpt4o_metrics = [None for _ in range(len(edited_ixs[run_id]))]
+            continue
+        # print(result_file[0])
+        if metric in ['repetitions','toxicity', 'sentiment_ext']:
+            result=pd.read_json(result_file[0],lines=True)
+        else:
+            result=pd.read_csv(result_file[0],header=None)
+        
+        print(result)
+        result=result.loc[edited_ixs[run_id]]
+        positive_proba=result[0].apply(lambda x: 1 if x == 1 else 0).mean()
+        positive_proba_gpt4o_metrics.append(positive_proba)
     
 ## dist-3
 
@@ -242,19 +286,34 @@ for run_id in run_ids:
 
 ## putting all together
 
-
-pd.DataFrame({'run_ids':run_ids, 
-             'sbert': sbert_metrics,
-              'sbert_count': sbert_geq_5_counts,
-              'sbert_ratio': sbert_geq_5_ratios,
-              'avg_toxicity':avg_toxicity_metrics,
-              'toxic_proba':toxic_proba_metrics,
-              'toxic_75_proba':toxic_proba_75_metrics,
-              'ppl':ppl_metrics,
-              'delta_ppl':['' for _ in range(len(run_ids))],
-              'total_ppl': total_ppl_metrics,
-              'fluency_metrics':fluency_metrics,
-              'dist-3':dist3_metrics,
-              'rep_rate':repetitions_metrics,
-              'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
-        }).to_csv('/data/hyeryung/mucoco/outputs/toxicity/llm/q7tlrfcl/results_epsilon0.9-test-editedonly.csv',index=False)
+if task == "toxicity":
+    pd.DataFrame({'run_ids':run_ids, 
+                'sbert': sbert_metrics,
+                'sbert_count': sbert_geq_5_counts,
+                'sbert_ratio': sbert_geq_5_ratios,
+                'avg_toxicity':avg_toxicity_metrics,
+                'toxic_proba':toxic_proba_metrics,
+                'toxic_75_proba':toxic_proba_75_metrics,
+                'ppl':ppl_metrics,
+                'delta_ppl':['' for _ in range(len(run_ids))],
+                'total_ppl': total_ppl_metrics,
+                'fluency_metrics':fluency_metrics,
+                'dist-3':dist3_metrics,
+                'rep_rate':repetitions_metrics,
+                'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
+            }).to_csv('/data/hyeryung/mucoco/outputs/toxicity/llm/r7kykwge/results_epsilon0.9-test-editedonly.csv',index=False)
+elif task == "toxicity":    
+    pd.DataFrame({'run_ids':run_ids, 
+                'sbert': sbert_metrics,
+                'sbert_count': sbert_geq_5_counts,
+                'sbert_ratio': sbert_geq_5_ratios,
+                'positive_proba':positive_proba_metrics,
+                'positive_proba_gpt4o':positive_proba_gpt4o_metrics,
+                'ppl':ppl_metrics,
+                'delta_ppl':['' for _ in range(len(run_ids))],
+                'total_ppl': total_ppl_metrics,
+                'fluency_metrics':fluency_metrics,
+                'dist-3':dist3_metrics,
+                'rep_rate':repetitions_metrics,
+                'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
+            }).to_csv('/data/hyeryung/mucoco/outputs/toxicity/llm/r7kykwge/results_epsilon0.9-test-editedonly.csv',index=False)
