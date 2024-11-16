@@ -33,7 +33,7 @@ from mucoco.utils import (
     TargetSimplex,
     get_epsilon,
 )
-from new_module.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.locate_utils_old import locate_main
 
 # torch.autograd.set_detect_anomaly(True)
