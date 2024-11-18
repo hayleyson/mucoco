@@ -39,7 +39,8 @@ def main():
     run_config = wandb.config
     
     # set model path
-    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}".replace('-', '_')
+    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}".replace('-', '_').replace('/', '_')
+    print(f"model_dir_1: {model_dir_1}")
     model_dir_2 = run.id
     config['energynet']['ckpt_save_path'] = f"{config['energynet']['ckpt_save_path']}/{model_dir_1}/{model_dir_2}"
     model_path = f"{config['energynet']['ckpt_save_path']}/best_model.pth"

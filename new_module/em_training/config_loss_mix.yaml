@@ -4,8 +4,8 @@ energynet:
   energy_col: 1
   label_column: binary_labels
   batch_size: 
-    binary: 16
-    continuous: 16
+    binary: 32
+    continuous: 32
   num_epochs: 3
   optimizer: adamw
   max_lr: 1e-5

@@ -4,8 +4,8 @@ energynet:
   energy_col: 1
   label_column: binary_labels
   batch_size: 
-    binary: 16
-    continuous: 16
+    binary: 32
+    continuous: 32
   num_epochs: 3
   optimizer: adamw
   max_lr: 1e-5
@@ -13,10 +13,10 @@ energynet:
   loss: binary_cross_entropy
   margin: n/a
   additional_loss:
-    use: true
-    loss: margin_ranking
-    margin: 1.0
-    setting: 2
+    use: false
+    loss: n/a
+    margin: n/a
+    setting: n/a
     mixing_weights: n/a
   fill_missing_finegrained: true
   add_train_data: true
