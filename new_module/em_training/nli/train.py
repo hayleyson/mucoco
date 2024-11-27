@@ -26,7 +26,7 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 
 def main():
     
-    config = load_config('new_module/em_training/config.yaml')
+    config = load_config('new_module/em_training/nli/config.yaml')
     
     ## set seed
     seed = random.randint(0,1000)

@@ -26,7 +26,7 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 
 def main():
     
-    config = load_config('new_module/em_training/config_loss_mix.yaml')
+    config = load_config('new_module/em_training/nli/config_loss_mix.yaml')
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     ## set seed

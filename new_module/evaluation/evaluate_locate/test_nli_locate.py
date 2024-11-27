@@ -115,7 +115,7 @@ def main(run_id, merge_masks_method='ellipsis', save_df=False, save_file_path=""
     model_path = config['model_path']
     print(f"model_path: {model_path}")
 
-    # config = load_config('new_module/em_training/config.yaml')
+    # config = load_config('new_module/em_training/nli/config.yaml')
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = EncoderModel(config)
