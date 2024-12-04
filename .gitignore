@@ -131,6 +131,7 @@ dmypy.json
 # Custom
 slurm_output/
 *.csv
+*.xlsx
 models*/*
 hf_cache
 wandb
@@ -149,7 +150,7 @@ marot
 explainable-qe-shared-task/
 lewis/
 new_module/locate/results/
-new_module/*.xlsx
+new_module/**/*.xlsx
 BOLT/
 **/*.secrets
 data/

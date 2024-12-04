@@ -26,7 +26,7 @@ from evaluation.prompted_sampling.evaluate import (
     toxicity_score_energy,
     toxicity_score_int,
     toxicity_score_mucola,
-    nli_score
+    nli_score,
     sentiment_classify_gpt4o,
     contents_preservation_metrics,
     save_qualitative_results
