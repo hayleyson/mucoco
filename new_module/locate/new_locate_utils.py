@@ -1,5 +1,6 @@
 import string
 from typing import List
+from copy import deepcopy
 
 import pandas as pd
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -102,7 +103,7 @@ class LocateMachine:
     def locate_main(self, prediction, method, max_num_tokens = 6, unit="word",**kwargs):
         
         if kwargs.get('tokenized_input', False):
-            batch = prediction
+            batch = deepcopy(prediction)
         elif self.task == "nli":
             batch = self.tokenizer(prediction, add_special_tokens=True, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
         else:
@@ -205,14 +206,12 @@ class LocateMachine:
         max_num_located_tokens = torch.minimum((lengths//3), torch.LongTensor([max_num_tokens]).to(self.device))
         max_num_located_tokens = torch.minimum(max_num_located_tokens, num_above_average_tokens)
         top_masks_final = [x[:max_num_located_tokens[i]] for i,x in enumerate(token_wise_scores.argsort(dim=-1,descending=True).tolist())] 
-
-        #### change here
-        #### TODO: find consecutive masks (spans) --> count # of masks in spans --> replace the consecutive masks with 0 ~ # of masks in spans 
-        #### TODO 1) first find consecutive masks and check span lengths
         
         if unit == "token":
+            locate_ixes_all = []
             for i, locate_ixes in enumerate(top_masks_final):
                 batch.input_ids[i, locate_ixes] = self.tokenizer.mask_token_id
+                locate_ixes_all.append(locate_ixes)
 
         elif unit == "word":
             if self.task == "nli":
@@ -221,9 +220,11 @@ class LocateMachine:
                 prediction = []
                 for i in range(len(batch.input_ids)):
                     prediction.append(self.tokenizer.decode(batch.input_ids[i, :lengths[i]].tolist(), skip_special_tokens=False))
+            locate_ixes_all = []
             for i, arguments in enumerate(zip(prediction,batch.input_ids.tolist(), lengths.tolist(), top_masks_final, repeat(self.tokenizer), repeat(self.task))):
                 locate_ixes = get_word_level_locate_indices(*arguments)
                 batch.input_ids[i, locate_ixes] = self.tokenizer.mask_token_id
+                locate_ixes_all.append(locate_ixes)
                 
             ## it took longer to run multiprocessing 30+ ms v.s. 8 s
             # try:
@@ -239,8 +240,8 @@ class LocateMachine:
             [x[:lengths[i]] for i, x in enumerate(batch.input_ids.tolist())]
         )
         
-        if kwargs.get('return_scores',False):
-            return masked_sequence_text, token_wise_scores
+        if kwargs.get('return_scores_and_indices',False):
+            return masked_sequence_text, token_wise_scores, locate_ixes_all
         return masked_sequence_text
     
 if __name__ == "__main__":
