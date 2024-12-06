@@ -35,7 +35,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --coeff-steps=200\
  --custom-epsilons='none'\
  --dampness=0.1\
- --data='new_module/data/sentiment/dev_set_below_positive_threshold_778.jsonl'\
+ --data='new_module/data/sentiment/dev_set_below_negative_threshold_827.jsonl'\
  --datastyle='jsonl'\
  --debug-gradients='false'\
  --decay-steps=1\
@@ -60,7 +60,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --epsilon_cooldown_steps='1'\
  --epsilon_decay_functions='linear'\
  --epsilon_warmup_steps='0'\
- --epsilons='-1.521165106'\
+ --epsilons='-1.071942312'\
  --evaluation_metrics='fluency'\
  --expgd-gumbel-noise-max=0.0\
  --expgd-momentum=0.0\
@@ -77,7 +77,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --keyword_topk=1\
  --keywords='none'\
  --kweight=5.0\
- --label-id='1:1'\
+ --label-id='0:0'\
  --lambda-lr=1.0\
  --lambda-update=50\
  --length-diff='0'\
@@ -98,7 +98,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-output-length=20\
  --max-prefix-length=50\
  --metric='l2'\
- --min_epsilons='-1.521165106'\
+ --min_epsilons='-1.071942312'\
  --model='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds/step_114500_best_checkpoint'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
@@ -139,8 +139,8 @@ srun python new_module/decode_new_for_testset_iter.py \
  --locate_unit 'word'\
  --wandb_project 'sentiment_gbi'\
  --wandb_entity 'hayleyson'\
- --source_style 'negative'\
- --target_style 'positive'\
+ --source_style 'positive'\
+ --target_style 'negative'\
  --task='sentiment'\
  --server-time-limit=48
  
