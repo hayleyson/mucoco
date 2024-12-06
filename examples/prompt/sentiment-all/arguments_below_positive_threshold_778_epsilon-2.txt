@@ -1,5 +1,5 @@
 {
-    "data": "new_module/data/sentiment/dev_set_below_negative_threshold_827.jsonl",
+    "data": "new_module/data/sentiment/dev_set_below_positive_threshold_778.jsonl",
     "start_idx": 0,
     "end_idx": -1,
     "datastyle": "jsonl",
@@ -28,7 +28,7 @@
     "linear_scale": "false",
     "results_path": null,
     "outfile": "outputs/sentiment/mucola-disc/outputs.txt",
-    "output_dir_prefix": "outputs/sentiment/mucola/below_negative_threshold_827",
+    "output_dir_prefix": "outputs/sentiment/mucola/below_positive_threshold_778",
     "output_style": "jsonl",
     "cpu": false,
     "debug": false,
@@ -74,8 +74,8 @@
     "num_examples": 100,
     "dampness": 0.1,
     "epsilon": 0.2,
-    "epsilons": "-5.22",
-    "min_epsilons": "-5.22",
+    "epsilons": "-2",
+    "min_epsilons": "-2",
     "epsilon_warmup_steps": "0",
     "epsilon_cooldown_steps": "1",
     "epsilon_decay_functions": "linear",
@@ -88,7 +88,7 @@
     "beam_size": 1,
     "suffix_length": 0,
     "prefix_length": 0,
-    "label_id": "0:0",
+    "label_id": "0:1",
     "suffix_source": null,
     "decode_temperature": 0.1,
     "betas": "0.8:0.2",
@@ -142,6 +142,6 @@
     "wandb_project": "sentiment_gbi",
     "wandb_entity": "hayleyson",
     "wandb_run_id": null,
-    "source_style": "positive",
-    "target_style": "negative"
+    "source_style": "negative",
+    "target_style": "positive"
 }

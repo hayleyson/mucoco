@@ -1222,8 +1222,11 @@ def main(args):
                                         broken_skip = broken_skip.lower() == "y"
                                         break
                                 if (args.only_mucoco == "false" and not best_allsat[b]) or (item is None): #item is none happens when optimization fails
-                                    prediction_ids = ", ".join([str(idx) for idx in AR_predicted_indices[0].tolist()])
-                                    prediction_indices = AR_predicted_indices[0].tolist()
+                                    # prediction_ids = ", ".join([str(idx) for idx in AR_predicted_indices[0].tolist()])
+                                    # prediction_indices = AR_predicted_indices[0].tolist()
+                                    print(f'***predicted_batch shape: {predicted_batch.shape}')
+                                    prediction_ids = ", ".join([str(idx) for idx in predicted_batch[0].tolist()])
+                                    prediction_indices = predicted_batch[0].tolist()
                                     prediction = AR_prediction
 
                                     lossvalue = 0.0
