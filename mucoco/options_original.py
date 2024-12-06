@@ -63,9 +63,6 @@ def get_parser():
         "--outfile", default=None, type=str, help="where to write results"
     )
     parser.add_argument(
-        "--output_dir_prefix", default=None, type=str, help="where to write results"
-    )
-    parser.add_argument(
         "--output-style", default="text", type=str, help="write output in jsonl or text format"
     )
     parser.add_argument("--cpu", action="store_true", help="use cpu instead of gpu")
@@ -275,9 +272,6 @@ def get_parser():
     parser.add_argument(
         "--selection_criterion", default="primary_allsat", help="", choices=['weighted_sum', 'primary_allsat', "last", "mrr_allsat"] 
     ) #mrr = most recent repetition
-    # parser.add_argument(
-    #     "--selection_criterion", default="primary_allsat", help="", choices=['weighted_sum', 'allsat', "attribute", "last"] 
-    # )
     parser.add_argument("--early-stop-steps", default=-1, type=int, help="stop if the output hasn't changed in this many steps and the constraints are satisfied")
     parser.add_argument(
         "--bos", action="store_true", help="add bos tag to the sequence"
@@ -436,77 +430,6 @@ def get_parser():
         default=1,
         type=int,
         help="MW=1|2 for exponentiated GD, mw=1 means exponential update, 2 means 1-eta * grad",
-    )
-
-    parser.add_argument(
-        "--task_type",
-        default="prompted_generation",
-        type=str,
-        choices=["revision", "prompted_generation"],
-        help="Type of task being solved.",
-    )
-    
-    parser.add_argument(
-        "--dev_mode",
-        default="true",
-        type=str,
-        choices=["true", "false"],
-        help="Whether to run in development-phase mode. (meaning, using files that contain base LM generations rather than running base LM generations on-the-go)",
-    )
-    
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Whether to resume a previously interrupted run.",
-    )
-
-    parser.add_argument(
-        "--task",
-        type=str,
-        help="Task to solve. toxicity for toxicity avoidance; sentiment for sentiment-controlled generation; formality for formality transfer.",
-        choices=["toxicity", "sentiment", "formality"],
-        default='toxicity'
-    )
-    
-    parser.add_argument(
-        "--server-time-limit",
-        type=float,
-        help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
-        default=10000
-    )
-    
-    parser.add_argument(
-        "--wandb_project",
-        type=str,
-        help="Name of Wandb project to log results to.",
-        # required=True
-    )
-    
-    parser.add_argument(
-        "--wandb_entity",
-        type=str,
-        help="Name of Wandb entity to log results to.",
-        # required=True,
-    )
-    
-    parser.add_argument(
-        "--wandb_run_id",
-        type=str,
-        help="Name of Wandb run id to resume. Only used when resume_index > 0.",
-    )
-    
-    parser.add_argument(
-        "--source_style",
-        type=str,
-        help="The attribute that you want to decrease",
-        # required=True,
-    )
-    
-    parser.add_argument(
-        "--target_style",
-        type=str,
-        help="The attribute that you want to increase",
-        # required=True,
     )
 
     return parser

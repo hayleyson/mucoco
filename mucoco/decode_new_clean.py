@@ -6,21 +6,16 @@ import sys
 import re
 import torch
 import numpy as np
-import pandas as pd
 import transformers
 import gc
 import time
 import json
-import os
-## 23/7/18 - Hayley
-import joblib
 import wandb
-##
 
 from transformers import AutoTokenizer, AutoConfig
 # from sentence_transformers import SentenceTransformer, util
 
-from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon, locate
+from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, get_epsilon
 import mucoco.losses as lossbuilder
 import mucoco.options as options
 import mucoco.utils as utils
@@ -59,7 +54,6 @@ def main(args):
     logger.setLevel(logging.ERROR)
     logger.info(args)
 
-
     if args.resume:
         logger.info("resuming from a previous run")
         run = wandb.init(
@@ -87,8 +81,7 @@ def main(args):
     # if args.outfile is not None:
     #     outf = open(args.outfile, "w")
     #     outallsatf = open(args.outfile + ".allsat", "w")
-    #     outf2 = open(args.outfile + ".intermediate", "w")
-    
+
     if outfile is not None:
         if not args.resume:
             outf = open(outfile, "w")
@@ -110,14 +103,12 @@ def main(args):
                 resume_index = len(f.readlines())
             
             logger.info(f"Resuming from index {resume_index}")
-        
 
     # Fix seed
     if args.seed is not None:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
 
-    ## 23/7/18 - Hayley 
     use_cuda = torch.cuda.is_available() and not args.cpu
     logger.info(
         "loading model(s) from {} and tokenizer(s) from {}".format(
@@ -136,7 +127,6 @@ def main(args):
     betas = []
     model_paths = args.model.split(":")
     tokenizer_paths = args.tokenizer.split(":")
-    print('tokenizer_paths', tokenizer_paths)
     cur_lr = args.lr
     args.jsonl_tokenized = args.jsonl_tokenized == "true"
 
@@ -181,17 +171,12 @@ def main(args):
     vocab_size = None
     primary_vocab_size = None
 
-    ##################################################################################################################################################################
-    #😃 Load the models and tokenizers
-    ##################################################################################################################################################################
+    #Load the models and tokenizers
     for i, model_path in enumerate(model_paths):
         if model_path not in name2model: #making sure we are not loading the model twice in case some constraints use the same model. 
             name2tokenizer[model_path] = AutoTokenizer.from_pretrained(tokenizer_paths[i], cache_dir=args.cache_dir,  use_fast=True)
             name2config[model_path] = AutoConfig.from_pretrained(model_path, cache_dir=args.cache_dir)
-            # print(model_path)
-            # print(args.cache_dir)
-            # print(os.getcwd())
-            # print(name2config[model_path])
+
             if model_types[i] == "sentence-transformer":
                 name2model[model_path] = lossbuilder.ModelWrapper(SentenceTransformer(model_path))
             elif "Custom" in model_types[i]:
@@ -244,11 +229,8 @@ def main(args):
         for name, model in name2model.items():
             model.cuda()
         logger.info("model(s) moved to GPU")
-    ##################################################################################################################################################################
-    
-    ##################################################################################################################################################################
+      
     #first loss is the primary loss, others are constraints
-    ##################################################################################################################################################################
     lossfns = []
     for i, loss in enumerate(losses):
         lossfns.append(lossbuilder.build_loss(loss, name2model[model_paths[i]], name2tokenizer[model_paths[i]], args))
@@ -283,9 +265,7 @@ def main(args):
         decay_function = []
         epsilon_warmup_steps = []
         epsilon_cooldown_steps = []
-    ##################################################################################################################################################################
     
-    ##################################################################################################################################################################
     # assert args.data is not None or args.additional_data is not None, "no data path has been provided"
     source_dataset = None
     target_dataset = None
@@ -322,7 +302,6 @@ def main(args):
         start_idx = 0
         end_idx = 1000000 # a very high number
     
-    # load data
     if source_dataset is None:
         logger.info("Loading the dataset ...")
         if args.datastyle == "text":
@@ -373,11 +352,7 @@ def main(args):
         end_idx = (len(source_dataset) + args.end_idx) % len(source_dataset) # also works with negative end_idx
 
         logger.info("Data loaded")
-    ##################################################################################################################################################################
-    
-    ##################################################################################################################################################################
-    # Doing prediction + constrained decoding
-    ##################################################################################################################################################################
+
     source_batch, target_batch, additional_batch, for_predicted_source_batch, predicted_batch, context_batch = [], [], [], [], [], []
     batch_size = args.batch_size # higher than 1 batch size does not work at the moment. It won't fit in a single GPU anyway 
     
@@ -419,16 +394,8 @@ def main(args):
 
     interrupted = False
     
-    ##################################################################################################################################################################
-    ##################################################################################################################################################################
-    ##################################################################################################################################################################
-    # start looping over prompts
-    ##################################################################################################################################################################
-    ##################################################################################################################################################################
-    ##################################################################################################################################################################
     for text_id, source_text in enumerate(source_dataset):
         
-        # # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
         # if text_id < start_idx or text_id > end_idx:
         #     continue
 
@@ -439,7 +406,6 @@ def main(args):
         # do_this_example = np.random.rand() <= example_p
         # if not do_this_example:
         #     continue
-        ##
         
         if text_id < resume_index:
             continue
@@ -505,9 +471,7 @@ def main(args):
             early_skip = input(f"skip this example? {source_text} [yes(y)/maybe(m)/no(n)]")
             if early_skip == "y":
                 continue
-        ##################################################################################################################################################################
-        # encode source and context text
-        ##################################################################################################################################################################
+
         if not args.jsonl_tokenized:
             if source_text == "":
                 source_text = primary_tokenizer.bos_token
@@ -577,7 +541,6 @@ def main(args):
         additional_batch.append(additional_indices)
         context_batch.append(context_indices)
 
-        
         if len(source_batch) == batch_size: #this is just one for now, greater than 1 batch size will not work
 
             source_batch = torch.cat(source_batch, dim=0).to(device)
@@ -590,9 +553,7 @@ def main(args):
                 context_batch = torch.cat(context_batch, dim=0).to(device)
                 print(context_batch)
             
-            ##################################################################################################################################################################
             # generating AR samples
-            ##################################################################################################################################################################
             if args.task_type == "revision":
                 # assumption: args.num_samples == 1
                 AR_prediction_all = [generation_dataset[text_id]]
@@ -642,26 +603,20 @@ def main(args):
                             if args.time:
                                 print(time.time()-starttime)
                 
-            
-            ##################################################################################################################################################################
-            # 25 initial outputs per prompt
-            # intermediate_result={"prompt": source_text}
-            ##################################################################################################################################################################
-            
+                    if args.time:
+                        print(time.time()-starttime)
+
             broken_skip = False
-            print("args.restarts", args.restarts)
-            ##################################################################################################################################################################
-            # for each prompt loop over 25 samples
-            ##################################################################################################################################################################
+            # for sample_idx in range(args.num_samples):
             for sample_idx in range(len(AR_prediction_all)):
-            # for sample_idx in range(args.num_samples): # 25 for nontoxic
-                for restart_idx in range(args.restarts + 1): # 0 for nontoxic. restart the optimization if the constraints are not satisfied
+                for restart_idx in range(args.restarts + 1): # restart the optimization if the constraints are not satisfied
 
                     predicted_batch = predicted_batches[sample_idx * (args.restarts + 1) + restart_idx].cuda()
                     AR_prediction = AR_prediction_all[sample_idx * (args.restarts + 1) + restart_idx]
                     intermediate_result={"prompt": source_text}
                     intermediate_result.update({"sample_id": sample_idx, "original_text": AR_prediction})
                     
+
                     ##TODO: in case of always_mucoco=false and num_restarts > 0, comb through the restarts and skip if constraints are satisfied
 
                     skip=False
@@ -677,10 +632,9 @@ def main(args):
                     total_predicted_loss = 0.0
                     predicted_allsat=True
                     predictedlosses = []
-
                     for lossid in range(len(losses)):
                         lossname = losses[lossid]
-
+                        # print("helllllllo",predicted_batch)
                         predicted_loss, predicted_lo =\
                             lossfns[lossid].compute_gold_loss(
                                 (source_batch, target_batch), 
@@ -709,7 +663,6 @@ def main(args):
                             epsilons[lossid - 1] = predicted_loss + getattr(lossfns[lossid], "epsilon_additive", 0) ##TODO check 
                         
                     predictedlosslists.append(predictedlosses)
-                    
                     
                     if args.only_mucoco == "false":
                         lengthwise_best_prediction = [(AR_prediction, total_predicted_loss, predicted_allsat, predicted_batch[0].tolist(), -1)]
@@ -816,9 +769,6 @@ def main(args):
                                     embed_scales=embed_scales,
                                     max_steps=args.optim_steps
                                 )
-                            ##################################################################################################################################################################
-                            # initialize embedding
-                            ##################################################################################################################################################################
                             elif args.target_type == "embeds":
                                 init_value = None
                                 break_after=False
@@ -836,9 +786,7 @@ def main(args):
                                     print(predicted_batch.size())   
                                     print(sent_length)
                                 elif args.init == "target": #initialize the target with the autoregressive output
-                                    ##################################################################################################################################################################
                                     init_value = embed_luts[0](predicted_batch)
-                                    ##################################################################################################################################################################
                                     target_prefix = torch.empty((source_indices.size(0), 0)).long().to(device)
                                     sent_length = init_value.size(1)
                                     break_after=True 
@@ -863,7 +811,7 @@ def main(args):
                                 final_bias = None
                                 if args.final_bias:
                                     final_bias = lossfns[0].model.final_logits_bias
-                                ##################################################################################################################################################################
+
                                 outputs = TargetEmbeddings(
                                     embed_dim=primary_embed_dim,
                                     embed_lut=embed_luts[0],
@@ -881,7 +829,6 @@ def main(args):
                                     final_bias=final_bias,
                                     eos_token_id=primary_tokenizer.eos_token_id
                                 )
-                                ##################################################################################################################################################################
                             else:
                                 raise ValueError("Wrong target_type")
 
@@ -889,12 +836,8 @@ def main(args):
                                 lambda_ = Lambda(count=len(epsilons))
                                 if use_cuda:
                                     lambda_.cuda()
-                                    
-                            ## 23/7/.. - Hayley - updated to allow locate & edit
-                            args.optim= "embedgd_le" # change option
-                            optimizer = OptimizerLE.from_opt(outputs, args)
-                            optimizer.set_init_pred(predicted_batch)
-                            ##
+
+                            optimizer = Optimizer.from_opt(outputs, args)
                             cur_lr = args.lr
                             # print(optimizer._optimizer.param_groups)
                             # input()
@@ -904,7 +847,6 @@ def main(args):
                                 old_lr = args.lr
                                 args.lr = args.lambda_lr
                                 optimizer_lambda = Optimizer.from_opt(lambda_, args)
-                                print(lambda_)
                                 args.optim = old_optim
                                 args.lr = old_lr
 
@@ -934,17 +876,6 @@ def main(args):
                             starttime = time.time()
                             repeat_counts = [0] * batch_size
 
-                            # ## 23/7/21 - add locate code
-                            # # batch = {"input_ids": predicted_batch}
-                            # # indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch)
-                            # indices = locate_indices_all[sample_idx]
-                            # intermediate_result.update({f"indices": indices}) # save indices along with update results
-                            # print("indices", indices)
-                            # ##
-                            
-                            ##################################################################################################################################################################
-                            # gradient inference the embeddings
-                            ##################################################################################################################################################################
                             for step in range(args.optim_steps):
                                 try:
                                     with torch.cuda.amp.autocast():
@@ -952,25 +883,24 @@ def main(args):
                                         logging_outputs = []
 
                                         # print(optimizer.new_predictions)
-                                        # what does this do?
                                         pred_embeds, pred_tokens, pred_probs = outputs.forward_multiple(embed_luts, new_predictions=getattr(optimizer._optimizer, "new_predictions", None))  # forward
-                                        
-                                        # if not args.time and args.debug:
-                                        def get_sent(tokens, tokenizer):
-                                            batch = []
-                                            if args.target_tokenize_different:
-                                                with tokenizer.as_target_tokenizer():
+                                        if not args.time and args.debug:
+                                            def get_sent(tokens, tokenizer):
+                                                batch = []
+                                                if args.target_tokenize_different:
+                                                    with tokenizer.as_target_tokenizer():
+                                                        for toks in tokens:
+                                                            batch.append(tokenizer.decode(clean_output(toks.tolist(), -1, allow_first_eos=losses[0] == "bart")))
+                                                else:
                                                     for toks in tokens:
                                                         batch.append(tokenizer.decode(clean_output(toks.tolist(), -1, allow_first_eos=losses[0] == "bart")))
-                                            else:
-                                                for toks in tokens:
-                                                    batch.append(tokenizer.decode(clean_output(toks.tolist(), -1, allow_first_eos=losses[0] == "bart")))
-                                            return batch
+                                                return batch
 
-                                        target_sents = get_sent(torch.cat([target_prefix, pred_tokens], dim=1), primary_tokenizer)
-                                        if step % 10 == 0:
-                                            intermediate_result.update({f"step_{step}_text": target_sents})
-                                        # print(target_sents, end="\n")
+                                            target_sents = get_sent(torch.cat([target_prefix, pred_tokens], dim=1), primary_tokenizer)
+                                            print(target_sents, end="\n")
+                                            if step % 10 == 0:
+                                                intermediate_result.update({f"step_{step}_text": target_sents})
+                                        
                                         
                                         original_preds = None
                                         if len(pred_embeds) > 1:
@@ -994,7 +924,6 @@ def main(args):
                                                 )
 
                                             losslists[lossid][-1].append(lossvalue.sum().item())  #for logging
-                                            # intermediate_result.update({f"step_{step}_loss{lossid}": lossvalue.sum().item()})
                                             losses_for_backward.append(lossvalue)  # for backward
                                             logging_outputs.append(logging_output)
                                         
@@ -1064,7 +993,7 @@ def main(args):
                                                 constraint_values.append(constraint_value.item())
                                         
                                             total_batchloss = total_loss.sum()
-                                            optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler) ### calculate gradient
+                                            optimizer.backward(total_batchloss, retain_graph=False, scaler=scaler)
 
                                         if args.debug and args.debug_gradients == "true":
                                             total_norm = 0
@@ -1078,17 +1007,11 @@ def main(args):
                                                 print("for lambda", p.grad)
                                             
                                             # input()
-                                            
-                                    # text (어떤 변수? source_batch)를 태워서 locate 하기 (근데, 궁금한것은 source_batch와 target_prefix 는 다른건가?)
-                                    # index가 여기에서 뽑히는 거라고 생각하자.
-                                    # indices = [15,16]
-                                    # indices가 optim 바깥에서 뽑히도록 일단 구현
                                     
-                                    ## HERE: locate code or read locate indices.
                                     if logging_outputs[0].get('entropy', None) is not None:
-                                        optimizer.step(indices, scaler=scaler, entropy=logging_outputs[0].get('entropy', None)) ### backpropagate
+                                        optimizer.step(scaler=scaler, entropy=logging_outputs[0].get('entropy', None))
                                     else:
-                                        optimizer.step(indices, scaler=scaler) ### backpropagate
+                                        optimizer.step(scaler=scaler)
                                     
                                     update_lr_condition = "none"
                                     if args.linear_scale != "true" and  len(losses) > 1:
@@ -1337,7 +1260,7 @@ def main(args):
                                             (lengthwise_best_prediction[b][2] and lengthwise_best_prediction[b][4] >= 2 and lengthwise_best_prediction[b][1] > lossvalue)
                                         
                                     
-                                    if modify_condition: # loss 값이 줄어들었으면, best prediction을 업데이트 함
+                                    if modify_condition:
                                         if args.debug:
                                             print("modify condition satisfied", end="\n")
                                         else:
@@ -1452,10 +1375,12 @@ def main(args):
                                     outallsatf.write(str(lengthwise_best_prediction[b][2]) + "\n")
                                     outallsatf.flush()
                                     #VERIFY
+                                
                                 output2 = intermediate_result
                                 json.dump(output2, outf2)
                                 outf2.write("\n")
                                 outf2.flush()
+                                    
                         print(f"required output achieved or number of restarts ran out at attempt #{restart_idx+1}")
                         break # don't restart if already reached here
 
@@ -1522,7 +1447,7 @@ def main(args):
             additional_batch = []
             predicted_batch = []
             context_batch = []
-            
+
             if (time.time() - main_start_time) > args.server_time_limit * 60 * 60 * 0.9:
                 interrupted = True
                 break
@@ -1537,7 +1462,8 @@ def main(args):
     run.summary['num_skipped'] = num_skipped
     run.finish()
 
-    if args.outfile is not None:
+    # if args.outfile is not None:
+    if outfile is not None:
         outf.close()
         outallsatf.close()
         outf2.close()
@@ -1572,7 +1498,7 @@ def main(args):
                 sentiment_model_type=model_types[1],
                 source_file_path=data_paths[0]
             )    
-    
+        
     print("average numbers of steps to converge =", np.mean(all_stepcounts))
     print("average time = ", avg_time/c)
 
@@ -1608,9 +1534,9 @@ def cli_main():
     parser = options.get_parser()
     args = parser.parse_args()
     main(args)
-
-def cli_main_modified():
-    with open('examples/prompt/toxicity-all/arguments_below_nontoxic_threshold_468.txt', 'r') as f:
+    
+def cli_main_arg_file(argument_file_path):
+    with open(argument_file_path, 'r') as f:
         args_ = json.load(f)
     args = argparse.Namespace(**args_)
     main(args)
