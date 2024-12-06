@@ -99,7 +99,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-prefix-length=50\
  --metric='l2'\
  --min_epsilons='-1.521165106'\
- --model='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds/step_114500_best_checkpoint'\
+ --model='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds/step_114500_best_checkpoint'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
  --num_edit_token_per_step=-1\

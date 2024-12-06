@@ -12,10 +12,10 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export LOGGING_LEVEL="INFO"
-export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
+export HF_HOME=/data/hyeryung/hf_cache
+export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
+export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export LOGGING_LEVEL=INFO
 
 srun python new_module/decode_new_for_testset_iter.py \
  --AR-temperature=1.0\
@@ -31,12 +31,12 @@ srun python new_module/decode_new_for_testset_iter.py \
  --beam-size=1\
  --betas='0.8:0.2'\
  --bos\
- --cache_dir='hf-cache'\
+ --cache_dir='/data/hyeryung/hf_cache'\
  --coeff-pattern='constant'\
  --coeff-steps=200\
  --custom-epsilons='none'\
  --dampness=0.1\
- --data='new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl'\
+ --data='new_module/data/toxicity-avoidance/testset_gpt2_2500_below_nontoxic_threshold_468.jsonl'\
  --datastyle='jsonl'\
  --debug-gradients='false'\
  --decay-steps=1\
@@ -61,7 +61,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --epsilon_cooldown_steps='1'\
  --epsilon_decay_functions='linear'\
  --epsilon_warmup_steps='0'\
- --epsilons='-3'\
+ --epsilons='-1.15'\
  --evaluation_metrics='fluency'\
  --expgd-gumbel-noise-max=0.0\
  --expgd-momentum=0.0\
@@ -99,8 +99,8 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-output-length=20\
  --max-prefix-length=50\
  --metric='l2'\
- --min_epsilons='-3'\
- --model='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --min_epsilons='-1.15'\
+ --model='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
  --num_edit_token_per_step=-1\
@@ -130,7 +130,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --start-idx=0\
  --suffix-length=0\
  --target-type='embeds'\
- --tokenizer='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --tokenizer='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --topic-target='none'\
  --topic-word-lists='none'\
  --use_context='false'\
@@ -144,6 +144,4 @@ srun python new_module/decode_new_for_testset_iter.py \
  --target_style='nontoxic'\
  --locate_method='attention'\
  --task='toxicity'\
- --server-time-limit=12\
- --wandb_run_id='b3l01234'\
- --resume
+ --server-time-limit=48
