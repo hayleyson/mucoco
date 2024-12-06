@@ -3,7 +3,6 @@
 #SBATCH --mem=20GB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --partition=P1
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/t_gbi_mucola_clsf_%j.out'
 
@@ -25,7 +24,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --adam-eps=1e-08\
  --additional-data='none'\
  --allow-diff-vocab\
- --always-mucoco='false'\
+ --always-mucoco='true'\
  --baselm-gen-online\
  --batch-size=1\
  --beam-size=1\
@@ -112,7 +111,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --only-mucoco='false'\
  --optim='embedgd_le'\
  --optim-steps=200\
- --output_dir_prefix='outputs/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds'\
+ --output_dir_prefix='outputs/toxicity/mucola/below_nontoxic_threshold_468'\
  --output-style='jsonl'\
  --prefix-length=0\
  --random-example='true'\
@@ -144,4 +143,4 @@ srun python new_module/decode_new_for_testset_iter.py \
  --target_style='nontoxic'\
  --locate_method='attention'\
  --task='toxicity'\
- --server-time-limit=48
+ --server-time-limit=120

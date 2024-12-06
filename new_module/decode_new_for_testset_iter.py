@@ -86,10 +86,11 @@ def main(args):
         )
         
     run_id = run.path.split("/")[-1]
-    display_name = f"gbi-{args.locate_unit}-netps{wandb.config.num_edit_token_per_step}-nls{wandb.config.num_locate_steps}-os{wandb.config.optim_steps}-es{wandb.config.early_stop_steps}-{wandb.config.selection_criterion}"
-    display_name += f"-{args.source_style}-to-{args.target_style}"
-    display_name += f"-{args.locate_method}"
-    display_name += f"-{run_id}"
+    # display_name = f"gbi-{args.locate_unit}-netps{wandb.config.num_edit_token_per_step}-nls{wandb.config.num_locate_steps}-os{wandb.config.optim_steps}-es{wandb.config.early_stop_steps}-{wandb.config.selection_criterion}"
+    # display_name += f"-{args.source_style}-to-{args.target_style}"
+    # display_name += f"-{args.locate_method}"
+    # display_name += f"-{run_id}"
+    display_name = run_id
     
     outdir = os.path.join(args.output_dir_prefix, display_name)
     os.makedirs(outdir, exist_ok=True)
@@ -175,6 +176,7 @@ def main(args):
         if len(keywords) == 1:
             keywords = [f"_topic_:{args.keywords[0]}" for _ in losses] #when keyword isn't used but topic is passed
     
+ #!&
     ## 23/09/04 - always set betas with the arguments provided.
     # if "allsat" in args.selection_criterion: 
     #     # with this flag, the output which minimized the primary objective while satisfying all objectives is selected. In case all constraints are not satisfied (e.g when constraints are competing or optimization fails), this will predict the default output (Using an autoregressive decoding setup: beam search in this case)
@@ -1215,7 +1217,7 @@ def main(args):
                                 intermediate_result.update({f"step{step}_best_loss": best_loss[0],f"step{step}_loss0": losses_for_backward[0].item(), f"step{step}_loss1": losses_for_backward[1].item(), f"step{step}_allsat": allsat, f"step{step}_repeat_counts[0]": repeat_counts[0]})
                                 # print(f"[step{step}] best_loss[0]: {best_loss[0]}, weighted_loss: {weighted_loss}, losses_for_backward[0]: {losses_for_backward[0].data.cpu()}, losses_for_backward[1]: {losses_for_backward[1].data.cpu()}, min_epsilons for 1st constraint: {min_epsilons[0]}, allsat: {allsat}, repeat_counts[0]: {repeat_counts[0]}")
                                 
-                            
+                            #!@
                                 # modify_condition =\
                                 #     args.selection_criterion == "last" or\
                                 #     (best_loss[0] is None and args.selection_criterion == "weighted_sum") or\
@@ -1267,7 +1269,7 @@ def main(args):
                                 
                                 del losses_for_backward
 
-                                ## turn off early_stopping for now (23/09/04)
+
                                 if args.early_stop_steps > 0: #[0] is batch index, batch size in our case in 1 always so it doesn't matter.
 
                                     early_stop_condition =\

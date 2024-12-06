@@ -63,6 +63,9 @@ def get_parser():
         "--outfile", default=None, type=str, help="where to write results"
     )
     parser.add_argument(
+        "--output_dir_prefix", default=None, type=str, help="where to write results"
+    )
+    parser.add_argument(
         "--output-style", default="text", type=str, help="write output in jsonl or text format"
     )
     parser.add_argument("--cpu", action="store_true", help="use cpu instead of gpu")
@@ -434,68 +437,6 @@ def get_parser():
         type=int,
         help="MW=1|2 for exponentiated GD, mw=1 means exponential update, 2 means 1-eta * grad",
     )
-    
-    parser.add_argument(
-        "--baselm-gen-online",
-        action="store_true",
-        help="Whether to generate Base LM generations when running decoding script (True), or to read generations from a file (False).",
-    )
-    
-    parser.add_argument(
-        "--locate-edit",
-        action="store_true",
-        help="Whether to first locate tokens to edit and edit only the tokens.",
-    )
-    
-    parser.add_argument(
-        "--num_edit_token_per_step",
-        default=1,
-        type=int,
-        help="Number of tokens to locate and edit for each step.",
-    )
-    
-    parser.add_argument(
-        "--num_locate_steps",
-        default=1,
-        type=int,
-        help="Number of steps for which once in the number to locate tokens to edit.",
-    )
-    
-    parser.add_argument(
-        "--num_log_steps",
-        default=1,
-        type=int,
-        help="Number of steps for which once in the number to log intermediate steps.",
-    )
-        
-    parser.add_argument(
-        "--num_project_steps",
-        default=1,
-        type=int,
-        help="Number of steps for which once in the number to project updated embeddings to nearest embeddings defined in the vocabulary.",
-    )
-    
-    ## deprecated 24/01/09
-    # parser.add_argument(
-    #     "--input_ids_path",
-    #     default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
-    #     type=str,
-    #     help="Path to load input ids for test data.",
-    # )
-    
-    # parser.add_argument(
-    #     "--texts_path",
-    #     default="outputs/toxicity/save-init-gen-all-uniform/testset_FINAL_jigsaw_input_ids.pkl",
-    #     type=str,
-    #     help="Path to load texts for test data.",
-    # )
-    
-    parser.add_argument(
-        "--locate_unit",
-        default="word",
-        type=str,
-        help="The unit of locating areas to edit. Word or token.",
-    )
 
     parser.add_argument(
         "--task_type",
@@ -510,14 +451,65 @@ def get_parser():
         default="true",
         type=str,
         choices=["true", "false"],
-        help="Whether to run in development-phase mode.",
+        help="Whether to run in development-phase mode. (meaning, using files that contain base LM generations rather than running base LM generations on-the-go)",
     )
     
     parser.add_argument(
-        "--resume_index",
-        default=0,
-        type=int,
-        help="Index of prompt or sample to resume controlled decoding from.",
+        "--resume",
+        action="store_true",
+        help="Whether to resume a previously interrupted run.",
+    )
+
+    parser.add_argument(
+        "--task",
+        type=str,
+        help="Task to solve. toxicity for toxicity avoidance; sentiment for sentiment-controlled generation; formality for formality transfer.",
+        choices=["toxicity", "sentiment", "formality"],
+        default='toxicity'
+    )
+    
+    parser.add_argument(
+        "--server-time-limit",
+        type=float,
+        help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
+        default=10000
+    )
+    
+    parser.add_argument(
+        "--wandb_project",
+        type=str,
+        help="Name of Wandb project to log results to.",
+        required=True
+    )
+    
+    parser.add_argument(
+        "--wandb_entity",
+        type=str,
+        help="Name of Wandb entity to log results to.",
+        required=True,
+        default='hayleyson'
+    )
+    
+    parser.add_argument(
+        "--wandb_run_id",
+        type=str,
+        help="Name of Wandb run id to resume. Only used when resume_index > 0.",
+    )
+    
+    parser.add_argument(
+        "--source_style",
+        type=str,
+        help="The attribute that you want to decrease",
+        required=True,
+        default='toxic'
+    )
+    
+    parser.add_argument(
+        "--target_style",
+        type=str,
+        help="The attribute that you want to increase",
+        required=True,
+        default='nontoxic'
     )
 
     return parser
