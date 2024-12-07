@@ -1370,7 +1370,8 @@ def main(args):
                                         }
                                     )
                                 
-                                if sample_idx + 1 == args.num_samples:
+                                # if sample_idx + 1 == args.num_samples:
+                                if sample_idx + 1 == len(AR_prediction_all):
                                     json.dump(output, outf)
                                     outf.write("\n")
                                     outf.flush()
