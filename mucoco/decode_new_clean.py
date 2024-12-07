@@ -637,7 +637,8 @@ def main(args):
                         # print("helllllllo",predicted_batch)
                         predicted_loss, predicted_lo =\
                             lossfns[lossid].compute_gold_loss(
-                                (source_batch, target_batch), 
+                                # (source_batch, target_batch), # error in the original implementation
+                                (source_batch, predicted_batch), 
                                 additional_batch=additional_batch, 
                                 context_batch=context_batch,
                                 use_context=args.use_context,
