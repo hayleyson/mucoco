@@ -301,7 +301,7 @@ def main(config):
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
             num_decoded_tokens += sum([len(x) for x in name2tokenizer[config["tokenizer_paths"][0]](running_text, add_special_tokens=False).input_ids])       
             
-            for _iter in range(wandb.config.n_iter):
+            for _iter in range(config['n_iter']):
                 if sum([1 if x != "" else 0 for x in running_text]) == 0:
                     # corner case: after deletion is introduced, sometimes all tokens are deleted and only "" remains. this occurs when initial sequence length is short.
                     print(f"ending iterations")
@@ -310,7 +310,7 @@ def main(config):
                 ## masked_text : N (num samples to edit)
                 masked_text = locator.locate_main(running_text, 
                                         method = config['locate_method'], 
-                                        max_num_tokens = wandb.config.num_edit_token_per_step, 
+                                        max_num_tokens = config['num_edit_token_per_step'], 
                                         unit = config['locate_unit'], 
                                         num_layer = 10,#-2, #penultimate
                                         label_id = config['target_label_ids'][1])
@@ -372,9 +372,9 @@ def main(config):
                 final_hypotheses = [final_hypotheses_[torch.where(edit_ixes==i)[0].item()] if edit_yn[i] else '' for i in range(len(AR_prediction_all))]
                 
                 update = torch.Tensor([]).bool().to(config['device'])
-                if wandb.config.selection_criteria == "weighted_sum":
+                if config['selection_criteria'] == "weighted_sum":
                     update = best_weighted_loss > new_best_weighted_loss ## edit_yn이 false 였던 곳은 무조건 false
-                elif wandb.config.selection_criteria == "allsat_primary":
+                elif config['selection_criteria'] == "allsat_primary":
                     update = (~best_allsat & new_best_allsat) | \
                             (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
                             (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) 
