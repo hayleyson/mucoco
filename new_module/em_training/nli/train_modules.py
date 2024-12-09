@@ -264,6 +264,8 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
                 dev_labels.extend(dev_batch['labels'].cpu()[:,config['energynet']['energy_col']].tolist())
             elif (config['energynet']['label_column'] == 'binary_labels') or (config['energynet']['label_column'] == 'original_labels'):
                 dev_labels.extend(dev_batch['labels'].cpu().tolist())
+            elif (config['energynet']['label_column'] == '3class_finegrained_labels'): 
+                dev_labels.extend(dev_batch['labels'].argmax(dim=-1).cpu().tolist()) # convert back to original_labels
             else:
                 raise NotImplementedError("Invalid loss name provided.")
             
