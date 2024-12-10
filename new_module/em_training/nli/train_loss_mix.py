@@ -45,6 +45,10 @@ def main():
     config['energynet']['ckpt_save_path'] = f"{config['energynet']['ckpt_save_path']}/{model_dir_1}/{model_dir_2}"
     model_path = f"{config['energynet']['ckpt_save_path']}/best_model.pth"
     config['model_path'] = model_path
+    # save config
+    with open(f"{config['energynet']['ckpt_save_path']}/config.json", 'w') as f:
+        json.dump(config, f, indent=4)
+    
     # update wandb config with model paths
     run.config['energynet'].update({'ckpt_save_path': config['energynet']['ckpt_save_path']})
     run.config.update({'model_path': config['model_path']})

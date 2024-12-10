@@ -83,6 +83,10 @@ def apply_recall(row, binary_labels_col:str, binary_preds_col:str):
 
     return recall_score(row[binary_labels_col],row[binary_preds_col], zero_division=np.nan)
 
+def apply_f1(row, binary_labels_col:str, binary_preds_col:str):
+
+    return f1_score(row[binary_labels_col],row[binary_preds_col], zero_division=np.nan)
+
 def rr(out, labels, k = 6): #implement mean reciprocal rank
     idx_array = stats.rankdata(-out, axis=-1, method='min')
     # print(idx_array)
@@ -174,36 +178,42 @@ def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloa
     contra_data['rr_word']=contra_data.apply(lambda x: get_rr(x,"hypothesis_word_labels_binary", "hypothesis_word_pred_scores"),axis=1)
     contra_data['precision_word']=contra_data.apply(lambda x: apply_precision(x,"hypothesis_word_labels_binary", "hypothesis_word_pred_binary"),axis=1)
     contra_data['recall_word']=contra_data.apply(lambda x: apply_recall(x,"hypothesis_word_labels_binary", "hypothesis_word_pred_binary"),axis=1)
+    contra_data['f1_word']=contra_data.apply(lambda x: apply_f1(x,"hypothesis_word_labels_binary", "hypothesis_word_pred_binary"),axis=1)
 
     ## Summary metric
     mrr = contra_data['rr_word'].mean()
     map_score =  contra_data['ap_word'].mean()
     precision = contra_data['precision_word'].mean()
     recall = contra_data['recall_word'].mean()
+    f1 = contra_data['f1_word'].mean()
 
     # ### Calculate Token-level Metrics
     contra_data['ap_tokens']=contra_data.apply(lambda x: apply_ap(x,"hypothesis_token_labels_binary", "hypothesis_token_pred_scores"),axis=1)
     contra_data['rr_tokens']=contra_data.apply(lambda x: get_rr(x,"hypothesis_token_labels_binary", "hypothesis_token_pred_scores"),axis=1)
     contra_data['precision_tokens']=contra_data.apply(lambda x: apply_precision(x,"hypothesis_token_labels_binary", "hypothesis_token_pred_binary"),axis=1)
     contra_data['recall_tokens']=contra_data.apply(lambda x: apply_recall(x,"hypothesis_token_labels_binary", "hypothesis_token_pred_binary"),axis=1)
+    contra_data['f1_tokens']=contra_data.apply(lambda x: apply_f1(x,"hypothesis_token_labels_binary", "hypothesis_token_pred_binary"),axis=1)
 
     ## Summary metric
     mrr_tokens = contra_data['rr_tokens'].mean()
     map_score_tokens =  contra_data['ap_tokens'].mean()
     precision_tokens = contra_data['precision_tokens'].mean()
     recall_tokens = contra_data['recall_tokens'].mean()
+    f1_tokens = contra_data['f1_tokens'].mean()
 
     print("Metrics evaluated at words level")
     print(f"mrr: {mrr:.4f}")
     print(f"map: {map_score:.4f}")
     print(f"mean precision: {precision:.4f}")
     print(f"mean recall: {recall:.4f}")
+    print(f"mean f1: {f1:.4f}")
 
     print("Metrics evaluated at tokens level")
     print(f"mrr: {mrr_tokens:.4f}")
     print(f"map: {map_score_tokens:.4f}")
     print(f"mean precision: {precision_tokens:.4f}")
     print(f"mean recall: {recall_tokens:.4f}")
+    print(f"mean f1: {f1_tokens:.4f}")
 
     if save_results:
         if criterion is not None:
@@ -225,14 +235,16 @@ def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloa
                         'map_words': [map_score],
                         'mean precision_words': [precision],
                         'mean recall_words': [recall],
+                        'mean f1_words': [f1],
                         'mrr_tokens': [mrr_tokens], 
                         'map_tokens': [map_score_tokens],
                         'mean precision_tokens': [precision_tokens],
-                        'mean recall_tokens': [recall_tokens]}).to_csv(metrics_path,index=False)
+                        'mean recall_tokens': [recall_tokens],
+                        'mean f1_tokens': [f1_tokens]}).to_csv(metrics_path,index=False)
         else:
             with open(metrics_path, 'a') as f:
                 # f.write(f"{run_id},{criterion},{use_energy_for_gradient},{acc},{mrr},{map_score},{precision},{recall},{mrr_tokens},{map_score_tokens},{precision_tokens},{recall_tokens}\n")
-                f.write(f"{run_id},{criterion},{use_energy_for_gradient},{mrr},{map_score},{precision},{recall},{mrr_tokens},{map_score_tokens},{precision_tokens},{recall_tokens}\n")
+                f.write(f"{run_id},{criterion},{use_energy_for_gradient},{mrr},{map_score},{precision},{recall},{f1},{mrr_tokens},{map_score_tokens},{precision_tokens},{recall_tokens},{f1_tokens}\n")
         
         print('Summary metrics saved at:', metrics_path)
 
@@ -247,27 +259,31 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 if __name__ == "__main__":
     
     runpath2modelpath = \
-        {'hayleyson/nli_energynet/u6tu4o9t': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731247397', 
-        'hayleyson/nli_energynet/msv6wq04': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731569657',
-        'hayleyson/nli_energynet/wxer9zw3': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731654805',
-        'hayleyson/nli_energynet/svk3b64y': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/svk3b64y',
-        'hayleyson/nli_energynet/2qbql1br': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/2qbql1br',
-        'hayleyson/nli_energynet/wdw0y1qp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443',
-        'hayleyson/nli_energynet/c4ll3opi': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731654539',
-        'hayleyson/nli_energynet/nznwxbaw': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/nznwxbaw', 
-        'hayleyson/nli_energynet/07m5lce9': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/07m5lce9',
-        'hayleyson/nli_energynet/lkavms6l': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/lkavms6l',
-        'hayleyson/nli_energynet/ni8cu2nw': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731247881',
-        'hayleyson/nli_energynet/eiqzuowj': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731651193',
-        'hayleyson/nli_energynet/w6hmipfb': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/w6hmipfb', 
-        'hayleyson/nli_energynet/id06pp5n': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/id06pp5n',
-        'hayleyson/nli_energynet/mev8cuhp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/mev8cuhp',
-        'hayleyson/nli_energynet/e8cse9ni': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731247889',
-        'hayleyson/nli_energynet/qhhowe3e': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731568014',
-        'hayleyson/nli_energynet/xie6veic': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731651194',
-        'hayleyson/nli_energynet/auxxqz22': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/auxxqz22',
-        'hayleyson/nli_energynet/ub4nku33': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/ub4nku33',
-        }
+        {'hayleyson/nli_energynet/9s1fli5s': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_3class_finegrained_labels_cross_entropy_n_a/9s1fli5s/'}
+        # {'hayleyson/nli_energynet/u6tu4o9t': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731247397', 
+        # 'hayleyson/nli_energynet/msv6wq04': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731569657',
+        # 'hayleyson/nli_energynet/wxer9zw3': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731654805',
+        # 'hayleyson/nli_energynet/svk3b64y': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/svk3b64y',
+        # 'hayleyson/nli_energynet/2qbql1br': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/2qbql1br',
+        # 'hayleyson/nli_energynet/wdw0y1qp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443',
+        # 'hayleyson/nli_energynet/c4ll3opi': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731654539',
+        # 'hayleyson/nli_energynet/nznwxbaw': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/nznwxbaw', 
+        # 'hayleyson/nli_energynet/07m5lce9': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/07m5lce9',
+        # 'hayleyson/nli_energynet/lkavms6l': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/lkavms6l',
+        # 'hayleyson/nli_energynet/ni8cu2nw': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731247881',
+        # 'hayleyson/nli_energynet/eiqzuowj': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731651193',
+        # 'hayleyson/nli_energynet/w6hmipfb': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/w6hmipfb', 
+        # 'hayleyson/nli_energynet/id06pp5n': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/id06pp5n',
+        # 'hayleyson/nli_energynet/mev8cuhp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/mev8cuhp',
+        # 'hayleyson/nli_energynet/e8cse9ni': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731247889',
+        # 'hayleyson/nli_energynet/qhhowe3e': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731568014',
+        # 'hayleyson/nli_energynet/xie6veic': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731651194',
+        # 'hayleyson/nli_energynet/auxxqz22': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/auxxqz22',
+        # 'hayleyson/nli_energynet/ub4nku33': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/ub4nku33',
+        # 'hayleyson/nli_energynet/zgs9e2sr': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/',
+        # 'hayleyson/nli_energynet/gyzuycek': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/gyzuycek'
+        # }
+        
         
     
     parser = argparse.ArgumentParser()
