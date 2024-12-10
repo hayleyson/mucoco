@@ -19,7 +19,8 @@ import numpy as np
 import pandas as pd
 import wandb
 
-from new_module.new_decode_utils import get_beam_hypotheses_v0, final_reranking
+from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking, analyze_span_lengths_and_count, editing_with_delete_variable_replace
+
 import new_module.losses as lossbuilder
 
 # util 함수 선언
@@ -42,34 +43,6 @@ def repeat_interleave_unravel(arr,split_blocks):
     arr_ = [x.repeat(1,split_blocks[i]).reshape(-1,1) for i,x in enumerate(arr_)]
     arr_ = torch.cat(arr_,dim=0)
     return arr_
-
-def analyze_span_lengths_and_count(text):
-    mask_matches = list(re.finditer('<mask>', text))
-
-    mask_info_dict= defaultdict(list)
-    prev_mask = None
-    span_count = 0
-    curr_span_length = 1
-    for i, mask in enumerate(mask_matches):
-        
-        if i == 0:
-            mask_info_dict[span_count].append(i)
-            
-        else:
-            if prev_mask.span()[1] == mask.span()[0]:
-                mask_info_dict[span_count].append(i)
-                curr_span_length += 1
-            else:
-                span_count += 1
-                mask_info_dict[span_count].append(i)
-                curr_span_length = 1
-        prev_mask = mask
-
-    span_lengths = []
-    for span_id, span_len in mask_info_dict.items():
-        
-        span_lengths.append(len(span_len))
-    return mask_info_dict, span_lengths
 
 
 def get_beam_hypotheses_v0_variable_length_v2(source_text:str, 
@@ -355,214 +328,103 @@ for sample_idx in tqdm.tqdm(idxes_for_test[:]):
     test_sent = all_masked_sentences[sample_idx]
     test_sent_span_lengths = span_lengths_es[sample_idx]
 
-    # merge masks
-    test_sent_merged = re.sub(r"(<mask>)+", "<mask>", test_sent)
+    if method == "0":
+        final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
+                editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config)
+        results.append(final_hypotheses_curr)
+    else:
+        # merge masks
+        test_sent_merged = re.sub(r"(<mask>)+", "<mask>", test_sent)
 
-    # Max number of mask tokens to replace each span
-    max_mask_cnt_per_span = [max(x, config['max_tokens_per_span']) for x in test_sent_span_lengths]
+        # Max number of mask tokens to replace each span
+        max_mask_cnt_per_span = [max(x, config['max_tokens_per_span']) for x in test_sent_span_lengths]
 
-    # Get the span information of merged masks in the test sentence
-    mask_spans = [x.span() for x in re.finditer('<mask>',test_sent_merged)]
+        # Get the span information of merged masks in the test sentence
+        mask_spans = [x.span() for x in re.finditer('<mask>',test_sent_merged)]
 
-    queue = []
-    queue.append(test_sent_merged[:mask_spans[0][0]])
-    for i in range(len(mask_spans)):
-        curr_queue_size = len(queue)
+        queue = []
+        queue.append(test_sent_merged[:mask_spans[0][0]])
+        for i in range(len(mask_spans)):
+            curr_queue_size = len(queue)
 
-        # candidate generation
-        curr_full_text_hyp = [base_hyp + "<mask>" * max_mask_cnt_per_span[i] + test_sent_merged[mask_spans[i][1]:] for base_hyp in queue]
-        ## Tokenize & conduct MLM inference
-        inputs = mlm_tokenizer(
-            curr_full_text_hyp, return_tensors="pt", padding=True, truncation=True
-        )
-        inputs = inputs.to(config['device']) 
-        masked_sequence=inputs['input_ids']
+            # candidate generation
+            curr_full_text_hyp = [base_hyp + "<mask>" * max_mask_cnt_per_span[i] + test_sent_merged[mask_spans[i][1]:] for base_hyp in queue]
+            ## Tokenize & conduct MLM inference
+            inputs = mlm_tokenizer(
+                curr_full_text_hyp, return_tensors="pt", padding=True, truncation=True
+            )
+            inputs = inputs.to(config['device']) 
+            masked_sequence=inputs['input_ids']
 
-        if config['consider_prompt_for_cand_gen']:
-            
-            prompt_enc=mlm_tokenizer(mlm_tokenizer.bos_token + source_text,add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(config['device'])
-            prompt_enc['input_ids']=prompt_enc['input_ids'].expand(curr_queue_size,-1)
-            prompt_enc['attention_mask']=prompt_enc['attention_mask'].expand(curr_queue_size,-1)
-            
-            input_tokens = torch.cat([prompt_enc.input_ids, inputs.input_ids], dim=1).to(config['device'])
-            attention_masks = torch.cat([prompt_enc.attention_mask, inputs.attention_mask], dim=1).to(config['device'])
-            
-            with torch.no_grad():
-                logits = mlm(input_ids = input_tokens, 
-                            attention_mask = attention_masks).logits
-
-            # Choose top k among non-special tokens
-            logits = logits[:, prompt_enc.input_ids.shape[1]:]
-            
-        else:
-            with torch.no_grad():
-                logits = mlm(**inputs).logits
-
-        ## Choose top k among non-special tokens
-        logits[:, :, special_token_ids] = -float("inf")
-
-        indices_in_mlm_tokens = (
-            inputs.input_ids == mlm_tokenizer.mask_token_id
-        ).nonzero(as_tuple=False) # if as_tuple=False, returns a tensor where column 1 indicates row indices, column 2 indicates column indices e.g. torch.Tensor([[0, 19],[0, 20], [0,38]])
-        
-        ## get post context 
-        if i == len(mask_spans) -1:
-            post_context = test_sent_merged[mask_spans[i][1]:]
-        else:
-            post_context = test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]]
-
-        ## For each hypothesis in curr_full_text_hyp, first max_mask_cnt_per_span[i] mask locations are relevant
-        indices_in_mlm_tokens = torch.cat([x[:max_mask_cnt_per_span[i]] for x in torch.chunk(indices_in_mlm_tokens, curr_queue_size)],dim=0)
-        indices_in_mlm_tokens_0 = indices_in_mlm_tokens[:,0]
-        indices_in_mlm_tokens_1 = indices_in_mlm_tokens[:,1]
-
-        ## Get top k tokens for the j masks
-        predicted_token_ids = torch.topk(
-            logits[indices_in_mlm_tokens_0, indices_in_mlm_tokens_1, :],
-            k=config['k_per_location'],
-            dim=-1,
-        )            
-
-        ## beam search에 넣기 전에 이런 작업을 해주는게 좋을까? ## right side를 아예 안볼거면 ok.  -> 꼭 해주지 않아도 indices_in_mlm_tokens 에서 현재 span까지만 index를 뽑기 때문에 같은 결과가 나오긴 함.
-        masked_sequence = [masked_sequence[ix, :indices_in_mlm_tokens_1[max_mask_cnt_per_span[i]*(ix+1)-1]+1] for ix in range(masked_sequence.shape[0])]
-        masked_sequence = torch.nn.utils.rnn.pad_sequence(masked_sequence, batch_first=True, padding_value=mlm_tokenizer.pad_token_id)
-
-        if method == "1":
-            hypotheses=list(queue) # deletion case
-            hypotheses.extend(get_beam_hypotheses_v0_variable_length_v2(source_text, 
-                                    masked_sequence, 
-                                    (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
-                                    predicted_token_ids.indices,
-                                    mlm_tokenizer, 
-                                    lossfns,
-                                    config,
-                                    return_all_hypotheses=True)[0][0])
-            # print(f"hypotheses: {hypotheses}")
-            if i < len(mask_spans) -1 :
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
-            else:
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
-
-            # Scoring the hypotheses and select top beam hypotheses
-            
-
-            curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
-            data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
-
-            for lossid, lossname in enumerate(config["losses"]):
-                lossvalues=[]
+            if config['consider_prompt_for_cand_gen']:
+                
+                prompt_enc=mlm_tokenizer(mlm_tokenizer.bos_token + source_text,add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(config['device'])
+                prompt_enc['input_ids']=prompt_enc['input_ids'].expand(curr_queue_size,-1)
+                prompt_enc['attention_mask']=prompt_enc['attention_mask'].expand(curr_queue_size,-1)
+                
+                input_tokens = torch.cat([prompt_enc.input_ids, inputs.input_ids], dim=1).to(config['device'])
+                attention_masks = torch.cat([prompt_enc.attention_mask, inputs.attention_mask], dim=1).to(config['device'])
+                
                 with torch.no_grad():
-                    for batch in data_loader:
-                        lossvalue = lossfns[lossid].compute_gold_loss(
-                            source_text, batch,
-                            label_id=config['target_label_ids'][lossid],
-                        )
-                        lossvalues.append(lossvalue)
-                        torch.cuda.empty_cache()
-                lossvalue = torch.cat(lossvalues,dim=0)
-                curr_loss += loss_weights[lossid] * lossvalue
+                    logits = mlm(input_ids = input_tokens, 
+                                attention_mask = attention_masks).logits
 
-            torch.cuda.empty_cache()
-            if i == len(mask_spans) -1:
-                top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
-                new_best_weighted_loss_ = curr_loss[top_beams]
+                # Choose top k among non-special tokens
+                logits = logits[:, prompt_enc.input_ids.shape[1]:]
+                
             else:
-                top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
+                with torch.no_grad():
+                    logits = mlm(**inputs).logits
+
+            ## Choose top k among non-special tokens
+            logits[:, :, special_token_ids] = -float("inf")
+
+            indices_in_mlm_tokens = (
+                inputs.input_ids == mlm_tokenizer.mask_token_id
+            ).nonzero(as_tuple=False) # if as_tuple=False, returns a tensor where column 1 indicates row indices, column 2 indicates column indices e.g. torch.Tensor([[0, 19],[0, 20], [0,38]])
             
-            queue = [hypotheses_all[ix] for ix in top_beams]
-            # print(f"queue: {queue}")
-            # for item in queue:
-            #     print(item)
-            # print('')
-        elif method == "2":
-            
-            # hypotheses=list(queue) # deletion case
-            # hypotheses.extend(get_beam_hypotheses_v0_variable_length(source_text, 
-            hypotheses, scores = get_beam_hypotheses_v0_variable_length_v2(source_text, # deletion 케이스도 beam 안에서 고려
-                                    masked_sequence, 
-                                    (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
-                                    predicted_token_ids.indices,
-                                    mlm_tokenizer, 
-                                    lossfns,
-                                    config)
-            hypotheses = hypotheses[0]
-            # print(f"hypotheses: {hypotheses}")
-            if i < len(mask_spans) -1 :
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
+            ## get post context 
+            if i == len(mask_spans) -1:
+                post_context = test_sent_merged[mask_spans[i][1]:]
             else:
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
-            
-            if i == len(mask_spans) -1:
-                queue, new_best_weighted_loss_, new_best_allsat_, new_best_logging_loss_ = final_reranking(source_text,
-                                                                                                            [hypotheses_all],
-                                                                                                            lossfns,
-                                                                                                            config,
-                                                                                                            batch_size=32)
-            else:
-                queue = hypotheses_all
-            # print(f"queue: {queue}")
-            # for item in queue:
-            #     print(item)
-            # print('')
-            
-        elif method == "3":
-            
-            tmp_config = deepcopy(config)
-            if i == len(mask_spans) -1:
-                tmp_config['beam_size'] = 1
-            
-            # hypotheses=[x+post_context for x in list(queue)] # deletion case
-            # hypotheses.extend(get_beam_hypotheses_v0_variable_length_considering_post_context(source_text, 
-            hypotheses, scores = get_beam_hypotheses_v0_variable_length_considering_post_context_v2(source_text, 
-                                    masked_sequence, 
-                                    post_context,
-                                    (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
-                                    predicted_token_ids.indices,
-                                    mlm_tokenizer, 
-                                    lossfns,
-                                    tmp_config)
-            hypotheses = hypotheses[0]
-            # print(f"hypotheses: {hypotheses}")
-            
-            if i == len(mask_spans) -1:
-                queue, new_best_weighted_loss_, new_best_allsat_, new_best_logging_loss_ = final_reranking(source_text,
-                                                                                                            [hypotheses],
-                                                                                                            lossfns,
-                                                                                                            config,
-                                                                                                            batch_size=32)
-            else:
-                queue = hypotheses
-            
-            # print(f"queue: {queue}")
-            # for item in queue:
-            #     print(item)
-            # print('')
-            
-        elif method == "3_2":
-            
-            # tmp_config = deepcopy(config)
-            # if i == len(mask_spans) -1:
-            #     tmp_config['beam_size'] = 1
-            
-            # hypotheses=[x+post_context for x in list(queue)] # deletion case
-            # hypotheses.extend(get_beam_hypotheses_v0_variable_length_considering_post_context(source_text, 
-            hypotheses, scores = get_beam_hypotheses_v0_variable_length_considering_post_context_v2(source_text, 
-                                    masked_sequence, 
-                                    post_context,
-                                    (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
-                                    predicted_token_ids.indices,
-                                    mlm_tokenizer, 
-                                    lossfns,
-                                    config, 
-                                    primary_loss_only=True)
-            hypotheses = hypotheses[0]
-            # print(f"hypotheses: {hypotheses}")
-            if i == len(mask_spans) -1:
+                post_context = test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]]
+
+            ## For each hypothesis in curr_full_text_hyp, first max_mask_cnt_per_span[i] mask locations are relevant
+            indices_in_mlm_tokens = torch.cat([x[:max_mask_cnt_per_span[i]] for x in torch.chunk(indices_in_mlm_tokens, curr_queue_size)],dim=0)
+            indices_in_mlm_tokens_0 = indices_in_mlm_tokens[:,0]
+            indices_in_mlm_tokens_1 = indices_in_mlm_tokens[:,1]
+
+            ## Get top k tokens for the j masks
+            predicted_token_ids = torch.topk(
+                logits[indices_in_mlm_tokens_0, indices_in_mlm_tokens_1, :],
+                k=config['k_per_location'],
+                dim=-1,
+            )            
+
+            ## beam search에 넣기 전에 이런 작업을 해주는게 좋을까? ## right side를 아예 안볼거면 ok.  -> 꼭 해주지 않아도 indices_in_mlm_tokens 에서 현재 span까지만 index를 뽑기 때문에 같은 결과가 나오긴 함.
+            masked_sequence = [masked_sequence[ix, :indices_in_mlm_tokens_1[max_mask_cnt_per_span[i]*(ix+1)-1]+1] for ix in range(masked_sequence.shape[0])]
+            masked_sequence = torch.nn.utils.rnn.pad_sequence(masked_sequence, batch_first=True, padding_value=mlm_tokenizer.pad_token_id)        
+            if method == "1":
+                hypotheses=list(queue) # deletion case
+                hypotheses.extend(get_beam_hypotheses_v0_variable_length_v2(source_text, 
+                                        masked_sequence, 
+                                        (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
+                                        predicted_token_ids.indices,
+                                        mlm_tokenizer, 
+                                        lossfns,
+                                        config,
+                                        return_all_hypotheses=True)[0][0])
+                # print(f"hypotheses: {hypotheses}")
+                if i < len(mask_spans) -1 :
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
+                else:
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
+
                 # Scoring the hypotheses and select top beam hypotheses
-                batch_size = 64
+                
 
-                curr_loss = torch.zeros(len(hypotheses)).to(config['device'])
-                data_loader = DataLoader(CustomDataset(hypotheses),batch_size=batch_size)
+                curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
+                data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
 
                 for lossid, lossname in enumerate(config["losses"]):
                     lossvalues=[]
@@ -578,122 +440,238 @@ for sample_idx in tqdm.tqdm(idxes_for_test[:]):
                     curr_loss += loss_weights[lossid] * lossvalue
 
                 torch.cuda.empty_cache()
-                top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
-                new_best_weighted_loss_ = curr_loss[top_beams]    
-                queue = [hypotheses[ix] for ix in top_beams]
-            
-            else:
-                queue = hypotheses
+                if i == len(mask_spans) -1:
+                    top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
+                    new_best_weighted_loss_ = curr_loss[top_beams]
+                else:
+                    top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
+                
+                queue = [hypotheses_all[ix] for ix in top_beams]
                 # print(f"queue: {queue}")
                 # for item in queue:
                 #     print(item)
                 # print('')
-            
-            
-        elif method == "4" or method == "1_2":
-            hypotheses=list(queue) # deletion case
-            hypotheses.extend(get_beam_hypotheses_v0_variable_length_v2(source_text, 
-                                    masked_sequence, 
-                                    (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
-                                    predicted_token_ids.indices,
-                                    mlm_tokenizer, 
-                                    lossfns,
-                                    config,
-                                    return_all_hypotheses=True,
-                                    primary_loss_only=True)[0][0])
-            # print(f"hypotheses: {hypotheses}")
-            if i < len(mask_spans) -1 :
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
-            else:
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
+            elif method == "2":
+                
+                # hypotheses=list(queue) # deletion case
+                # hypotheses.extend(get_beam_hypotheses_v0_variable_length(source_text, 
+                hypotheses, scores = get_beam_hypotheses_v0_variable_length_v2(source_text, # deletion 케이스도 beam 안에서 고려
+                                        masked_sequence, 
+                                        (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
+                                        predicted_token_ids.indices,
+                                        mlm_tokenizer, 
+                                        lossfns,
+                                        config)
+                hypotheses = hypotheses[0]
+                # print(f"hypotheses: {hypotheses}")
+                if i < len(mask_spans) -1 :
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
+                else:
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
+                
+                if i == len(mask_spans) -1:
+                    queue, new_best_weighted_loss_, new_best_allsat_, new_best_logging_loss_ = final_reranking(source_text,
+                                                                                                                [hypotheses_all],
+                                                                                                                lossfns,
+                                                                                                                config,
+                                                                                                                batch_size=32)
+                else:
+                    queue = hypotheses_all
+                # print(f"queue: {queue}")
+                # for item in queue:
+                #     print(item)
+                # print('')
+                
+            elif method == "3":
+                
+                tmp_config = deepcopy(config)
+                if i == len(mask_spans) -1:
+                    tmp_config['beam_size'] = 1
+                
+                # hypotheses=[x+post_context for x in list(queue)] # deletion case
+                # hypotheses.extend(get_beam_hypotheses_v0_variable_length_considering_post_context(source_text, 
+                hypotheses, scores = get_beam_hypotheses_v0_variable_length_considering_post_context_v2(source_text, 
+                                        masked_sequence, 
+                                        post_context,
+                                        (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
+                                        predicted_token_ids.indices,
+                                        mlm_tokenizer, 
+                                        lossfns,
+                                        tmp_config)
+                hypotheses = hypotheses[0]
+                # print(f"hypotheses: {hypotheses}")
+                
+                # if i == len(mask_spans) -1:
+                #     queue, new_best_weighted_loss_, new_best_allsat_, new_best_logging_loss_ = final_reranking(source_text,
+                #                                                                                                 [hypotheses],
+                #                                                                                                 lossfns,
+                #                                                                                                 config,
+                #                                                                                                 batch_size=32)
+                # else:
+                #     queue = hypotheses
+                queue = hypotheses
+                
+                # print(f"queue: {queue}")
+                # for item in queue:
+                #     print(item)
+                # print('')
+                
+            elif method == "3_2":
+                
+                # tmp_config = deepcopy(config)
+                # if i == len(mask_spans) -1:
+                #     tmp_config['beam_size'] = 1
+                
+                # hypotheses=[x+post_context for x in list(queue)] # deletion case
+                # hypotheses.extend(get_beam_hypotheses_v0_variable_length_considering_post_context(source_text, 
+                hypotheses, scores = get_beam_hypotheses_v0_variable_length_considering_post_context_v2(source_text, 
+                                        masked_sequence, 
+                                        post_context,
+                                        (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
+                                        predicted_token_ids.indices,
+                                        mlm_tokenizer, 
+                                        lossfns,
+                                        config, 
+                                        primary_loss_only=True)
+                hypotheses = hypotheses[0]
+                # print(f"hypotheses: {hypotheses}")
+                if i == len(mask_spans) -1:
+                    # Scoring the hypotheses and select top beam hypotheses
+                    batch_size = 64
 
-            # Scoring the hypotheses and select top beam hypotheses
+                    curr_loss = torch.zeros(len(hypotheses)).to(config['device'])
+                    data_loader = DataLoader(CustomDataset(hypotheses),batch_size=batch_size)
 
-            curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
-            data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
+                    for lossid, lossname in enumerate(config["losses"]):
+                        lossvalues=[]
+                        with torch.no_grad():
+                            for batch in data_loader:
+                                lossvalue = lossfns[lossid].compute_gold_loss(
+                                    source_text, batch,
+                                    label_id=config['target_label_ids'][lossid],
+                                )
+                                lossvalues.append(lossvalue)
+                                torch.cuda.empty_cache()
+                        lossvalue = torch.cat(lossvalues,dim=0)
+                        curr_loss += loss_weights[lossid] * lossvalue
 
-            for lossid, lossname in enumerate(config["losses"]):
-                lossvalues=[]
-                with torch.no_grad():
-                    for batch in data_loader:
-                        lossvalue = lossfns[lossid].compute_gold_loss(
-                            source_text, batch,
-                            label_id=config['target_label_ids'][lossid],
-                        )
-                        lossvalues.append(lossvalue)
-                        torch.cuda.empty_cache()
-                lossvalue = torch.cat(lossvalues,dim=0)
-                curr_loss += loss_weights[lossid] * lossvalue
+                    torch.cuda.empty_cache()
+                    top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
+                    new_best_weighted_loss_ = curr_loss[top_beams]    
+                    queue = [hypotheses[ix] for ix in top_beams]
+                
+                else:
+                    queue = hypotheses
+                    # print(f"queue: {queue}")
+                    # for item in queue:
+                    #     print(item)
+                    # print('')
+                
+                
+            elif method == "4" or method == "1_2":
+                hypotheses=list(queue) # deletion case
+                hypotheses.extend(get_beam_hypotheses_v0_variable_length_v2(source_text, 
+                                        masked_sequence, 
+                                        (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
+                                        predicted_token_ids.indices,
+                                        mlm_tokenizer, 
+                                        lossfns,
+                                        config,
+                                        return_all_hypotheses=True,
+                                        primary_loss_only=True)[0][0])
+                # print(f"hypotheses: {hypotheses}")
+                if i < len(mask_spans) -1 :
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
+                else:
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
 
+                # Scoring the hypotheses and select top beam hypotheses
+
+                curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
+                data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
+
+                for lossid, lossname in enumerate(config["losses"]):
+                    lossvalues=[]
+                    with torch.no_grad():
+                        for batch in data_loader:
+                            lossvalue = lossfns[lossid].compute_gold_loss(
+                                source_text, batch,
+                                label_id=config['target_label_ids'][lossid],
+                            )
+                            lossvalues.append(lossvalue)
+                            torch.cuda.empty_cache()
+                    lossvalue = torch.cat(lossvalues,dim=0)
+                    curr_loss += loss_weights[lossid] * lossvalue
+
+                torch.cuda.empty_cache()
+                if i == len(mask_spans) -1:
+                    top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
+                    new_best_weighted_loss_ = curr_loss[top_beams]
+                else:
+                    top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
+                
+                queue = [hypotheses_all[ix] for ix in top_beams]
+                
+                
+                # print(f"queue: {queue}")
+                # for item in queue:
+                #     print(item)
+                # print('')
+                
+            elif method == "1_3":
+                hypotheses=list(queue) # deletion case
+                hypotheses.extend(get_beam_hypotheses_v0_variable_length_v2(source_text, 
+                                        masked_sequence, 
+                                        (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
+                                        predicted_token_ids.indices,
+                                        mlm_tokenizer, 
+                                        lossfns,
+                                        config,
+                                        return_all_hypotheses=True,
+                                        primary_loss_only=True)[0][0])
+                # print(f"hypotheses: {hypotheses}")
+                if i < len(mask_spans) -1 :
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
+                else:
+                    hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
+
+                # Scoring the hypotheses and select top beam hypotheses
+
+                curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
+                data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
+
+                for lossid, lossname in enumerate(config["losses"]):
+                    if (i <  len(mask_spans) -1) and (lossid > 0): # only use primary loss if step hasn't reached the end
+                        break
+                    lossvalues=[]
+                    with torch.no_grad():
+                        for batch in data_loader:
+                            lossvalue = lossfns[lossid].compute_gold_loss(
+                                source_text, batch,
+                                label_id=config['target_label_ids'][lossid],
+                            )
+                            lossvalues.append(lossvalue)
+                            torch.cuda.empty_cache()
+                    lossvalue = torch.cat(lossvalues,dim=0)
+                    curr_loss += loss_weights[lossid] * lossvalue
+
+                torch.cuda.empty_cache()
+                if i == len(mask_spans) -1:
+                    top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
+                    new_best_weighted_loss_ = curr_loss[top_beams]
+                else:
+                    top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
+                
+                queue = [hypotheses_all[ix] for ix in top_beams]
+                
+                
+                # print(f"queue: {queue}")
+                # for item in queue:
+                #     print(item)
+                # print('')
+                
             torch.cuda.empty_cache()
-            if i == len(mask_spans) -1:
-                top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
-                new_best_weighted_loss_ = curr_loss[top_beams]
-            else:
-                top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
-            
-            queue = [hypotheses_all[ix] for ix in top_beams]
-            
-            
-            # print(f"queue: {queue}")
-            # for item in queue:
-            #     print(item)
-            # print('')
-            
-        elif method == "1_3":
-            hypotheses=list(queue) # deletion case
-            hypotheses.extend(get_beam_hypotheses_v0_variable_length_v2(source_text, 
-                                    masked_sequence, 
-                                    (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
-                                    predicted_token_ids.indices,
-                                    mlm_tokenizer, 
-                                    lossfns,
-                                    config,
-                                    return_all_hypotheses=True,
-                                    primary_loss_only=True)[0][0])
-            # print(f"hypotheses: {hypotheses}")
-            if i < len(mask_spans) -1 :
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
-            else:
-                hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:] for x in hypotheses]
-
-            # Scoring the hypotheses and select top beam hypotheses
-
-            curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
-            data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
-
-            for lossid, lossname in enumerate(config["losses"]):
-                if (i <  len(mask_spans) -1) and (lossid > 0): # only use primary loss if step hasn't reached the end
-                    break
-                lossvalues=[]
-                with torch.no_grad():
-                    for batch in data_loader:
-                        lossvalue = lossfns[lossid].compute_gold_loss(
-                            source_text, batch,
-                            label_id=config['target_label_ids'][lossid],
-                        )
-                        lossvalues.append(lossvalue)
-                        torch.cuda.empty_cache()
-                lossvalue = torch.cat(lossvalues,dim=0)
-                curr_loss += loss_weights[lossid] * lossvalue
-
-            torch.cuda.empty_cache()
-            if i == len(mask_spans) -1:
-                top_beams = torch.topk(curr_loss, k=1, dim=-1, largest=False).indices
-                new_best_weighted_loss_ = curr_loss[top_beams]
-            else:
-                top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
-            
-            queue = [hypotheses_all[ix] for ix in top_beams]
-            
-            
-            # print(f"queue: {queue}")
-            # for item in queue:
-            #     print(item)
-            # print('')
-            
-        torch.cuda.empty_cache()
-    results.append(queue)
+        results.append(queue)
         
 # print(time.time()-start)
 
