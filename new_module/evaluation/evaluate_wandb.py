@@ -291,6 +291,7 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
     if "ppl-qwen" in metricset: #GPT2-XL
         logger.debug("big")
         eval_model_name = "Qwen/Qwen2.5-14B"
+        torch.cuda.empty_cache()
         eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, torch_dtype = torch.float16).to(device)
         eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
         torch.cuda.empty_cache()
@@ -304,9 +305,13 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         if run_path != "":
             run.summary.update({'ppl_qwen': ppl, 'total_ppl_qwen': total_ppl})
         fp.write(f'ppl_qwen: {ppl}, total_ppl_qwen: {total_ppl}\n')
+        del eval_model
+        del eval_tokenizer
+        
 
     if "ppl-big" in metricset: #GPT2-XL
         logger.debug("big")
+        torch.cuda.empty_cache()
         eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
         eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
         torch.cuda.empty_cache()
@@ -320,6 +325,8 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         if run_path != "":
             run.summary.update({'ppl': ppl, 'total_ppl': total_ppl})
         fp.write(f'ppl: {ppl}, total_ppl: {total_ppl}\n')
+        del eval_model
+        del eval_tokenizer
     
     if 'nli' in metricset:
         logger.debug("nli-ensemble")

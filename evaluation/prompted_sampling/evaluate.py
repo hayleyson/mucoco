@@ -411,9 +411,10 @@ def fluency_classify(generations_df, output_file=None):
         prediction_scores = [str(prediction["score"]) for prediction in predictions_for_prompt]
         all_prediction_scores += prediction_scores
         
-    with open(output_file, "w") as fout:
-        fout.write("\n".join(all_prediction_labels))
-        fout.write("\n".join(all_prediction_scores))
+    if output_file is not None:
+        with open(output_file, "w") as fout:
+            fout.write("\n".join(all_prediction_labels))
+            fout.write("\n".join(all_prediction_scores))
 
     accuracy = np.array(all_prediction_labels) == "LABEL_1" ## LABEL_1 is acceptable
     accuracy = np.nanmean(accuracy.astype("float32"))

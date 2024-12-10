@@ -40,6 +40,9 @@ class GPT2Loss(BaseLoss):
 
         input_tokens = torch.cat([prompt_enc.input_ids, predictions_enc.input_ids], dim=1)
         attention_masks = torch.cat([prompt_enc.attention_mask, predictions_enc.attention_mask], dim=1)
+        
+        input_tokens = input_tokens.long()
+        # print(f"input_tokens: {input_tokens}")
         with torch.no_grad():
             model_output = self.model(input_ids=input_tokens,
                                 attention_mask=attention_masks)
