@@ -290,7 +290,7 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         elif config['energynet']['label_column'] == 'binary_labels':
             e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l == 0]
             e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l == 1]
-        elif config['energynet']['label_column'] == 'original_labels':
+        elif (config['energynet']['label_column'] == 'original_labels') or (config['energynet']['label_column'] == '3class_finegrained_labels'):
             e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l == 2]
             e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l != 2]
         else:

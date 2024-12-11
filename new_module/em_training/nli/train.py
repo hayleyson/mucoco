@@ -86,8 +86,9 @@ def main():
             elif config['energynet']['label_column'] == '3class_finegrained_labels':
                 print(f"Num missing 3class_finegrained_labels before filling: {train_add_data['3class_finegrained_labels'].isna().sum()}")
                 enc = OneHotEncoder(categories=[[0,1,2]],sparse_output=False)
-                encoded = enc.fit_transform(train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['original_labels']]).tolist()
-                train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['3class_finegrained_labels']] = pd.Series(encoded).astype(object)
+                train_add_data['3class_finegrained_labels'] = enc.fit_transform(train_add_data[['original_labels']]).tolist()
+                # encoded = enc.fit_transform(train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['original_labels']]).tolist()
+                # train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['3class_finegrained_labels']] = pd.Series(encoded).astype(object)
                 print(f"Num missing 3class_finegrained_labels after filling: {train_add_data['3class_finegrained_labels'].isna().sum()}")
                 
         train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
