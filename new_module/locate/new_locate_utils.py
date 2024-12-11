@@ -104,8 +104,6 @@ class LocateMachine:
         
         if kwargs.get('tokenized_input', False):
             batch = deepcopy(prediction)
-        elif self.task == "nli":
-            batch = self.tokenizer(prediction, add_special_tokens=True, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
         else:
             batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
         
@@ -225,20 +223,13 @@ class LocateMachine:
                 locate_ixes = get_word_level_locate_indices(*arguments)
                 batch.input_ids[i, locate_ixes] = self.tokenizer.mask_token_id
                 locate_ixes_all.append(locate_ixes)
-                
-            ## it took longer to run multiprocessing 30+ ms v.s. 8 s
-            # try:
-            #     mp.set_start_method('spawn', force=True)
-            # except RuntimeError:
-            #     pass
-
-            # with mp.Pool(kwargs.get("num_processes", mp.cpu_count())) as pool:
-            #     # https://stackoverflow.com/questions/5442910/how-to-use-multiprocessing-pool-map-with-multiple-arguments
-            #     locate_ixes = pool.starmap(get_word_level_locate_indices, zip(prediction,batch.input_ids.tolist(), lengths.tolist(), top_masks_final, repeat(self.tokenizer)))
-        
+            
         masked_sequence_text = self.tokenizer.batch_decode(
             [x[:lengths[i]] for i, x in enumerate(batch.input_ids.tolist())]
         )
+        ## clean up special tokens other than <mask> token for nli task
+        if self.task == "nli":
+            masked_sequence_text = [x.strip(self.tokenizer.eos_token).split(self.tokenizer.sep_token)[-1] for i, x in enumerate(masked_sequence_text)]
         
         if kwargs.get('return_scores_and_indices',False):
             return masked_sequence_text, token_wise_scores, locate_ixes_all

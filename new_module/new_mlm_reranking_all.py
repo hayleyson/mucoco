@@ -28,6 +28,7 @@ from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypothe
 from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
+from new_module.em_training.nli.models import EncoderModel
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def main(config):
     main_start_time = time.time()
 
     if not config.get("model_tag", None):
-        if "energy-training" in config["model_paths"][1]:
+        if ("energy-training" in config["model_paths"][1]) or ("finegrained_labels" in config["model_paths"][1]): 
             config["model_tag"] = "em"
         else:
             config["model_tag"] = "clsf"
@@ -76,11 +77,11 @@ def main(config):
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
-    build_loss_args = dummyArgs(**config["build_loss_dict"])
+    build_loss_args = dummyArgs(**config["build_loss_dict"]) ## there are some arguments that are still needed. so don't delete this!
     build_loss_args.task = config["task"]
 
     ## load data
-    if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+    if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
         source_dataset = [
             json.loads(l)[config["jsonl_primary_key"]][config["jsonl_secondary_key"]]
             for l in open(config["source_data"])
@@ -91,12 +92,6 @@ def main(config):
     elif (config["task"] == "formality") or (config["task"] == "sentiment-lewis-compr"):
         with open(config["source_data"], "r") as f:
             generation_dataset = [line.rstrip('\n') for line in f.readlines()]
-        source_dataset = ["" for l in generation_dataset]
-        
-    elif (config["task"] == "nli"):
-        generation_dataset = [
-            (json.loads(l)["sentence1"],json.loads(l)["sentence2"]) for l in open(config["source_data"]) if (json.loads(l)["gold_label"] == "contradiction") 
-        ]
         source_dataset = ["" for l in generation_dataset]
 
     # check if outfile exists
@@ -129,55 +124,67 @@ def main(config):
     name2model = {}
     name2config = {}
     loss2tokenizer = {}
-    embed_luts = []
 
     for i, model_path in enumerate(config["model_paths"]):
         if (
             model_path not in name2model
         ):  # making sure we are not loading the model twice in case some constraints use the same model.
-            try:
-                name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
-                    config["tokenizer_paths"][i],
-                    cache_dir=config["cache_dir"],
-                    use_fast=True,
-                )
-            except:
-                name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
-                    config["tokenizer_paths"][i],
-                    cache_dir=config["cache_dir"],
-                    use_fast=False,
+            
+            if config["model_types"][i] == "EncoderModel":
+                # config
+                with open(os.path.join(config["model_paths"][i], 'config.json')) as f:
+                    model_config = json.load(f)
+                model_config['device'] = config['device']
+                model_config['model_path'] = os.path.join(config["model_paths"][i], 'best_model_pearsonr.pth')
+                name2config[model_path] = model_config
+                
+                # load model
+                model = EncoderModel(params=name2config[model_path])
+                model.load_state_dict(torch.load(name2config[model_path]["model_path"],weights_only=True),strict=False)
+                name2model[model_path] = lossbuilder.ModelWrapper(model)
+                name2model[model_path].eval()
+                name2model[model_path].to(config['device'])
+                
+                # tokenizer
+                name2tokenizer[config["tokenizer_paths"][i]] = name2model[model_path].tokenizer
+                
+            else:   
+                name2config[model_path] = AutoConfig.from_pretrained(
+                    model_path, cache_dir=config["cache_dir"]
                 )
 
-            name2config[model_path] = AutoConfig.from_pretrained(
-                model_path, cache_dir=config["cache_dir"]
-            )
-
-            if config["model_types"][i] == "RobertaCustomForSequenceClassification":
-                name2model[model_path] = lossbuilder.ModelWrapper(
-                    RobertaCustomForSequenceClassification.from_pretrained(
-                        model_path,
-                        config=name2config[model_path],
-                        cache_dir=config["cache_dir"],
+                if config["model_types"][i] == "RobertaCustomForSequenceClassification":
+                    name2model[model_path] = lossbuilder.ModelWrapper(
+                        RobertaCustomForSequenceClassification.from_pretrained(
+                            model_path,
+                            config=name2config[model_path],
+                            cache_dir=config["cache_dir"],
+                        )
                     )
-                )
-            else:
-                name2model[model_path] = lossbuilder.ModelWrapper(
-                    getattr(transformers, config["model_types"][i]).from_pretrained(
-                        model_path,
-                        config=name2config[model_path],
-                        cache_dir=config["cache_dir"],
+                    
+                else:
+                    name2model[model_path] = lossbuilder.ModelWrapper(
+                        getattr(transformers, config["model_types"][i]).from_pretrained(
+                            model_path,
+                            config=name2config[model_path],
+                            cache_dir=config["cache_dir"],
+                        )
                     )
-                )
-            name2model[model_path].eval()
-            name2model[model_path].to(config['device'])
-
-        input_embeds = name2model[model_path].get_input_embeddings()
-        if isinstance(input_embeds, torch.nn.Sequential):
-            input_embeds = input_embeds[0]
-        embed_luts.append(input_embeds)
-
-        if config["target_type"] == "embeds":
-            embed_luts[-1].requires_grad = False
+                name2model[model_path].eval()
+                name2model[model_path].to(config['device'])
+            
+                try:
+                    name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
+                        config["tokenizer_paths"][i],
+                        cache_dir=config["cache_dir"],
+                        use_fast=True,
+                    )
+                except:
+                    name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
+                        config["tokenizer_paths"][i],
+                        cache_dir=config["cache_dir"],
+                        use_fast=False,
+                    )
 
     mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
     mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base").to(config['device'])
@@ -194,13 +201,9 @@ def main(config):
         )
         lossfns[i].tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
         loss2tokenizer[loss] = lossfns[i].tokenizer
-    # lossfns[0].tokenizer = loss2tokenizer[config["losses"][0]]
-    # lossfns[1].tokenizer = loss2tokenizer[config["losses"][1]]
 
     # define an object to locate problematic phrases
     locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
-
-    label_ids = config["target_label_ids"]  # target label's ids for each loss
 
     run.summary["prep_time"] = time.time() - main_start_time
     ## beginning of main logic
@@ -218,11 +221,11 @@ def main(config):
     # loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
     loss_weights = config['loss_weights']
     interrupted = False
-    if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+    if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
         text_id_interval = 1
     elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
-        ) or (config["task"] == "nli"):
+        ):
         text_id_interval = config['num_samples']
         
         
@@ -231,7 +234,7 @@ def main(config):
         if source_text == "":
             source_text = lossfns[0].tokenizer.bos_token
 
-        if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+        if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
             AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
             # predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
             # predicted_batches = [
@@ -241,16 +244,13 @@ def main(config):
             
         elif (config["task"] == "formality") or (
             config["task"] == "sentiment-lewis-compr"
-        ) or (config["task"] == "nli"):
+        ):
             # AR_prediction_all = [generation_dataset[text_id]]
             AR_prediction_all = generation_dataset[text_id: text_id + text_id_interval]
  
         curr_num_samples = len(AR_prediction_all)
         if curr_num_samples == 0:
             continue
-        # for sample_idx in range(config["num_samples"])[:]:
-
-        ######### change here! instead of for loop, do a batched operation ########
 
         # --------------------------------------------------------------------------------------------- #
         ## check whether initial text satisfies constraint
@@ -308,12 +308,26 @@ def main(config):
                     break
                 
                 ## masked_text : N (num samples to edit)
-                masked_text = locator.locate_main(running_text, 
-                                        method = config['locate_method'], 
-                                        max_num_tokens = config['num_edit_token_per_step'], 
-                                        unit = config['locate_unit'], 
-                                        num_layer = 10,#-2, #penultimate
-                                        label_id = config['target_label_ids'][1])
+                if config["task"] == "nli":
+                    sequences = [locator.tokenizer.bos_token + source_text + locator.tokenizer.sep_token + h + locator.tokenizer.eos_token for h in running_text]
+                    tokenized_sequences = locator.tokenizer(sequences, add_special_tokens=False,padding=True, truncation=True, return_tensors='pt').to(config['device'])
+       
+                    masked_text = locator.locate_main(tokenized_sequences, 
+                                            method = config['locate_method'], 
+                                            max_num_tokens = config['num_edit_token_per_step'], 
+                                            unit = config['locate_unit'], 
+                                            num_layer = 10,#-2, #penultimate
+                                            label_id = config['target_label_ids'][1],
+                                            tokenized_input=True,
+                                            use_energy=True)
+                else:
+                    masked_text = locator.locate_main(running_text, 
+                                            method = config['locate_method'], 
+                                            max_num_tokens = config['num_edit_token_per_step'], 
+                                            unit = config['locate_unit'], 
+                                            num_layer = 10,#-2, #penultimate
+                                            label_id = config['target_label_ids'][1],
+                                            use_energy=True)
 
                 span_lengths_es = []
                 for test_sent in masked_text:
@@ -384,8 +398,6 @@ def main(config):
                 update = (update & edit_yn) # edit 대상인 것들만 update하기 위해서 update 조건에 edit_yn을 sum.
 
                 ## intermediate output for debugging
-                # for sample_ix in edit_yn.nonzero().squeeze(-1).tolist(): # edit 대상인 것들만 update.
-                
                 for sample_ix in range(len(running_text)): # edit 대상인 것들만 update.
                     int_output[edit_ixes[sample_ix]].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
                                                             f"iter{_iter}_masked_sentence": masked_text[sample_ix],
@@ -406,14 +418,8 @@ def main(config):
                 if edit_yn.sum() == 0:
                     break
                 
-                
-                ###### TODO: edit 할 때는 skip_special_tokens=True로 해야 할까?? 
-                if config["task"] == "nli":
-                    print("final_hypotheses", final_hypotheses)
-                    running_text = [x.strip('<s>').strip('</s>').split('</s></s>') for i, x in enumerate(final_hypotheses) if edit_yn[i]]
-                    print("running_text", running_text)
-                else:
-                    running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
+            
+                running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
         
 
         output = {
@@ -514,8 +520,13 @@ def main(config):
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
             )
-
-
+        elif config["task"] == "nli":
+            evaluate_main(
+                run.path,
+                outfile,
+                "nli,ppl-big,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+                source_file_path=config["source_data"]
+            )  # 시간 문제로, perspective api 제외
 
 
 if __name__ == "__main__":
@@ -651,7 +662,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--consider_prompt_for_cand_gen",
-        action="store_true",
+        type=bool,
+        default=True,
         help="whether to consider source_text when generating token-level candidates",
     )
     

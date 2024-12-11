@@ -8,7 +8,7 @@ from new_module.losses import BaseLoss, register_loss
 
 torch.set_printoptions(precision=3, sci_mode=False)
 
-@register_loss("gpt2")
+@register_loss("gpt2_no_prefix")
 class GPT2Loss(BaseLoss):
 
     def __init__(self, model, tokenizer, args):
@@ -28,6 +28,7 @@ class GPT2Loss(BaseLoss):
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
         num_samples = len(predictions)
+        prompt = self.tokenizer.bos_token ## key line
         prompt_enc=self.tokenizer.encode_plus(prompt,add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
         prompt_enc['input_ids']=prompt_enc['input_ids'].expand(num_samples,-1)
         prompt_enc['attention_mask']=prompt_enc['attention_mask'].expand(num_samples,-1)
@@ -38,7 +39,6 @@ class GPT2Loss(BaseLoss):
         attention_masks = torch.cat([prompt_enc.attention_mask, predictions_enc.attention_mask], dim=1)
         
         input_tokens = input_tokens.long()
-        # print(f"input_tokens: {input_tokens}")
         with torch.no_grad():
             model_output = self.model(input_ids=input_tokens,
                                 attention_mask=attention_masks)
@@ -116,36 +116,3 @@ def top_k_top_p_filtering(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')
     if len(filter_indices) > 0:
         pass
     
-@register_loss("gpt2-var-length")
-class GPT2VarLengthLoss(GPT2Loss):
-    def _prepare_input_for_generation(self, input_ids, **kwargs):
-        max_output_length_mean = getattr(self.args, "max_output_length", 10)
-        max_output_length = int(np.random.uniform(low = max_output_length_mean-10, high=max_output_length_mean+10, size=None))
-        print(f"max_output_length: {max_output_length}")
-        
-        batch_size = input_ids.size(0)
-        #batch size is 1, padding and stuff needs to be modified for this to work for larger batches
-
-        return_object = {'input_ids': input_ids,
-                'max_length': input_ids.size(1) + max_output_length,
-                'do_sample': True,
-                'temperature': self.args.AR_temperature,
-                'top_k': self.args.AR_top_k,
-                'top_p': self.args.AR_top_p,
-                'num_return_sequences': 1}
-
-        return return_object
-    
-    def generate(self, input_ids, **kwargs):
-        num_sequences = kwargs.get('num_return_sequences', 1)
-        outputs = []
-        seq_lengths = []
-        
-        for i in range(num_sequences):
-            
-            prepared_input = self._prepare_input_for_generation(input_ids, **kwargs)
-            output = self.model.generate(**prepared_input)
-            outputs.append(self._postprocess_output(prepared_input, output))
-            seq_lengths.append(prepared_input['max_length'] - prepared_input['input_ids'].size(1)) # subtract prompt length
-            
-        return outputs, seq_lengths

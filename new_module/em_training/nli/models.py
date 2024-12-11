@@ -18,6 +18,7 @@ class EncoderModel(nn.Module):
         self.output_form = self.params['energynet']['output_form']
         self.linear1 = None
         self.initialize()
+        self.device = params['device']
         
         # special tokens
         # single sequence: <s> X </s>
