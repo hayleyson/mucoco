@@ -264,8 +264,6 @@ if __name__ == "__main__":
     parser.add_argument("--output_file", type=str)
     parser.add_argument("--task", type=str)
     parser.add_argument("--label_id", type=int)
-    parser.add_argument("--use_energy_for_gradient", action="store_true")
-    parser.add_argument("--return_scores_and_indices", action="store_true")
     args = parser.parse_args()
 
     # 모델과 토크나이저 불러오기
@@ -318,10 +316,9 @@ if __name__ == "__main__":
                     # locate_main 적용
                     masked_text = locator.locate_main([text], 
                                                       'grad_norm', 
-                                                      max_num_tokens=10000, 
+                                                      max_num_tokens=7, 
                                                       unit='word', 
-                                                      label_id=args.label_id, 
-                                                      use_energy=args.use_energy_for_gradient)
+                                                      label_id=args.label_id)
                     data = masked_text[0]
                     outfile.write(data)
                 else:   
@@ -338,8 +335,7 @@ if __name__ == "__main__":
                                                           'grad_norm', 
                                                           max_num_tokens=10000, 
                                                           unit='word', 
-                                                          label_id=args.label_id, 
-                                                          use_energy=args.use_energy_for_gradient)
+                                                          label_id=args.label_id)
                         # masked 결과를 generation에 추가 (기존 key나 새로운 key 사용 가능)
                         generation['text'] = masked_text[0]  # locate_main은 리스트를 반환하므로 첫 번째 값 선택
                     

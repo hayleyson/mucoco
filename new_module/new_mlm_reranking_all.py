@@ -313,21 +313,21 @@ def main(config):
                     tokenized_sequences = locator.tokenizer(sequences, add_special_tokens=False,padding=True, truncation=True, return_tensors='pt').to(config['device'])
        
                     masked_text = locator.locate_main(tokenized_sequences, 
-                                            method = config['locate_method'], 
-                                            max_num_tokens = config['num_edit_token_per_step'], 
-                                            unit = config['locate_unit'], 
+                                            method = config['locate_method'], # grad_norm
+                                            max_num_tokens = config['num_edit_token_per_step'], # 7
+                                            unit = config['locate_unit'], # word
                                             num_layer = 10,#-2, #penultimate
                                             label_id = config['target_label_ids'][1],
                                             tokenized_input=True,
-                                            use_energy=True)
+                                            use_energy=False)
                 else:
                     masked_text = locator.locate_main(running_text, 
-                                            method = config['locate_method'], 
-                                            max_num_tokens = config['num_edit_token_per_step'], 
-                                            unit = config['locate_unit'], 
+                                            method = config['locate_method'], # grad_norm
+                                            max_num_tokens = config['num_edit_token_per_step'], # 7
+                                            unit = config['locate_unit'], # word
                                             num_layer = 10,#-2, #penultimate
                                             label_id = config['target_label_ids'][1],
-                                            use_energy=True)
+                                            use_energy=False)
 
                 span_lengths_es = []
                 for test_sent in masked_text:
