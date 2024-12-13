@@ -87,6 +87,8 @@ def validate_model(model, accelerator, eval_dataloader, args):
         metrics_func = NegativeLogOddsLoss()
     elif args.val_loss_type == 'mse_loss':
         metrics_func = nn.MSELoss()
+    elif args.val_loss_type == 'cross_entropy':
+        metrics_func = nn.CrossEntropyLoss()
     
     valid_loss = 0.
     for batch in eval_dataloader:
@@ -170,7 +172,11 @@ def main(args):
     num_classes = 2 if training_loss_type == "cross_entropy" else 1
         
     if model_type == "RobertaCustomForSequenceClassification": 
-        model, tokenizer = define_model(num_classes=num_classes, device=device)
+        model, tokenizer = define_model(num_classes=num_classes, 
+                                output_hidden_states=True,
+                                encoder_model="roberta-base",
+                                embedding_model="google/gemma-2-2b",
+                                task="")
     elif model_type == "AutoModelForSequenceClassification":
         model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_classes)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
