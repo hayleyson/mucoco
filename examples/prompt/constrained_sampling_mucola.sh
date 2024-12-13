@@ -203,8 +203,10 @@ then
     DATASTYLE="text"
     DATAFILE=$DATA_DIR/control-prompts/pplm-discrim-prompts/prompts.txt
     NUM_SAMPLES=20  
-    OUTPUTLEN=$OUTPUTLEN
-    MAXLEN=$OUTPUTLEN
+    # OUTPUTLEN=$OUTPUTLEN
+    # MAXLEN=$OUTPUTLEN
+    OUTPUTLEN=20
+    MAXLEN=20
     sentmodel=SENTIMENTMODEL${SENTIMENTMODELID}UNCASED
     echo "model",${!sentmodel}
     model=$PRIMARYMODEL:${!sentmodel}

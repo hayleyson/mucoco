@@ -3,8 +3,8 @@
 #SBATCH --mem=10GB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:0
-#SBATCH --output='new_module/em4mlm_eval_%j.out'
+#SBATCH --gres=gpu:1
+#SBATCH --output='new_module/_slurm_outs/eval_%j.out'
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh

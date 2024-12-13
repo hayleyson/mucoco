@@ -425,7 +425,7 @@ if __name__ == "__main__":
     parser.add_argument('--loss_weight_ranking', type=float, default=0., help='weight for ranking loss')
     parser.add_argument('--ranking_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss'], help='type of ranking loss')
     parser.add_argument('--margin', type=float, default=0.16666666666666666, help='margin for MarginRankingLoss & constructing batches')
-    parser.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss', 'mse_loss'], help='type of validation loss')
+    parser.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['cross_entropy', 'margin_ranking_loss', 'scaled_ranking_loss', 'mse_loss'], help='type of validation loss')
     
     parser.add_argument('--train_data_path', type=str, help='training data path')
     parser.add_argument('--valid_data_path', type=str, help='validation data path')
