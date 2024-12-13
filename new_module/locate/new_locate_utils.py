@@ -264,6 +264,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_file", type=str)
     parser.add_argument("--task", type=str)
     parser.add_argument("--label_id", type=int)
+    parser.add_argument("--max_num_tokens", type=int, default=7)
     args = parser.parse_args()
 
     # 모델과 토크나이저 불러오기
@@ -316,7 +317,7 @@ if __name__ == "__main__":
                     # locate_main 적용
                     masked_text = locator.locate_main([text], 
                                                       'grad_norm', 
-                                                      max_num_tokens=7, 
+                                                      max_num_tokens=args.max_num_tokens, 
                                                       unit='word', 
                                                       label_id=args.label_id)
                     data = masked_text[0]
@@ -333,7 +334,7 @@ if __name__ == "__main__":
                         # locate_main 적용
                         masked_text = locator.locate_main([text], 
                                                           'grad_norm', 
-                                                          max_num_tokens=10000, 
+                                                          max_num_tokens=args.max_num_tokens, 
                                                           unit='word', 
                                                           label_id=args.label_id)
                         # masked 결과를 generation에 추가 (기존 key나 새로운 key 사용 가능)
