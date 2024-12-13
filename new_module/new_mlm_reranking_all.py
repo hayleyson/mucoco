@@ -488,7 +488,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
                 toxicity_model_path=config["model_paths"][1],
                 toxicity_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -497,7 +497,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
                 formality_model_path=config["model_paths"][1],
                 formality_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -506,7 +506,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -515,7 +515,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -524,7 +524,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "nli,ppl-big,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+                "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
                 source_file_path=config["source_data"]
             )  # 시간 문제로, perspective api 제외
 

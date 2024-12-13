@@ -6,6 +6,8 @@ import pandas as pd
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 from itertools import repeat 
+from new_module.em_training.nli.models import EncoderModel
+
 # import torch.multiprocessing as mp ## not needed since not using multiprocessing
 # import os ## not needed since not using multiprocessing
 
@@ -136,14 +138,20 @@ class LocateMachine:
             except:
                 softmax=torch.nn.Softmax(dim=-1)
                 probs = softmax(logits)[:, kwargs['label_id']]
-            if (kwargs.get('use_energy', False)) and (self.model.params['energynet']['output_form'] == '3dim_vec'):
-                (-torch.log(1-probs)).sum().backward(retain_graph=True)
-            elif (kwargs.get('use_energy', False)) and (self.model.params['energynet']['output_form'] == '2dim_vec'):
-                (-torch.log(probs)).sum().backward(retain_graph=True) 
-            elif (kwargs.get('use_energy', False)) and (self.model.params['energynet']['output_form'] == 'real_num'):
-                (-(probs)).sum().backward(retain_graph=True) 
-            else:
+                
+            if (kwargs.get('use_energy', False)): # if take gradient of energy
+                if (type(self.model) == EncoderModel):
+                    if (self.model.params['energynet']['output_form'] == '3dim_vec'):
+                        (-torch.log(1-probs)).sum().backward(retain_graph=True)
+                    elif (self.model.params['energynet']['output_form'] == '2dim_vec'):
+                        (-torch.log(probs)).sum().backward(retain_graph=True) 
+                    elif (self.model.params['energynet']['output_form'] == 'real_num'):
+                        (-(probs)).sum().backward(retain_graph=True) 
+                else:
+                    (-torch.log(probs)).sum().backward(retain_graph=True) 
+            else: # if take gradient of probability
                 probs.sum().backward(retain_graph=True) ## NOTE. https://stackoverflow.com/questions/43451125/pytorch-what-are-the-gradient-arguments/47026836#47026836
+            
             ## layer.grad : (batch_size, seq_len, hidden_size)
             norm = torch.norm(layer.grad, dim=-1)
             ## norm : (batch_size, seq_len)
@@ -237,14 +245,111 @@ class LocateMachine:
     
 if __name__ == "__main__":
     
-    prompt='abc'
-    prediction=['dsxe<s>','sdvbfe','dsxe<s>','sdvbfe','dsxe<s>','sdvbfe','dsxe<s>','sdvbfe','dsxe<s>','sdvbfe']
-    ckpt_path = '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/'
-    model = AutoModelForSequenceClassification.from_pretrained(ckpt_path)
-    tokenizer = AutoTokenizer.from_pretrained(ckpt_path)
-    device='cuda'
-    model = model.to(device)
+    import os
+    import sys
+    os.chdir('/data/hyeryung/mucoco')
+    sys.path.append(os.path.abspath('.'))
+
+    import argparse
+    import time
+    import json
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    import torch
     
-    loc_machine=LocateMachine(model,tokenizer)
-    res = loc_machine.locate_main(prediction, "attention", max_num_tokens = 6, unit="word", num_layer=10, label_id=0)
-    print(res)
+    from new_module.em_training.nli.models import EncoderModel
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pretrained_model_path", type=str)
+    parser.add_argument("--input_file", type=str)
+    parser.add_argument("--output_file", type=str)
+    parser.add_argument("--task", type=str)
+    parser.add_argument("--label_id", type=int)
+    parser.add_argument("--use_energy_for_gradient", action="store_true")
+    parser.add_argument("--return_scores_and_indices", action="store_true")
+    args = parser.parse_args()
+
+    # 모델과 토크나이저 불러오기
+    pretrained_model_path = args.pretrained_model_path
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    if args.task == "nli":
+        # config
+        with open(os.path.join(pretrained_model_path, 'config.json')) as f:
+            model_config = json.load(f)
+        model_config['device'] = device
+        model_config['model_path'] = os.path.join(pretrained_model_path, 'best_model_pearsonr.pth')
+        
+        # load model
+        model = EncoderModel(params=model_config)
+        model.load_state_dict(torch.load(model_config['model_path'],weights_only=True),strict=False)
+        model.eval()
+        model.to(device)
+        
+        tokenizer = model.tokenizer
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_path)
+        tokenizer = AutoTokenizer.from_pretrained(pretrained_model_path)
+        model = model.to(device)
+
+    # LocateMachine 초기화
+    locator = LocateMachine(model, tokenizer, args.task)
+
+    # 입력 JSONL 파일 경로
+    input_file = args.input_file
+
+    # 출력 JSONL 파일 경로
+    output_file = args.output_file
+
+    # print("job id:", job_id)
+    print("pretrained model path:", pretrained_model_path)
+    print("input file path:", input_file)
+    print("output file path:", output_file)
+
+    print("Locating Start...")
+    start_time = time.time()
+
+    # 입력 파일 열기
+    with open(input_file, 'r', encoding='utf-8') as infile:
+        # 출력 파일 열기
+        with open(output_file, 'w', encoding='utf-8') as outfile:
+            for line in infile:
+                if args.task == "formality":
+                    text = line.rstrip()
+                    # locate_main 적용
+                    masked_text = locator.locate_main([text], 
+                                                      'grad_norm', 
+                                                      max_num_tokens=10000, 
+                                                      unit='word', 
+                                                      label_id=args.label_id, 
+                                                      use_energy=args.use_energy_for_gradient)
+                    data = masked_text[0]
+                    outfile.write(data)
+                else:   
+                    # JSON 형식으로 변환
+                    data = json.loads(line)
+                    prompt = data['prompt']['text']
+                    generations = data['generations']
+                    
+                    # generations 내의 각 text에 대해 LocateMachine 적용
+                    for generation in generations:
+                        text = f"<s>{prompt}</s>{generation['text']}</s>" if args.task == "nli" else generation['text']
+                        # locate_main 적용
+                        masked_text = locator.locate_main([text], 
+                                                          'grad_norm', 
+                                                          max_num_tokens=10000, 
+                                                          unit='word', 
+                                                          label_id=args.label_id, 
+                                                          use_energy=args.use_energy_for_gradient)
+                        # masked 결과를 generation에 추가 (기존 key나 새로운 key 사용 가능)
+                        generation['text'] = masked_text[0]  # locate_main은 리스트를 반환하므로 첫 번째 값 선택
+                    
+                    
+                    # 결과를 다시 JSON 형식으로 변환하고 출력 파일에 쓰기
+                    json.dump(data, outfile, ensure_ascii=False)
+                outfile.write('\n')
+
+    end_time = time.time()
+
+    # 실행 시간 계산 및 출력
+    execution_time = (end_time - start_time) / 60
+    print(f"Code execution time: {execution_time:.2f} minutes")

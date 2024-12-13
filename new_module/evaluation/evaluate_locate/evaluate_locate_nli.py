@@ -250,8 +250,8 @@ def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloa
 
 
 # ARGS
-use_energy_for_gradient = True
-max_num_tokens = 100
+use_energy_for_gradient = False
+max_num_tokens = 10000
 batch_size = 64
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -259,13 +259,14 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 if __name__ == "__main__":
     
     runpath2modelpath = \
-        {'hayleyson/nli_energynet/9s1fli5s': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_3class_finegrained_labels_cross_entropy_n_a/9s1fli5s/'}
+        {
+        # 'hayleyson/nli_energynet/9s1fli5s': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_3class_finegrained_labels_cross_entropy_n_a/9s1fli5s/'}
         # {'hayleyson/nli_energynet/u6tu4o9t': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731247397', 
         # 'hayleyson/nli_energynet/msv6wq04': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731569657',
         # 'hayleyson/nli_energynet/wxer9zw3': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731654805',
         # 'hayleyson/nli_energynet/svk3b64y': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/svk3b64y',
         # 'hayleyson/nli_energynet/2qbql1br': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/2qbql1br',
-        # 'hayleyson/nli_energynet/wdw0y1qp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443',
+        'hayleyson/nli_energynet/wdw0y1qp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443',
         # 'hayleyson/nli_energynet/c4ll3opi': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731654539',
         # 'hayleyson/nli_energynet/nznwxbaw': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/nznwxbaw', 
         # 'hayleyson/nli_energynet/07m5lce9': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/07m5lce9',
@@ -280,9 +281,9 @@ if __name__ == "__main__":
         # 'hayleyson/nli_energynet/xie6veic': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731651194',
         # 'hayleyson/nli_energynet/auxxqz22': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/auxxqz22',
         # 'hayleyson/nli_energynet/ub4nku33': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/ub4nku33',
-        # 'hayleyson/nli_energynet/zgs9e2sr': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/',
+        'hayleyson/nli_energynet/zgs9e2sr': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/',
         # 'hayleyson/nli_energynet/gyzuycek': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/gyzuycek'
-        # }
+        }
         
         
     
