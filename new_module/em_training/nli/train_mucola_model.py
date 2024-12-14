@@ -20,6 +20,7 @@ from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_fscore_su
 from sklearn.preprocessing import OneHotEncoder
 import seaborn as sns
 
+from new_module.utils.load_ckpt import define_model
 from new_module.em_training.nli.models import EncoderModel
 from new_module.em_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader, NLI_TrainBatchSampler_Binary, NLI_TrainBatchSampler_Continuous
 from new_module.em_training.nli.train_modules import *
@@ -27,7 +28,7 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 
 def main():
     
-    config = load_config('new_module/em_training/nli/config.yaml')
+    config = load_config('new_module/em_training/nli/config_mucola_model.yaml')
     
     ## set seed
     seed = random.randint(0,1000)
@@ -45,6 +46,8 @@ def main():
     config['energynet']['ckpt_save_path'] = f"{config['energynet']['ckpt_save_path']}/{model_dir_1}/{model_dir_2}"
     model_path = f"{config['energynet']['ckpt_save_path']}/best_model.pth"
     config['model_path'] = model_path
+    
+    os.makedirs(config['energynet']['ckpt_save_path'], exist_ok=True)
     
     # save config
     with open(f"{config['energynet']['ckpt_save_path']}/config.json", 'w') as f:
@@ -64,8 +67,27 @@ def main():
     except:
         pass
     
-    model = EncoderModel(config)
-    model = model.to(config['device'])
+    if config['energynet'].get('mucola_style', False):
+        
+        if config['energynet']['output_form'] == 'real_num':
+            num_classes = 1
+        elif config['energynet']['output_form'] == '2dim_vec':
+            num_classes = 2
+        elif config['energynet']['output_form'] == '3dim_vec':
+            num_classes = 3
+
+        model, tokenizer = define_model(num_classes=num_classes, 
+                                        device=config['device'], 
+                                        output_hidden_states=True,
+                                        encoder_model=config['energynet']['base_model'],
+                                        embedding_model="google/gemma-2-2b",
+                                        task="nli")
+    else:
+        model = EncoderModel(config)
+        model = model.to(config['device'])
+        tokenizer = model.tokenizer
+        
+    print(tokenizer.sep_token, tokenizer.bos_token, tokenizer.eos_token)
     
     max_lr = float(config['energynet']['max_lr'])
     weight_decay = float(config['energynet']['weight_decay'])
@@ -86,9 +108,8 @@ def main():
             elif config['energynet']['label_column'] == '3class_finegrained_labels':
                 print(f"Num missing 3class_finegrained_labels before filling: {train_add_data['3class_finegrained_labels'].isna().sum()}")
                 enc = OneHotEncoder(categories=[[0,1,2]],sparse_output=False)
-                train_add_data['3class_finegrained_labels'] = enc.fit_transform(train_add_data[['original_labels']]).tolist()
-                # encoded = enc.fit_transform(train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['original_labels']]).tolist()
-                # train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['3class_finegrained_labels']] = pd.Series(encoded).astype(object)
+                encoded = enc.fit_transform(train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['original_labels']]).tolist()
+                train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['3class_finegrained_labels']] = pd.Series(encoded).astype(object)
                 print(f"Num missing 3class_finegrained_labels after filling: {train_add_data['3class_finegrained_labels'].isna().sum()}")
                 
         train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
@@ -110,14 +131,14 @@ def main():
             print(f"Using batch sampler that balances the ratio of finegrained labels to 2:1:1:2 for 0, (0,0.5), [0.5, 1), 1.")
             binary_batchsampler = NLI_TrainBatchSampler_Continuous(train_data, config['energynet']['batch_size']['binary'], oversample_minority = True)
         train_dataloader = NLI_DataLoader(config = config,
-                                            tokenizer = model.tokenizer).get_dataloader(train_dataset, batch_size=None, batch_sampler=binary_batchsampler)
+                                            tokenizer = tokenizer).get_dataloader(train_dataset, batch_size=None, batch_sampler=binary_batchsampler)
     else:
         train_dataloader = NLI_DataLoader(config = config,
-                                        tokenizer = model.tokenizer).get_dataloader(train_dataset, batch_size=config['energynet']['batch_size']['binary'], batch_sampler=None, shuffle=True)
+                                        tokenizer = tokenizer).get_dataloader(train_dataset, batch_size=config['energynet']['batch_size']['binary'], batch_sampler=None, shuffle=True)
     
     
     dev_dataloader = NLI_DataLoader(config = config,
-                                     tokenizer = model.tokenizer).get_dataloader(dev_dataset, batch_size=config['energynet']['batch_size']['continuous'], batch_sampler=None, shuffle=False)
+                                     tokenizer = tokenizer).get_dataloader(dev_dataset, batch_size=config['energynet']['batch_size']['continuous'], batch_sampler=None, shuffle=False)
     
     # Define the optimizer
     try:

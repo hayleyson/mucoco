@@ -5,8 +5,9 @@
 #SBATCH --mem=20GB
 #SBATCH --nodelist=n01
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=decode_util_v2
-#SBATCH --output='new_module/_slurm_outs/decode_util_v2_%j.out'
+#SBATCH --job-name=nli_energy
+#SBATCH --output='new_module/_slurm_outs/####_%j.out'
+
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -19,4 +20,5 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-python /data/hyeryung/mucoco/new_module/new_decode_utils_v2.py --method 3_2
+git checkout nli
+srun python new_module/em_training/nli/train_mucola_model.py 

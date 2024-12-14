@@ -2,7 +2,7 @@ energynet:
   base_model: roberta-large
   output_form: 2dim_vec
   energy_col: 1
-  label_column: finegrained_labels
+  label_column: binary_labels
   batch_size: 
     binary: 32
     continuous: 32
@@ -10,7 +10,7 @@ energynet:
   optimizer: adamw
   max_lr: 1e-5
   weight_decay: 0.03
-  loss: cross_entropy
+  loss: binary_cross_entropy
   margin: n/a
   additional_loss:
     use: false
@@ -28,6 +28,7 @@ energynet:
   binary_loader: balanced
   ckpt_save_path: /data/hyeryung/loc_edit/models/nli
   dataset_path: data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl
+  mucola_style: true
 
 locate:
   type: gradnorm

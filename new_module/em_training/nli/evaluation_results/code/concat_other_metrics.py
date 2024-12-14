@@ -6,10 +6,13 @@ import json
 from glob import glob
 import datetime
 
-result_dirs = ['roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking',
-               'roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a',
-               'roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking',
-               'roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a']
+result_dirs = [
+            #    'roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking',
+            #    'roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a',
+            #    'roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking',
+            #    'roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a',
+            #    'roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a'
+            'roberta_large_snli_mnli_anli_train_dev_with_finegrained_3class_finegrained_labels_cross_entropy_n_a']
 results_all_time_keys = []
 for result_dir in result_dirs:
     print('---------')
@@ -46,6 +49,7 @@ for result_dir in result_dirs:
         results_all_time_keys.append(results)
     
 results_all_time_keys = pd.concat(results_all_time_keys)
+results_all_time_keys = results_all_time_keys.sort_values(['time_key','criterion'])
 
 os.chdir('/data/hyeryung/mucoco/') # come back to mucoco dir
 results_all_time_keys.to_excel(f"new_module/em_training/nli/evaluation_results/exp_results_{datetime.datetime.strftime(datetime.datetime.today(), '%Y%m%d')}.xlsx", index=False)

@@ -1,9 +1,12 @@
 import os
+import datetime
 from io import StringIO
 import pandas as pd
 
 input_root_dir = '/data/hyeryung/loc_edit/models/nli/'
-metrics_file_name = 'epr_snli_locate_metrics.csv'
+# metrics_file_name = 'epr_snli_locate_metrics.csv'
+metrics_file_name = 'nli_contra_300_locate_metrics.csv'
+output_save_name = f"{metrics_file_name.split('.csv')[0]}_{datetime.datetime.strftime(datetime.datetime.today(), '%Y%m%d')}.csv"
 output_save_dir = '/data/hyeryung/mucoco/new_module/em_training/nli/evaluation_results'
 
 data_all = []
@@ -18,4 +21,4 @@ for (root, dirs, files) in os.walk(input_root_dir):
 data_all = pd.concat(data_all,ignore_index=True)
 data_all.iloc[:, 3:] = data_all.iloc[:, 3:].round(4)
 print('--file_count--:',file_count)
-data_all.to_csv(os.path.join(output_save_dir,metrics_file_name),index=False)
+data_all.to_csv(os.path.join(output_save_dir,output_save_name),index=False)

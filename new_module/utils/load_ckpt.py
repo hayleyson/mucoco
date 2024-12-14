@@ -19,7 +19,6 @@ def define_model(num_classes:int = 2,
                  encoder_model:str='roberta-base',
                  task:str=None)-> Tuple[AutoModelForSequenceClassification, AutoTokenizer]:
 
-
     tokenizer_ = AutoTokenizer.from_pretrained(encoder_model)
     if embedding_model != "none":
         tokenizer = AutoTokenizer.from_pretrained(embedding_model)
