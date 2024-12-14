@@ -1,5 +1,4 @@
 #!/bin/bash
-#SBATCH -J Serial_gpu_job
 #SBATCH -p gpu-farm
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
@@ -29,6 +28,7 @@ export LOGGING_LEVEL=INFO
 # srun python decode_new_clean.py --argument_file_path examples/prompt/formality-all/arguments_informal2formal.txt
 # srun python decode_new_clean.py --argument_file_path examples/prompt/formality-all/arguments_formal2informal_epsilon-2.txt
 # srun python decode_new_clean.py --argument_file_path examples/prompt/formality-all/arguments_informal2formal-epsilon-2.txt
+srun python decode_new_clean.py --argument_file_path examples/prompt/toxicity-all/arguments_gpt35.txt
 
 
 
