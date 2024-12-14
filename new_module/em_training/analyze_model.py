@@ -24,10 +24,14 @@ import seaborn as sns
 
 import mucoco.utils as utils
 from new_module.em_training.nli.models import EncoderModel
+from new_module.utils.load_ckpt import define_model
 
 
 def predict_labels(args, device):
     
+    if 'task' not in args:
+        args.task = ''
+        
     if 'label_id' not in args:
         args.label_id = 1
     
@@ -41,6 +45,18 @@ def predict_labels(args, device):
         model.load_state_dict(torch.load(model_config['model_path'],weights_only=True),strict=False)
 
         tokenizer = model.tokenizer
+    elif ('custom' in args.model_type) and (args.task == 'nli'):
+        
+        model, tokenizer = define_model(
+            num_classes=2, 
+            mod_path=os.path.join(args.checkpoint_dir, args.model_file_name),
+            load_weights=True,
+            device=device,
+            embedding_model='google/gemma-2-2b',
+            encoder_model='roberta-large',
+            task='nli'
+        )
+        
     else:
         try: 
             config = AutoConfig.from_pretrained(args.checkpoint_dir)

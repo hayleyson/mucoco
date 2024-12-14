@@ -2,71 +2,58 @@ import torch
 import os
 import json
 
+from typing import Tuple    
 import transformers
 from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, AddedToken
 from torch import optim
 
 import numpy as np
 
-params = ['', 'data/toxicity/jigsaw-unintended-bias-in-toxicity-classification',
- '0,1',
- 'train',
- 'dev',
- 'test',
- 'roberta-base',
- 'models_bak_contd/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds',
- 'gpt2-roberta',
- 'full',
- 'gpt2-large',
- 'freeze-vecmap',
- 'dontbinarize',
- 'jsonl']
-
-
-# config 
-
 def define_model(num_classes:int = 2,
                  mod_path:str=None, 
                  load_weights:bool=True, 
                  output_attentions:bool=False, 
                  output_hidden_states:bool=False,
-                 device:torch.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"))\
-                     -> (AutoModelForSequenceClassification, AutoTokenizer):
-    
-    base_path = params[1]
+                 device:torch.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
+                 embedding_model:str='gpt2-large',
+                 encoder_model:str='roberta-base',
+                 task:str=None)-> Tuple[AutoModelForSequenceClassification, AutoTokenizer]:
 
-    filetype = "txt"
-    if len(params) > 13:
-        filetype = params[13]
 
-    tokenizer_ = AutoTokenizer.from_pretrained(params[6])
-    if params[10] != "none":
-        tokenizer = AutoTokenizer.from_pretrained(params[10])
+    tokenizer_ = AutoTokenizer.from_pretrained(encoder_model)
+    if embedding_model != "none":
+        tokenizer = AutoTokenizer.from_pretrained(embedding_model)
         tokenizer.model_max_length = min(tokenizer_.model_max_length, tokenizer.model_max_length)
     else:
         tokenizer = tokenizer_
-        # tokenizer = AutoTokenizer.from_pretrained(params[6])
+        # tokenizer = AutoTokenizer.from_pretrained(encoder_model)
         
-    config = AutoConfig.from_pretrained(params[6], num_labels=num_classes)
+    config = AutoConfig.from_pretrained(encoder_model, num_labels=num_classes)
     config2 = None
-    if params[10] != "none":  
-        config2 = AutoConfig.from_pretrained(params[10], num_labels=num_classes)
+    if embedding_model != "none":  
+        config2 = AutoConfig.from_pretrained(embedding_model, num_labels=num_classes)
         # print(config2.pad_token_id)
         config2.pad_token_id = tokenizer.pad_token_id
         # print(config2.pad_token_id)
         # print("look above for padding")
 
-        tokenizer_ = AutoTokenizer.from_pretrained(params[6], config=config)
+        tokenizer_ = AutoTokenizer.from_pretrained(encoder_model, config=config)
         tokenizer.model_max_length = min(tokenizer_.model_max_length, tokenizer.model_max_length)
 
-    if params[8] == "gpt2-roberta":
-        SPECIAL_TOKENS = {"pad_token": tokenizer.eos_token}
-        # config.pad_token_id = tokenizer.eos_token_id
-        # print("Adding special tokens")
-        tokenizer.add_special_tokens(SPECIAL_TOKENS)
+    SPECIAL_TOKENS = {}
+    if "pad_token" not in tokenizer.special_tokens_map:
+        SPECIAL_TOKENS.update({"pad_token": tokenizer.eos_token})
+    if ("bos_token" not in tokenizer.special_tokens_map) and (task == "nli"):
+        SPECIAL_TOKENS.update({"bos_token": tokenizer.eos_token})
+    if ("sep_token" not in tokenizer.special_tokens_map) and (task == "nli"):
+        SPECIAL_TOKENS.update({"sep_token": tokenizer.eos_token})
+    # config.pad_token_id = tokenizer.eos_token_id
+    # print("Adding special tokens")
+    tokenizer.add_special_tokens(SPECIAL_TOKENS)
+    print(tokenizer.special_tokens_map)
 
-    # if params[10] != "none":
-    model = AutoModelForSequenceClassification.from_pretrained(params[10], config=config2) # unindented
+    # if embedding_model != "none":
+    model = AutoModelForSequenceClassification.from_pretrained(embedding_model, config=config2) # unindented
     # model.resize_token_embeddings(len(tokenizer))
 
     def learn_vecmap(X, y):
@@ -105,8 +92,8 @@ def define_model(num_classes:int = 2,
     config.output_attentions=output_attentions
     config.output_hidden_states=output_hidden_states
 
-    model_ = AutoModelForSequenceClassification.from_pretrained(params[6], config=config)
-    tokenizer_ = AutoTokenizer.from_pretrained(params[6], config=config)
+    model_ = AutoModelForSequenceClassification.from_pretrained(encoder_model, config=config)
+    tokenizer_ = AutoTokenizer.from_pretrained(encoder_model, config=config)
 
     perm, perm_ = vocab_permutation(tokenizer.vocab, tokenizer_.vocab)
     old_embeds = model_.get_input_embeddings()
