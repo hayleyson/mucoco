@@ -651,7 +651,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_edit_token_per_step",
         type=int,
-        default=5,
+        default=7,
         help="number of edit tokens per step",
     )
     parser.add_argument(

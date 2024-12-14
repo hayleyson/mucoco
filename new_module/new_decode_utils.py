@@ -32,6 +32,12 @@ class CustomDataset(Dataset):
     def __getitems__(self, idx:List[int]):
         return [self.hypotheses_data[j] for j in idx]
 
+def repeat_interleave_unravel(arr,split_blocks):
+    arr_ = torch.split(arr.T,1,dim=1)
+    arr_ = [x.repeat(1,split_blocks[i]).reshape(-1,1) for i,x in enumerate(arr_)]
+    arr_ = torch.cat(arr_,dim=0)
+    return arr_
+
 # def get_beam_hypotheses(source_text:str, 
 #                     masked_sequence:torch.Tensor, 
 #                     indices_in_mlm_tokens:Tuple[torch.Tensor],
@@ -352,7 +358,7 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
                     lossvalues.append(lossvalue)
                     torch.cuda.empty_cache()
             lossvalue = torch.cat(lossvalues,dim=0)
-            curr_loss += loss_weights[lossid] * lossvalue
+            curr_loss += config['loss_weights'][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
         torch.cuda.empty_cache()
