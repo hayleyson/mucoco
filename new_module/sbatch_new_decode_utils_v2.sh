@@ -19,4 +19,5 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-python /data/hyeryung/mucoco/new_module/new_decode_utils_v2.py --method 3_2
+# python /data/hyeryung/mucoco/new_module/new_decode_utils_v2.py --method 3_2
+python /data/hyeryung/mucoco/new_module/new_decode_utils_v2_final.py --method final2
