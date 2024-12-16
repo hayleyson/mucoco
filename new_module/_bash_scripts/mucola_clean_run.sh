@@ -28,7 +28,7 @@ export LOGGING_LEVEL=INFO
 # srun python decode_new_clean.py --argument_file_path examples/prompt/formality-all/arguments_informal2formal.txt
 # srun python decode_new_clean.py --argument_file_path examples/prompt/formality-all/arguments_formal2informal_epsilon-2.txt
 # srun python decode_new_clean.py --argument_file_path examples/prompt/formality-all/arguments_informal2formal-epsilon-2.txt
-srun python decode_new_clean.py --argument_file_path examples/prompt/toxicity-all/arguments_gpt35.txt
+srun python decode_new_clean.py --argument_file_path examples/prompt/toxicity-all/arguments_gpt35_gpt2.txt
 
 
 
