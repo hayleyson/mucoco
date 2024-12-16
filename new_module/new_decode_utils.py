@@ -157,7 +157,7 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
                     lossfns:List[lossbuilder.BaseLoss],
                     config:dict,
                     return_all_hypotheses:bool=False,
-                    primary_loss_only:bool=False) -> List[List[str]]:
+                    batch_size:int=16) -> List[List[str]]:
     
     # 변수 초기화
     final_hypotheses = [[] for i in range(len(masked_sequence))]
@@ -174,15 +174,21 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
         # print(f"{tmp_hypotheses}")
 
         curr_loss = torch.zeros(len(tmp_hypotheses)).to(config['device'])
+        tmp_hypotheses_dec = mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True)
+        data_loader = DataLoader(CustomDataset(tmp_hypotheses_dec),batch_size=batch_size)
         for lossid, lossname in enumerate(config["losses"]):
+            lossvalues=[]
             with torch.no_grad():
-                lossvalue = lossfns[lossid].compute_gold_loss(
-                    source_text, mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True),
-                    label_id=config['target_label_ids'][lossid],
-                )
-            torch.cuda.empty_cache()
+                for batch in data_loader:
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, batch,
+                        label_id=config['target_label_ids'][lossid],
+                    )
+                    lossvalues.append(lossvalue)
+                    torch.cuda.empty_cache()
+            lossvalue = torch.cat(lossvalues,dim=0)
             curr_loss += loss_weights[lossid] * lossvalue
-                
+            
         final_hypotheses_losses = [[x.squeeze(0)] for x in torch.split(curr_loss, 1)]
         # print(f"final_hypotheses_losses: {final_hypotheses_losses}")
         
@@ -199,19 +205,23 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
         new_func_candidates = repeat_interleave_unravel(new_func_candidates,num_initial_hypotheses) ## shape: (sum(num_initial_hypotheses), k_per_location) e.g. [[x],[x],[x],[y],[y],[y],[z],[z],[z],[q],[w],[e]]
         new_func_candidates = new_func_candidates.to(config['device'])
         tmp_hypotheses = torch.cat((tmp_hypotheses[ :, :curr_edit_index], new_func_candidates),dim=-1) ## tmp_hypotheses: [(a,b,c),(a,b,c), ..., (a,b,c)], new_func_candidates: [(p,p,p), (q,q,q), ..., (v,v,v)]
-        curr_loss = torch.zeros(tmp_hypotheses.shape[0]).to(config['device'])
-        
+            
+        curr_loss = torch.zeros(len(tmp_hypotheses)).to(config['device'])
+        tmp_hypotheses_dec = mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True)
+        data_loader = DataLoader(CustomDataset(tmp_hypotheses_dec),batch_size=batch_size)
         for lossid, lossname in enumerate(config["losses"]):
-            if (primary_loss_only) and (lossid >0):
-                break
-                
+            lossvalues=[]
             with torch.no_grad():
-                lossvalue = lossfns[lossid].compute_gold_loss(
-                    source_text, mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True),
-                    label_id=config['target_label_ids'][lossid],
-                )
-            torch.cuda.empty_cache()
+                for batch in data_loader:
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, batch,
+                        label_id=config['target_label_ids'][lossid],
+                    )
+                    lossvalues.append(lossvalue)
+                    torch.cuda.empty_cache()
+            lossvalue = torch.cat(lossvalues,dim=0)
             curr_loss += loss_weights[lossid] * lossvalue
+            
         curr_loss = torch.split(curr_loss, num_initial_tmp_hypotheses, dim=0)
         top_beams = [torch.topk(x, k=config['beam_size'], dim=-1, largest=False).indices for x in curr_loss]
         tmp_hypotheses = torch.split(tmp_hypotheses, num_initial_tmp_hypotheses, dim=0)
@@ -372,7 +382,7 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
             final_hypotheses = [hypotheses_all[best_ix]]
             best_weighted_loss = [curr_loss[best_ix].item()]
             best_allsat = [1 if best_ix in allsat_ix else 0]
-            best_logging_loss = logging_loss[best_ix].cpu().tolist()
+            best_logging_loss = [logging_loss[best_ix].cpu().tolist()]
         else:
             top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
             queue = [hypotheses_all[ix] for ix in top_beams]

@@ -136,6 +136,10 @@ def main(config):
                     model_config = json.load(f)
                 model_config['device'] = config['device']
                 model_config['model_path'] = os.path.join(config["model_paths"][i], 'best_model_pearsonr.pth')
+                if config["locate_method"] == "attention":
+                    model_config['locate']['type'] = "attention"
+                elif config["locate_method"] == "grad_norm":
+                    model_config['locate']['type'] = "gradnorm"
                 name2config[model_path] = model_config
                 
                 # load model

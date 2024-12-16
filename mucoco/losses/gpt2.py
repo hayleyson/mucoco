@@ -514,7 +514,7 @@ class GPT2Loss(BaseLoss):
             except:
                 model_output = self.model(input_tokens) # debugging to allow GemmaForCausalLM
                 
-            print(f"model_output: {}")
+            
             hidden_states = model_output[0][:, prompt.size(1)-1:-1]
             input_embeds = self.model.get_input_embeddings()(input_tokens)
 
