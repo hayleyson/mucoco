@@ -34,6 +34,12 @@ def predict_labels(args, device):
         
     if 'label_id' not in args:
         args.label_id = 1
+        
+    if 'embedding_model' not in args:
+        args.embedding_model = ''
+    
+    if 'encoder_model' not in args:
+        args.encoder_model = ''
     
     if args.model_type == 'encoder-model':
         with open(os.path.join(args.checkpoint_dir, 'config.json')) as f:
@@ -52,8 +58,8 @@ def predict_labels(args, device):
             mod_path=os.path.join(args.checkpoint_dir, args.model_file_name),
             load_weights=True,
             device=device,
-            embedding_model='google/gemma-2-2b',
-            encoder_model='roberta-large',
+            embedding_model=args.embedding_model,
+            encoder_model=args.encoder_model,
             task='nli'
         )
         

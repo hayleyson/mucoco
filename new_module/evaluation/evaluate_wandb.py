@@ -43,15 +43,23 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     if task in ['toxicity','sentiment']:
         sources = pd.read_json(sources_file, lines=True)
         sources.prompt=sources.prompt.apply(lambda x: x['text'])
+        sources.columns = sources.columns[:1].tolist() + [x+'_source' for x in sources.columns[1:]]
         
         predictions = pd.read_json(outputs_file, lines=True)
         predictions.prompt=predictions.prompt.apply(lambda x: x['text'])
+        predictions.columns = predictions.columns[:1].tolist() + [x+'_prediction' for x in predictions.columns[1:]]
+        
+        print(sources.columns)
+        print(predictions.columns)
         if task=='toxicity':
-            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
+            # source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
+            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner')
+            print(source_predictions.columns)
         elif task=='sentiment':
             source_predictions=pd.concat([sources,predictions],axis=1)
-            source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
-            source_predictions.columns=['prompt','generations_source','generations_prediction']
+            print(source_predictions.columns)
+            # source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
+            source_predictions=source_predictions[['prompt', 'generations_source','generations_prediction']].copy()
             
         prompt_list=[]
         source_list=[]
@@ -296,7 +304,8 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
         torch.cuda.empty_cache()
         if task=='nli':
-            generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            generations_df2 = generations_df
             generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
         else:
             generations_df2 = generations_df
@@ -316,7 +325,8 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
         torch.cuda.empty_cache()
         if task=='nli':
-            generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            generations_df2 = generations_df
             generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
         else:
             generations_df2 = generations_df
@@ -330,7 +340,8 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
     
     if 'nli' in metricset:
         logger.debug("nli-ensemble")
-        generations_df2 = rename_df_for_nli(generations_df, 'premise')
+        # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+        generations_df2 = generations_df
         (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
         if run_path != "":
             run.summary.update({'avg_nli_entail': avg_nli_entail, 'avg_nli_neutral': avg_nli_neutral,
@@ -438,7 +449,8 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         
     if "fluency" in metricset:
         if task == 'nli':
-            generations_df = rename_df_for_nli(generations_df, 'premise')
+            # generations_df = rename_df_for_nli(generations_df, 'premise')
+            generations_df2 = generations_df
             generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
         else:
             generations_df2 = generations_df

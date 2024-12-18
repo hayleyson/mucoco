@@ -65,10 +65,17 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --task toxicity \
 # --label_id 0
 
+# python new_module/locate/new_locate_utils.py \
+# --pretrained_model_path "/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint" \
+# --input_file "new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl" \
+# --output_file "new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_nontoxic_locate_max_5_TEST.jsonl" \
+# --task toxicity \
+# --label_id 0
+
 python new_module/locate/new_locate_utils.py \
 --pretrained_model_path "/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint" \
---input_file "new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl" \
---output_file "new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_nontoxic_locate_max_5_TEST.jsonl" \
+--input_file "new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl" \
+--output_file "new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_locate_max_7.jsonl" \
 --task toxicity \
 --label_id 0
 
