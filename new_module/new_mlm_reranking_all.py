@@ -190,6 +190,11 @@ def main(config):
                         use_fast=False,
                     )
 
+    # for faster experiment, performance didn't degrade much
+    name2model[config["model_paths"][0]].half()
+    # for ablation (halving energy model as well)
+    # name2model[config["model_paths"][1]].half()
+
     mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
     mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base").to(config['device'])
 
@@ -355,7 +360,7 @@ def main(config):
                         edit_yn[edit_ixes_before_marking[idx]] = False
                         continue                    
                     final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
-                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config)
+                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
                     final_hypotheses_.extend(final_hypotheses_curr)
                     new_best_weighted_loss_.append(new_best_weighted_loss_curr)
                     new_best_allsat_.append(new_best_allsat_curr)
@@ -530,7 +535,7 @@ def main(config):
                 outfile,
                 "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
                 source_file_path=config["source_data"]
-            )  # 시간 문제로, perspective api 제외
+            )  
 
 
 if __name__ == "__main__":
@@ -630,7 +635,7 @@ if __name__ == "__main__":
         help="target type (embeds, simplex, probability) from prior work's code",
     )
     parser.add_argument(
-        "--cache_dir", type=str, default="hf_cache", help="cache directory"
+        "--cache_dir", type=str, default="/data/hyeryung/hf_cache", help="cache directory"
     )
     parser.add_argument(
         "--jsonl_primary_key", type=str, default="prompt", help="jsonl primary key"

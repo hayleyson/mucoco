@@ -80,7 +80,7 @@ def main():
                                         device=config['device'], 
                                         output_hidden_states=True,
                                         encoder_model=config['energynet']['base_model'],
-                                        embedding_model="google/gemma-2-2b",
+                                        embedding_model=config['energynet']['embedding_model'],
                                         task="nli")
     else:
         model = EncoderModel(config)

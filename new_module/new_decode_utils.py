@@ -241,7 +241,7 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
         
 def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_sent_span_lengths:List[int], 
                                          mlm:AutoModelForMaskedLM, mlm_tokenizer:AutoTokenizer, 
-                                         lossfns:List[lossbuilder.BaseLoss], config: dict, batch_size:int=64) -> \
+                                         lossfns:List[lossbuilder.BaseLoss], config: dict, batch_size:int=16) -> \
                                              Tuple[List[str],torch.FloatTensor,torch.BoolTensor,torch.FloatTensor]:
     
     """
@@ -345,7 +345,8 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
                                 mlm_tokenizer, 
                                 lossfns,
                                 config,
-                                return_all_hypotheses=True)[0][0])
+                                return_all_hypotheses=True,
+                                batch_size=batch_size)[0][0])
         # print(f"hypotheses: {hypotheses}")
         if i < len(mask_spans) -1 :
             hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]

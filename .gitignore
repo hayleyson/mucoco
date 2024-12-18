@@ -154,3 +154,4 @@ new_module/**/*.xlsx
 BOLT/
 **/*.secrets
 data/
+outputs/

@@ -110,8 +110,11 @@ class LocateMachine:
             batch = self.tokenizer(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.device) # prediction이 list여도 처리가능함
         
         if method == "attention":
-            output = self.model(**batch, output_attentions=True)
-            attentions = output.attentions
+            try:
+                output = self.model(**batch, output_attentions=True)
+                attentions = output.attentions
+            except:
+                logits, attentions = self.model(**batch)
             ## attentions : tuple of length num hidden layers
             ## attentions[i] : attention value of ith hidden layer of shape (batch, num_heads, query, value)            
             attentions = attentions[kwargs['num_layer']]
@@ -265,6 +268,7 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str)
     parser.add_argument("--label_id", type=int)
     parser.add_argument("--max_num_tokens", type=int, default=7)
+    parser.add_argument("--locate_method", type=int, default='grad_norm')
     args = parser.parse_args()
 
     # 모델과 토크나이저 불러오기
@@ -277,6 +281,10 @@ if __name__ == "__main__":
             model_config = json.load(f)
         model_config['device'] = device
         model_config['model_path'] = os.path.join(pretrained_model_path, 'best_model_pearsonr.pth')
+        if args.locate_method == "attention":
+            model_config['locate']['type'] = "attention"
+        elif args.locate_method == "grad_norm":
+            model_config['locate']['type'] = "gradnorm"
         
         # load model
         model = EncoderModel(params=model_config)
@@ -316,10 +324,12 @@ if __name__ == "__main__":
                     text = line.rstrip()
                     # locate_main 적용
                     masked_text = locator.locate_main([text], 
-                                                      'grad_norm', 
+                                                      args.locate_method, 
                                                       max_num_tokens=args.max_num_tokens, 
                                                       unit='word', 
-                                                      label_id=args.label_id)
+                                                      label_id=args.label_id,
+                                                      num_layer=10,
+                                                      )
                     data = masked_text[0]
                     outfile.write(data)
                 else:   
@@ -333,10 +343,11 @@ if __name__ == "__main__":
                         text = f"<s>{prompt}</s>{generation['text']}</s>" if args.task == "nli" else generation['text']
                         # locate_main 적용
                         masked_text = locator.locate_main([text], 
-                                                          'grad_norm', 
+                                                          args.locate_method, 
                                                           max_num_tokens=args.max_num_tokens, 
                                                           unit='word', 
-                                                          label_id=args.label_id)
+                                                          label_id=args.label_id,
+                                                          num_layer=10,)
                         # masked 결과를 generation에 추가 (기존 key나 새로운 key 사용 가능)
                         generation['text'] = masked_text[0]  # locate_main은 리스트를 반환하므로 첫 번째 값 선택
                     

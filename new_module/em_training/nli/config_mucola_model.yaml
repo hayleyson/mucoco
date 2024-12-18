@@ -1,5 +1,6 @@
 energynet:
   base_model: roberta-large
+  embedding_model: gpt2-large
   output_form: 2dim_vec
   energy_col: 1
   label_column: binary_labels
