@@ -28,7 +28,10 @@ class GPT2Loss(BaseLoss):
         given a discrete target output, this will compute the loss wrt to it. Useful in debugging
         '''
         num_samples = len(predictions)
-        prompt = self.tokenizer.bos_token ## key line
+        if self.tokenizer.bos_token:
+            prompt = self.tokenizer.bos_token ## key line
+        else:
+            prompt = " "
         prompt_enc=self.tokenizer.encode_plus(prompt,add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
         prompt_enc['input_ids']=prompt_enc['input_ids'].expand(num_samples,-1)
         prompt_enc['attention_mask']=prompt_enc['attention_mask'].expand(num_samples,-1)

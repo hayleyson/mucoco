@@ -190,9 +190,9 @@ def main(config):
                         use_fast=False,
                     )
 
-    # for faster experiment, performance didn't degrade much
+    # for faster experiment. from internal ablation, performance didn't degrade much
     name2model[config["model_paths"][0]].half()
-    # for ablation (halving energy model as well)
+    # for internal ablation (halving energy model as well)
     # name2model[config["model_paths"][1]].half()
 
     mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
@@ -240,8 +240,10 @@ def main(config):
         
     for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
-        if source_text == "":
+        if (source_text == "") and (lossfns[0].tokenizer.bos_token is not None):
             source_text = lossfns[0].tokenizer.bos_token
+        elif (source_text == "") and (lossfns[0].tokenizer.bos_token is None):
+            source_text = " "
 
         if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
             AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]

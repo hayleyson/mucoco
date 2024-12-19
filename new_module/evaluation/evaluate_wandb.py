@@ -342,11 +342,11 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         logger.debug("nli-ensemble")
         # generations_df2 = rename_df_for_nli(generations_df, 'premise')
         generations_df2 = generations_df
-        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
+        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contradiction_proba) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
         if run_path != "":
             run.summary.update({'avg_nli_entail': avg_nli_entail, 'avg_nli_neutral': avg_nli_neutral,
-                'avg_nli_contradiction': avg_nli_contradiction})
-        fp.write(f'avg_nli_entail: {avg_nli_entail}, avg_nli_neutral: {avg_nli_neutral}, avg_nli_contradiction: {avg_nli_contradiction}\n')
+                'avg_nli_contradiction': avg_nli_contradiction, 'contradiction_proba': contradiction_proba})
+        fp.write(f'avg_nli_entail: {avg_nli_entail}, avg_nli_neutral: {avg_nli_neutral}, avg_nli_contradiction: {avg_nli_contradiction}, contradiction_proba: {contradiction_proba}\n')
 
     if 'toxicity' in metricset:
         logger.debug("toxicity-external")

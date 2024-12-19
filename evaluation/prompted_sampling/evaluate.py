@@ -408,7 +408,7 @@ def fluency_classify(generations_df, output_file=None):
 
         prediction_labels = [prediction["label"] for prediction in predictions_for_prompt]
         all_prediction_labels += prediction_labels
-        prediction_scores = [str(prediction["score"]) for prediction in predictions_for_prompt]
+        prediction_scores = [str(prediction["score"]) if (prediction["label"] == "LABEL_1") else str(1-prediction["score"]) for prediction in predictions_for_prompt]
         all_prediction_scores += prediction_scores
         
     if output_file is not None:
@@ -1181,6 +1181,7 @@ def nli_score(generations_df, write_file, device='cuda'):
     total_neutral_prob = 0
     total_contradiction_prob = 0
     total_count = 0
+    total_contradiction_count = 0
 
     results = []
     # 각 row에 대해 NLI 점수 계산
@@ -1193,9 +1194,14 @@ def nli_score(generations_df, write_file, device='cuda'):
             entail_prob_sum = 0
             neutral_prob_sum = 0
             contradiction_prob_sum = 0
-            
+
             # 각 모델에 대해 예측 수행
-            for model, tokenizer in zip(models, tokenizers):
+            for i, (model, tokenizer) in enumerate(zip(models, tokenizers)):
+                # remove exact match
+                premise = premise.lower()
+                hypothesis = hypothesis.lower()
+                if premise in hypothesis:
+                    hypothesis.replace(premise, "")
                 # 토큰화 및 텐서 변환
                 inputs = tokenizer(premise, hypothesis, return_tensors='pt', truncation=True, padding=True).to(device)
 
@@ -1203,10 +1209,17 @@ def nli_score(generations_df, write_file, device='cuda'):
                     outputs = model(**inputs)
                     probs = torch.softmax(outputs.logits, dim=-1).squeeze()  # 예측 확률 계산
 
-                # 각 클래스 확률 합산
-                entail_prob_sum += probs[0].item()
-                neutral_prob_sum += probs[1].item()
-                contradiction_prob_sum += probs[2].item()
+                max_prob_class = probs.argmax().item()
+
+                if 'ynie' in model_paths[i]:
+                    entail_prob_sum += probs[0].item()  # entailment 확률
+                    neutral_prob_sum += probs[1].item()    # neutral 확률
+                    contradiction_prob_sum += probs[2].item() # contradiction 확률
+                else:
+                    contradiction_prob_sum += probs[0].item()  # contradiction 확률
+                    entail_prob_sum += probs[1].item()     # entailment 확률
+                    neutral_prob_sum += probs[2].item() # neutral 확률
+
 
             # 각 hypothesis에 대한 모델 평균 확률 계산 및 누적
             entail_prob_avg = entail_prob_sum / len(models)
@@ -1216,27 +1229,34 @@ def nli_score(generations_df, write_file, device='cuda'):
             total_entail_prob += entail_prob_avg
             total_neutral_prob += neutral_prob_avg
             total_contradiction_prob += contradiction_prob_avg
+            if contradiction_prob_avg == max(entail_prob_avg, neutral_prob_avg, contradiction_prob_avg):
+                classified_class = "contradiction"
+                total_contradiction_count += 1
+            elif entail_prob_avg == max(entail_prob_avg, neutral_prob_avg, contradiction_prob_avg):
+                classified_class = "entail" 
+            else:
+                classified_class = 'neutral'
             total_count += 1
 
             results.append({
-                "premise": premise,
-                "hypothesis": hypothesis,
                 "entailment_prob": entail_prob_avg,
                 "neutral_prob": neutral_prob_avg,
-                "contradiction_prob": contradiction_prob_avg
+                "contradiction_prob": contradiction_prob_avg,
+                "nli_class": classified_class
             })
 
     # 전체 데이터에 대한 평균 확률 계산
     avg_nli_entail = total_entail_prob / total_count
     avg_nli_neutral = total_neutral_prob / total_count
     avg_nli_contradiction = total_contradiction_prob / total_count
+    contadiction_ratio = total_contradiction_count / total_count
 
     if write_file:
         with open(write_file, 'w') as f:
             for result in results:
                 f.write(f"{result}\n")
 
-    return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction
+    return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contadiction_ratio
 
 def formality_score_ext(generations_df, output_file, device):
     
