@@ -231,7 +231,9 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
             final_hypotheses_losses[ix].extend(curr_loss[jx][top_beams[jx]])
 
     if return_all_hypotheses:
-        return [mlm_tokenizer.batch_decode(x, skip_special_tokens=True) for x in final_hypotheses], final_hypotheses_losses
+        dec_final_hypotheses = [mlm_tokenizer.batch_decode(x, skip_special_tokens=True) for x in final_hypotheses]
+        dec_final_hypotheses = sum(dec_final_hypotheses,[])
+        return dec_final_hypotheses, final_hypotheses_losses
     else:
         final_top_beams = [torch.topk(torch.stack(x), k=config['beam_size'], dim=-1, largest=False).indices for x in final_hypotheses_losses]
         final_final_hypotheses = [[x[i] for i in y] for x,y in zip(final_hypotheses,final_top_beams)]
