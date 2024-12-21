@@ -269,7 +269,8 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
     test_sent_merged = re.sub(r"(<mask>)+", "<mask>", test_sent)
     
     # Max number of mask tokens to replace each span
-    max_mask_cnt_per_span = [max(x, config['max_tokens_per_span']) for x in test_sent_span_lengths]
+    # max_mask_cnt_per_span = [max(x, config['max_tokens_per_span']) for x in test_sent_span_lengths]
+    max_mask_cnt_per_span = [config['max_tokens_per_span'] for x in test_sent_span_lengths]
 
     # Get the span information of merged masks in the test sentence
     mask_spans = [x.span() for x in re.finditer('<mask>',test_sent_merged)]
@@ -285,8 +286,8 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
         curr_full_text_hyp = [base_hyp + "<mask>" * max_mask_cnt_per_span[i] + test_sent_merged[mask_spans[i][1]:] for base_hyp in queue]
         ## Tokenize & conduct MLM inference
         inputs = mlm_tokenizer(
-            curr_full_text_hyp, return_tensors="pt", padding=True, truncation=True
-        )
+            curr_full_text_hyp, return_tensors="pt", padding=True, truncation=True, add_special_tokens=False
+        ) ## add_special_tokens=False to skip adding bos token
         inputs = inputs.to(config['device']) 
         masked_sequence=inputs['input_ids']
         
