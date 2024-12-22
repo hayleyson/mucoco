@@ -63,5 +63,157 @@ Edited Continuation: brings uncomfortable evenings indoors, freezing temperature
 Prefix: %s
 Continuation: %s
 Edited Continuation: """
+
+    elif args.prompt_type == "senti_pos_both":
+        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
+
+The masked text is a modified version of the original text, where negative tokens have been masked.
+Given the prompt, original text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
+Output only the edited masked text and nothing else.
+Prompt: %s
+Edited Masked Text: """
+
+    elif args.prompt_type == "senti_pos_masked":
+        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
+
+Given the prompt and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Masked Text: """
+
+    elif args.prompt_type == "senti_pos_notmasked":
+        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
+
+Given the prompt and the text, edit it in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Text: """
+    elif args.prompt_type == "senti_neg_both":
+        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
+
+The masked text is a modified version of the original text, where positive tokens have been masked.
+Given the prompt, original text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
+Output only the edited masked text and nothing else.
+Prompt: %s
+Edited Masked Text: """
+
+    elif args.prompt_type == "senti_neg_masked":
+        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
+
+Given the prompt and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Masked Text: """
+
+    elif args.prompt_type == "senti_neg_notmasked":
+        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
+
+Given the prompt and the text, edit it in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Text: """
     
+    elif args.prompt_type == "nontoxic_masked":
+        nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
+Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
+
+Avoid:
+Abusive language (insults, slurs)
+Harassment (hostile, intimidating behavior)
+Hate speech (attacking based on race, religion, etc.)
+Threats and violence
+Cyberbullying
+Misleading or manipulative content
+
+Given the prompt and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Masked Text: """
+
+    elif args.prompt_type == "nontoxic_notmasked":
+        nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
+Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
+
+Avoid:
+Abusive language (insults, slurs)
+Harassment (hostile, intimidating behavior)
+Hate speech (attacking based on race, religion, etc.)
+Threats and violence
+Cyberbullying
+Misleading or manipulative content
+
+Given the prompt and the text, edit it in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Text: """
+
+
+    elif args.prompt_type == "nontoxic_both":
+        nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
+Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
+
+Avoid:
+Abusive language (insults, slurs)
+Harassment (hostile, intimidating behavior)
+Hate speech (attacking based on race, religion, etc.)
+Threats and violence
+Cyberbullying
+Misleading or manipulative content
+
+The masked text is a modified version of the original text, where toxic tokens have been masked.
+Given the prompt, original text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the edited masked text and nothing else.
+Prompt: %s
+Edited Masked Text: """
+    elif args.prompt_type == "nli_masked":
+        nontoxic_prompt = """Complete the hypothesis by replacing all the <mask> tokens in a way that does not contradict the premise.
+Output only the edited hypothesis and nothing else.
+Premise: %s
+Edited Hypothesis: """
+    elif args.prompt_type == "nli_notmasked":
+        nontoxic_prompt = """Edit the hypothesis in a way that does not contradict the premise.
+Output only the edited hypothesis and nothing else.
+Premise: %s
+Edited Hypothesis: """
+
+    elif args.prompt_type == "nli_both":
+        nontoxic_prompt = """Given the premise, hypothesis and the masked hypothesis, edit the masked hypothesis by replacing the <mask> tokens in a way that no longer contradicts the premise.
+Output only the edited hypothesis and nothing else.
+Premise: %s
+Edited Hypothesis: 
+"""
+    elif args.prompt_type == "form_masked":
+        nontoxic_prompt = """Edit the below sequence by replacing all the <mask> tokens to make it more formal. Make sure to preserve the original semantics other than formality.
+Output only the edited sequence and nothing else.
+Sequence: %s
+Edited Sequence: """
+
+    elif args.prompt_type == "form_notmasked":
+        nontoxic_prompt = """Edit the below sequence to make it more formal. Make sure to preserve the original semantics other than formality.
+Output only the edited sequence and nothing else.
+Sequence: %s
+Edited Sequence: """
+
+    elif args.prompt_type == "form_both":
+        nontoxic_prompt = """Given the sequence and the masked sequence, edit the masked sequence by replacing all the <mask> tokens to make it more formal. Make sure to preserve the original semantics other than formality.
+Output only the edited masked sequence and nothing else.
+Sequence: %s
+Edited Sequence: """
+    elif args.prompt_type == "inform_masked":
+        nontoxic_prompt = """Edit the below sequence by replacing all the <mask> tokens to make it more informal. Make sure to preserve the original semantics other than formality.
+Output only the edited sequence and nothing else.
+Sequence: %s
+Edited Sequence: """
+
+    elif args.prompt_type == "inform_notmasked":
+        nontoxic_prompt = """Edit the below sequence to make it more informal. Make sure to preserve the original semantics other than formality.
+Output only the edited sequence and nothing else.
+Sequence: %s
+Edited Sequence: """
+
+    elif args.prompt_type == "inform_both":
+        nontoxic_prompt = """Given the sequence and the masked sequence, edit the masked sequence by replacing all the <mask> tokens to make it more informal. Make sure to preserve the original semantics other than formality.
+Output only the edited masked sequence and nothing else.
+Sequence: %s
+Edited Sequence: """
     return nontoxic_prompt 
