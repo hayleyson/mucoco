@@ -48,6 +48,8 @@ def main(config):
         if (config["task"] == "formality") and ("gyafc" in config["model_paths"][1]):
             config["model_tag"] += "-gyafc"
 
+    config["build_loss_dict"]["length_normalize"] = True ## Default was False. This might one of the reasons why deletion was preferred.
+
     if config["resume"]:
         logger.info("resuming from a previous run")
         run = wandb.init(
