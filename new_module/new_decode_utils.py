@@ -341,7 +341,7 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
         masked_sequence = torch.nn.utils.rnn.pad_sequence(masked_sequence, batch_first=True, padding_value=mlm_tokenizer.pad_token_id)        
 
         hypotheses=list(queue) # deletion case
-        hypotheses.extend(get_beam_hypotheses_v0_variable_length_v2(source_text, 
+        beam_outputs, _ = get_beam_hypotheses_v0_variable_length_v2(source_text, 
                                 masked_sequence, 
                                 (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
                                 predicted_token_ids.indices,
@@ -349,8 +349,8 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
                                 lossfns,
                                 config,
                                 return_all_hypotheses=True,
-                                batch_size=batch_size)[0][0])
-        # print(f"hypotheses: {hypotheses}")
+                                batch_size=batch_size)
+        hypotheses.extend(beam_outputs)
         if i < len(mask_spans) -1 :
             hypotheses_all = [x + test_sent_merged[mask_spans[i][1]:mask_spans[i+1][0]] for x in hypotheses]
         else:
