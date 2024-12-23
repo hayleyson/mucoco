@@ -56,19 +56,49 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
     # word의 일부만 locate 한 경우, word 전체를 locate 한다.
     # 같은 word 안에 있는 token 끼리 묶음.
     words = words_ = current_sent.strip().split()
-    if task == "nli":
+    if task == "nli": 
+        # For nli, simple spliting might not have split cases like "<s>hello" or "hello</s>world" or "world</s>"
+        # So post-process to split those cases.
+        # Not generalized to all possible ways a tokenizer handles premise & hypothesis
+        # Currently support either one of the two 
+        # 1) <s>..premise..</s>..hypothesis..</s> 
+        # 2) <s>..premise..</s></s>..hypothesis..</s> 
+        assert tokenizer.eos_token == tokenizer.sep_token, "Can only deal with case where EOS == SEP" ## 이런 경우만 처리할 수 있다.
+        BOS=tokenizer.bos_token
+        EOS=tokenizer.eos_token  
+        SEP = EOS*2 if EOS*2 in current_sent else EOS
         words = []
         for w in words_:
-            if ('<s>' in w):
-                w = ['<s>', w.replace('<s>', '')]
-            elif ('</s></s>' in w):
-                w = w.split('</s></s>')
-                w.insert(1, '</s></s>')
-            elif ('</s>' in w):
-                w = [w.replace('</s>', ''), '</s>']
-            else:
-                w = [w]
-            words.extend(w)
+            if w.strip() == "":
+                continue
+            if w.strip() == BOS or w.strip() == EOS or w.strip() == SEP:
+                words.append(w)
+                continue
+            
+            starts_with_BOS= w.startswith(BOS)
+            ends_with_EOS = w.endswith(EOS)
+            contains_SEP = SEP in w.rstrip(EOS) ## have to do w.rstrip(EOS) because it can be that SEP == EOS
+
+            tmp_words = []
+            tmp_words = []
+            if starts_with_BOS:
+                tmp_words.append(BOS)
+                w = w.lstrip(BOS)
+            if contains_SEP:
+                tmp_w = w.split(SEP)
+                if tmp_w[0] != "":
+                    tmp_words.append(tmp_w[0])
+                tmp_words.append(SEP)
+                w = EOS.join(tmp_w[1:])
+            if ends_with_EOS:
+                if w.rstrip(EOS) != "":
+                    tmp_words.append(w.rstrip(EOS))
+                tmp_words.append(EOS)
+                w = ""
+            if w != "":
+                tmp_words.append(w)
+                
+            words.extend(tmp_words)
                 
     prediction = prediction[:length]
     tok2word, grouped_tokens = get_word2tok(pd.Series({'words':words, 'tokens':prediction}), tokenizer)
@@ -179,7 +209,7 @@ class LocateMachine:
                 premise_mask[i, :first_occurence] = True
             exclude_mask |= premise_mask
         
-        if (self.task == "nli") and (kwargs.get('input_includes_y', False)):
+        if (self.task == "nli") and (kwargs.get('input_includes_y', False)): # deprecated: we no longer use this option
             # if input_includes_y, then tokenized_input must also be True
             # sentence structure after encoding : <s> ...(premise)... </s> ...(hypothesis)... </s> ...(label)... </s>
             # mask after the second occurrence of </s> token
@@ -268,7 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str)
     parser.add_argument("--label_id", type=int)
     parser.add_argument("--max_num_tokens", type=int, default=7)
-    parser.add_argument("--locate_method", type=int, default='grad_norm')
+    parser.add_argument("--locate_method", type=str, default='grad_norm')
     args = parser.parse_args()
 
     # 모델과 토크나이저 불러오기
