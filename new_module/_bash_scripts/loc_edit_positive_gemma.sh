@@ -39,8 +39,8 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --target_label_ids 1 1 \
 # --min_epsilons 0.97 \
 # --wandb_project 'sentiment-decoding' \
-# --model_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
-# --tokenizer_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --model_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --tokenizer_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
 # --locate_method 'grad_norm' \
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
@@ -69,8 +69,8 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --target_label_ids 1 1 \
 --min_epsilons 0.9999994 \
 --wandb_project 'sentiment-decoding' \
---model_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-yelp-sentiment-classifier/step_83000' \
---tokenizer_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-yelp-sentiment-classifier/step_83000' \
+--model_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \
+--tokenizer_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \
 --locate_method 'grad_norm' \
 --losses gpt2 classification_no_prefix_logprobloss \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification \

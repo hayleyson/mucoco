@@ -39,8 +39,8 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --target_label_ids 0 0 \
 # --min_epsilons 0.998671 \
 # --wandb_project 'toxicity-decoding' \
-# --model_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-jigsaw-toxicity-classifier/step_500_best_checkpoint/' \
-# --tokenizer_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-jigsaw-toxicity-classifier/step_500_best_checkpoint/' \
+# --model_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier/step_500_best_checkpoint/' \
+# --tokenizer_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier/step_500_best_checkpoint/' \
 # --locate_method 'grad_norm' \
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
@@ -68,8 +68,8 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --target_label_ids 0 0 \
 --min_epsilons 0.95 \
 --wandb_project 'toxicity-decoding' \
---model_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
---tokenizer_paths 'google/gemma-2-2b' '/data/hyeryung/loc_edit/models/clean/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+--model_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+--tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 --locate_method 'grad_norm' \
 --losses gpt2 classification_no_prefix_logprobloss \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification

@@ -34,13 +34,13 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --task formality \
 --output_dir_prefix 'outputs/formality/formal/' \
 --source_data '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal' \
---source_style 'informal' \
---target_style 'formal' \
---target_label_ids 1 1 \
---min_epsilons 0.74 \
+--source_style 'formal' \
+--target_style 'informal' \
+--target_label_ids 0 0 \
+--min_epsilons 0.88 \
 --wandb_project 'formality-decoding' \
---model_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
---tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
+--model_paths 'microsoft/Phi-3.5-mini-instruct' '/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
+--tokenizer_paths 'microsoft/Phi-3.5-mini-instruct' '/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 --locate_method 'grad_norm' \
 --losses gpt2 classification_no_prefix_logprobloss \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification
