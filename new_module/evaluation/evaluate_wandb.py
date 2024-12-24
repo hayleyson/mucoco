@@ -85,13 +85,26 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     # nli does not need any source files
     elif task == 'nli':
         sources = pd.read_json(sources_file, lines=True)
-        sources['premise']=sources.prompt.apply(lambda x: x['premise'])
-        sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
+        try:
+            sources['premise']=sources.prompt.apply(lambda x: x['premise'])
+            sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
+            predictions = pd.read_json(outputs_file, lines=True)
+            sources['generation']=predictions.generations.apply(lambda x: x[0]['text'])
+            source_predictions_ = sources.rename(columns={'hypothesis': 'source', 'generation':'prediction'})
+        except:
+            sources = sources.explode('generations', ignore_index=True)
+            sources['premise']=sources.prompt.apply(lambda x: x['text'])
+            sources['hypothesis']=sources.generations.apply(lambda x: x['text'])   
+            predictions = pd.read_json(outputs_file, lines=True)
+            predictions = predictions.explode('generations')
+            predictions['premise']=predictions.prompt.apply(lambda x: x['text'])
+            predictions['generation'] = predictions['generations'].apply(lambda x: x['text'])        
+            source_predictions_ = pd.merge(sources[['premise','hypothesis']],predictions[['premise','generation']],on='premise').rename(columns={'hypothesis': 'source', 'generation':'prediction'})
+            print(source_predictions_.head())
+            print(source_predictions_.columns)
+            del source_predictions_['premise']
 
-        predictions = pd.read_json(outputs_file, lines=True)
-        sources['generation']=predictions.generations.apply(lambda x: x[0]['text'])
-
-        source_predictions_ = sources.rename(columns={'hypothesis': 'source', 'generation':'prediction'})
+        
 
     ## start evaluation
     ## -- BLEU, SBLEU
