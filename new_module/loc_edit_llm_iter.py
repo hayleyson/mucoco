@@ -67,7 +67,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from new_module.em_training.nli.models import EncoderModel  
-from new_module.locate.new_locate_utils import LocateMachine
+from set_consistency.mucoco.new_module.locate.new_locate_utils import LocateMachine
 
 import new_module.losses as lossbuilder
 
@@ -91,7 +91,10 @@ if task == "nli":
         model_config = json.load(f)
     model_config['device'] = device
     model_config['model_path'] = os.path.join(pretrained_model_path, 'best_model_pearsonr.pth')
-
+    if locate_option == "attention":
+        model_config['locate']['type'] = "attention"
+    elif locate_option == "grad_norm":
+        model_config['locate']['type'] = "gradnorm"
     # load model
     model = EncoderModel(params=model_config)
     model.load_state_dict(torch.load(model_config['model_path'], weights_only=True), strict=False)
@@ -106,7 +109,7 @@ else:
 
 # locate에서는 파일, 모델, locate_edit_idx를 받아서
 # 이 idx=True 인 경우만 모아 output_file에 저장한다 
-def locate_texts(model, tokenizer, input_file, output_file, task, label_id, locate_edit_idx, max_num_tokens=7):
+def locate_texts(model, tokenizer, input_file, output_file, task, label_id, locate_edit_idx, locate_method, max_num_tokens=7):
     """
     Locates tokens in texts using the provided model and task.
     """
@@ -125,30 +128,24 @@ def locate_texts(model, tokenizer, input_file, output_file, task, label_id, loca
             data = json.loads(line)
             prompt = data['prompt']['text']
             generations = data['generations']
-
+            
             masked_generations = []
-
             # generations 내의 각 text에 대해 LocateMachine 적용
             for gen_idx, generation in enumerate(generations):
-                text = f"<s>{prompt}</s>{generation['text']}</s>" if task == "nli" else generation['text']
-                # locate_main 적용
                 if locate_edit_idx[line_idx][gen_idx]:
-                    if locate_option == 'attention':
-                        masked_text = locator.locate_main([text], 
-                                    locate_option, 
-                                    max_num_tokens=max_num_tokens, 
-                                    unit='word', 
-                                    num_layer = 10,#-2, #penultimate
-                                    label_id=label_id) 
-                    else:
-                        masked_text = locator.locate_main([text], 
-                                                            locate_option, 
-                                                            max_num_tokens=max_num_tokens, 
-                                                            unit='word', 
-                                                            label_id=label_id)
-                    generation['text'] = masked_text[0]
+                    text = f"<s>{prompt}</s>{generation['text']}</s>" if task == "nli" else generation['text']
+                    # locate_main 적용
+                    masked_text = locator.locate_main([text], 
+                                                        locate_method, 
+                                                        max_num_tokens=max_num_tokens, 
+                                                        unit='word', 
+                                                        label_id=label_id,
+                                                        num_layer=10,)
+                    # masked 결과를 generation에 추가 (기존 key나 새로운 key 사용 가능)
+                    generation['text'] = masked_text[0]  # locate_main은 리스트를 반환하므로 첫 번째 값 선택
                     masked_generations.append(generation)
             if masked_generations:
+                # 결과를 다시 JSON 형식으로 변환하고 출력 파일에 쓰기
                 data['generations'] = masked_generations
                 json.dump(data, outfile, ensure_ascii=False)
                 outfile.write('\n')
@@ -349,6 +346,7 @@ for iter_idx in range(total_iteration):
                  task,
                  label_id,
                  locate_edit_idx,
+                 locate_option,
                  max_num_tokens=7
                  )
 

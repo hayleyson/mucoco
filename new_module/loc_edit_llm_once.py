@@ -88,13 +88,14 @@ import torch
 from torch.utils.data import DataLoader
 
 from new_module.em_training.nli.models import EncoderModel  
-from new_module.locate.new_locate_utils import LocateMachine
+from set_consistency.mucoco.new_module.locate.new_locate_utils import LocateMachine
 
 import new_module.losses as lossbuilder
 
 import huggingface_hub
 import argparse
 from argparse import Namespace
+import re
 
 ###############################################################################
 ###############################################################################
@@ -113,7 +114,10 @@ if task == "nli":
         model_config = json.load(f)
     model_config['device'] = device
     model_config['model_path'] = os.path.join(pretrained_model_path, 'best_model_pearsonr.pth')
-
+    if locate_option == "attention":
+        model_config['locate']['type'] = "attention"
+    elif locate_option == "grad_norm":
+        model_config['locate']['type'] = "gradnorm"
     # load model
     model = EncoderModel(params=model_config)
     model.load_state_dict(torch.load(model_config['model_path'], weights_only=True), strict=False)
