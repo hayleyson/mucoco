@@ -65,55 +65,41 @@ Continuation: %s
 Edited Continuation: """
 
     elif args.prompt_type == "senti_pos_both":
-        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
-
-The masked text is a modified version of the original text, where negative tokens have been masked.
-Given the prompt, original text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
+        nontoxic_prompt = f"""Given the prompt, text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
 Output only the edited masked text and nothing else.
 Prompt: %s
 Edited Masked Text: """
 
     elif args.prompt_type == "senti_pos_masked":
-        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
-
-Given the prompt and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
+        nontoxic_prompt = f"""Given the prompt and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
 Output only the edited text and nothing else.
 Prompt: %s
-Edited Masked Text: """
+Edited Text: """
 
     elif args.prompt_type == "senti_pos_notmasked":
-        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
-
-Given the prompt and the text, edit it in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
+        nontoxic_prompt = f"""Given the prompt and the text, edit it in a way that maintains a positive tone, while ensuring it fits naturally with the prompt.
 Output only the edited text and nothing else.
 Prompt: %s
 Edited Text: """
     elif args.prompt_type == "senti_neg_both":
-        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
-
-The masked text is a modified version of the original text, where positive tokens have been masked.
-Given the prompt, original text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
+        nontoxic_prompt = f"""Given the prompt, text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
 Output only the edited masked text and nothing else.
 Prompt: %s
 Edited Masked Text: """
 
     elif args.prompt_type == "senti_neg_masked":
-        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
-
-Given the prompt and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
+        nontoxic_prompt = f"""Given the prompt and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
 Output only the edited text and nothing else.
 Prompt: %s
-Edited Masked Text: """
+Edited Text: """
 
     elif args.prompt_type == "senti_neg_notmasked":
-        nontoxic_prompt = f"""You are a language model trained to provide helpful, respectful, and informative responses.
-
-Given the prompt and the text, edit it in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
+        nontoxic_prompt = f"""Given the prompt and the text, edit it in a way that maintains a negative tone, while ensuring it fits naturally with the prompt.
 Output only the edited text and nothing else.
 Prompt: %s
 Edited Text: """
     
-    elif args.prompt_type == "nontoxic_masked":
+    elif args.prompt_type == "old_nontoxic_masked":
         nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
 Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
 
@@ -130,7 +116,7 @@ Output only the edited text and nothing else.
 Prompt: %s
 Edited Masked Text: """
 
-    elif args.prompt_type == "nontoxic_notmasked":
+    elif args.prompt_type == "old_nontoxic_notmasked":
         nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
 Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
 
@@ -148,7 +134,7 @@ Prompt: %s
 Edited Text: """
 
 
-    elif args.prompt_type == "nontoxic_both":
+    elif args.prompt_type == "old_nontoxic_both":
         nontoxic_prompt = """You are a language model trained to provide helpful, respectful, and informative responses. 
 Ensure your language is always polite, considerate, and free from rudeness, disrespect, or any comments that might offend or drive someone away. 
 
@@ -165,23 +151,43 @@ Given the prompt, original text and the masked text, edit the masked text by rep
 Output only the edited masked text and nothing else.
 Prompt: %s
 Edited Masked Text: """
+    
+    elif args.prompt_type == "nontoxic_masked":
+        nontoxic_prompt = """Given the prompt and the text, edit the text by replacing the <mask> tokens in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Text: """
+
+    elif args.prompt_type == "nontoxic_notmasked":
+        nontoxic_prompt = """Given the prompt and the text, edit the text in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the edited text and nothing else.
+Prompt: %s
+Edited Text: """
+
+
+    elif args.prompt_type == "nontoxic_both":
+        nontoxic_prompt = """Given the prompt, text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the edited masked text and nothing else.
+Prompt: %s
+Edited Masked Text: """
+
+
     elif args.prompt_type == "nli_masked":
-        nontoxic_prompt = """Complete the hypothesis by replacing all the <mask> tokens in a way that does not contradict the premise.
+        nontoxic_prompt = """Given the premise and the hypothesis, edit the hypothesis by replacing all the <mask> tokens in a way that does not contradict the premise.
 Output only the edited hypothesis and nothing else.
 Premise: %s
 Edited Hypothesis: """
     elif args.prompt_type == "nli_notmasked":
-        nontoxic_prompt = """Edit the hypothesis in a way that does not contradict the premise.
+        nontoxic_prompt = """Given the premise and the hypothesis, edit the hypothesis in a way that does not contradict the premise.
 Output only the edited hypothesis and nothing else.
 Premise: %s
 Edited Hypothesis: """
 
     elif args.prompt_type == "nli_both":
-        nontoxic_prompt = """Given the premise, hypothesis and the masked hypothesis, edit the masked hypothesis by replacing the <mask> tokens in a way that no longer contradicts the premise.
+        nontoxic_prompt = """Given the premise, hypothesis and the masked hypothesis, edit the masked hypothesis by replacing the <mask> tokens in a way that does not contradicts the premise.
 Output only the edited hypothesis and nothing else.
 Premise: %s
-Edited Hypothesis: 
-"""
+Edited Hypothesis: """
     elif args.prompt_type == "form_masked":
         nontoxic_prompt = """Edit the below sequence by replacing all the <mask> tokens to make it more formal. Make sure to preserve the original semantics other than formality.
 Output only the edited sequence and nothing else.
