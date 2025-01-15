@@ -658,7 +658,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--build_loss_dict",
         type=json.loads,
-        default='{"coeff_steps": 200, "coeff_pattern": "constant", "loss_type": "xentropy", "length_normalize": false, "AR_temperature": 1.0, "AR_top_k": 0, "AR_top_p": 0.96, "max_output_length": 20}',
+        default='{"length_normalize": true, "alpha": 1.0,  "AR_temperature": 1.0, "AR_top_k": 0, "AR_top_p": 0.96, "max_output_length": 20}',
         help="build loss dict",
     )
     parser.add_argument(

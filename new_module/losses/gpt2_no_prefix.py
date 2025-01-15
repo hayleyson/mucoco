@@ -54,7 +54,7 @@ class GPT2Loss(BaseLoss):
         
         loss = loss.sum(dim=-1)
         if self.args.length_normalize:
-            loss /= predictions_enc.attention_mask.sum(dim=-1) 
+            loss /= torch.pow(predictions_enc.attention_mask.sum(dim=-1), self.args.alpha)
         return loss # dimensions: (N)
     
     def generate(self, input_ids, **kwargs):
