@@ -10,8 +10,6 @@ import time
 import re
 import sys
 
-os.chdir('/data3/saeheeeom/set_consistency/mucoco')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import wandb
 import torch
@@ -21,7 +19,7 @@ from datasets import load_dataset
 import huggingface_hub
 import pandas as pd
 
-from prompts import get_prompt
+from new_module.llm_experiments.edit_with_llm.prompts import get_prompt
 
 from openai import OpenAI
 openai_api_key = os.getenv("OPENAI_API_KEY")

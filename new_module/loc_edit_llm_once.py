@@ -1,7 +1,5 @@
 import os
 import sys
-os.chdir('/data3/saeheeeom/set_consistency/mucoco')
-sys.path.append(os.path.abspath('.'))
 huggingface_token = os.getenv("HF_TOKEN")
 
 import argparse
@@ -88,7 +86,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from new_module.em_training.nli.models import EncoderModel  
-from set_consistency.mucoco.new_module.locate.new_locate_utils import LocateMachine
+from new_module.locate.new_locate_utils import LocateMachine
 
 import new_module.losses as lossbuilder
 
@@ -273,7 +271,7 @@ config = {
     },
     "task": task,
     "device": "cuda",
-    "cache_dir": "/data3/saeheeeom/.cache",
+    "cache_dir": "/data/hyeryung/.cache", # Change it to your huggingface cache directory 
     "batch_size": 64,
     "target_label_ids": [None, label_id],  # Example target labels
 }
