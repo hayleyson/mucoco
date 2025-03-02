@@ -1475,12 +1475,12 @@ def main(args):
         
     if (not interrupted):
         if (args.task == "toxicity") or (lossabbr[1] == "toxicity"):
-            # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
+            # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-qwen,dist-n')
             evaluate_main(
                 run.path,
                 outfile,
-                # "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
-                "toxicity, toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation",
+                # "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
+                "toxicity, toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
                 toxicity_model_path=model_paths[1],
                 toxicity_model_type=model_types[1],
                 source_file_path=data_paths[0]
@@ -1489,7 +1489,7 @@ def main(args):
             evaluate_main(
                 run.path,
                 outfile,
-                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
                 formality_model_path=model_paths[1],
                 formality_model_type=model_types[1],
                 source_file_path=data_paths[0]
@@ -1498,7 +1498,7 @@ def main(args):
             evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
                 sentiment_model_path=model_paths[1],
                 sentiment_model_type=model_types[1],
                 source_file_path=data_paths[0]
