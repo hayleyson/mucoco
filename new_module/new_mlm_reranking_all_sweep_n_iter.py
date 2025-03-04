@@ -72,7 +72,6 @@ def main(config):
     
     config["k_per_location"] = wandb.config.k_per_location
     config["beam_size"] = wandb.config.beam_size
-    config["num_edit_token_per_step"] = wandb.config.num_edit_token_per_step
     
     run_id = run.path.split("/")[-1]
     display_name = f"{run_id}"
@@ -100,27 +99,32 @@ def main(config):
     # check if outfile exists
     if (config["resume"]) and (os.path.exists(outfile)):
 
-        with open(outfile, "r") as f:
-            existing_gens = [x.rstrip("\n") for x in f.readlines()]
-        resume_idx = len(existing_gens)
-        if resume_idx == len(source_dataset):
-            logger.debug("output file is already complete. skipping this run.")
-            return
-        elif resume_idx < len(source_dataset):
-            logger.info(
-                f"output file already exists but is incomplete. resuming from index: {resume_idx}"
-            )
-            outf = open(outfile, "a")
-            int_outf = open(outfile+".intermediate", "a")
-        else:
-            logger.critical(
-                f"output file seems to be corrupted. The file length is {resume_idx}, where the size of source_dataset is {len(source_dataset)}"
-            )
-            return
+        raise NotImplementedError
+
+        # with open(outfile, "r") as f:
+        #     existing_gens = [x.rstrip("\n") for x in f.readlines()]
+        # resume_idx = len(existing_gens)
+        # if resume_idx == len(source_dataset):
+        #     logger.debug("output file is already complete. skipping this run.")
+        #     return
+        # elif resume_idx < len(source_dataset):
+        #     logger.info(
+        #         f"output file already exists but is incomplete. resuming from index: {resume_idx}"
+        #     )
+        #     outf = open(outfile, "a")
+        #     int_outf = open(outfile+".intermediate", "a")
+        # else:
+        #     logger.critical(
+        #         f"output file seems to be corrupted. The file length is {resume_idx}, where the size of source_dataset is {len(source_dataset)}"
+        #     )
+        #     return
     else:
         resume_idx = 0
-        outf = open(outfile, "w")
-        int_outf = open(outfile+".intermediate", "w")
+        # outf = open(outfile, "w")
+        # int_outf = open(outfile+".intermediate", "w")
+        outfs= dict()
+        for _iter in range(config['n_iter']):
+            outfs[_iter] = open(outfile+f".{_iter}", "w")
 
     ## load tokenizer, models, define losses
     name2tokenizer = {}
@@ -232,7 +236,7 @@ def main(config):
     run.summary["prep_time"] = time.time() - main_start_time
     ## beginning of main logic
     decode_start_time = time.time()
-    # text_id = 0
+    
     if config["resume"]:
         num_skipped = run.summary.get("num_skipped", 0)
         num_edited = run.summary.get("num_edited", 0)
@@ -248,6 +252,7 @@ def main(config):
     elif (config["task"] == "formality"):
         text_id_interval = config['num_samples']
         
+    iteration_specific_execution_times = {i: 0 for i in range(config['n_iter'])}
         
     for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
@@ -305,7 +310,7 @@ def main(config):
         int_output = [{} for _ in range(len(AR_prediction_all))]
 
         if (edit_yn.sum().item() == 0) and (not config["dont_skip_allsat"]):
-            ## save data
+            
             num_edited += 0
             num_skipped += len(AR_prediction_all)
             num_decoded_tokens += 0
@@ -314,6 +319,28 @@ def main(config):
             logger.info(
                     f"skipping this sample since it already satisfies constraint. {best_losses}"
                 )
+            # save data as is
+            for _iter in range(config['n_iter']):
+                output = {
+                            "prompt": {
+                                "text": source_text,
+                            },
+                            "generations": [
+                                {
+                                    "text": best_text[i],
+                                    "original_text": AR_prediction_all[i],
+                                    "allsat": best_allsat[i].item(),
+                                    "losses": best_losses[i,:].tolist(),
+                                    "weighted_loss": best_weighted_loss[i].item(),
+                                    "edited": edited_at_all_yn[i].tolist(),
+                                } for i in range(len(AR_prediction_all))
+                            ],
+                        }
+            
+                json.dump(output, outfs[_iter])
+                outfs[_iter].write("\n")
+                outfs[_iter].flush()
+                iteration_specific_execution_times[_iter] += 0
         
         else:
             
@@ -322,9 +349,35 @@ def main(config):
             num_decoded_tokens += sum([len(x) for x in name2tokenizer[config["tokenizer_paths"][0]](running_text, add_special_tokens=False).input_ids])       
             
             for _iter in range(config['n_iter']):
+                iter_start_time = time.time()
                 if sum([1 if x != "" else 0 for x in running_text]) == 0:
                     # corner case: after deletion is introduced, sometimes all tokens are deleted and only "" remains. this occurs when initial sequence length is short.
                     print(f"ending iterations")
+                    
+                    for _iter_future in range(_iter, config['n_iter']):
+                        # if corner case occurs & end iterations, 
+                        # save result from previous iter for the current and the rest of iterations
+                        output = {
+                            "prompt": {
+                                "text": source_text,
+                            },
+                            "generations": [
+                                {
+                                    "text": best_text[i],
+                                    "original_text": AR_prediction_all[i],
+                                    "allsat": best_allsat[i].item(),
+                                    "losses": best_losses[i,:].tolist(),
+                                    "weighted_loss": best_weighted_loss[i].item(),
+                                    "edited": edited_at_all_yn[i].tolist(),
+                                } for i in range(len(AR_prediction_all))
+                            ],
+                        }
+            
+                        json.dump(output, outfs[_iter_future])
+                        outfs[_iter_future].write("\n")
+                        outfs[_iter_future].flush()
+                        iteration_specific_execution_times[_iter_future] += 0
+                    
                     break
                 
                 ## masked_text : N (num samples to edit)
@@ -391,9 +444,6 @@ def main(config):
                     new_best_logging_loss_ = torch.cat(new_best_logging_loss_, dim=0)
                 
 
-                ## final_hypotheses, new_best_weighted_loss, new_best_allsat, new_best_logging_loss 모두 N 의 길이를 가짐 
-                ## 특히 edit 대상이 iteration마다 달라지면 best_... tensor와 new_best_... tensor간에 크기가 달라서 아래 코드 실행시 에러가 날 것이다.
-                
                 new_best_weighted_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
                 new_best_weighted_loss[edit_yn] = new_best_weighted_loss_
                 
@@ -431,57 +481,70 @@ def main(config):
                 best_losses[update] = new_best_logging_loss[update]
                 best_weighted_loss[update] = new_best_weighted_loss[update]
 
+                output = {
+                            "prompt": {
+                                "text": source_text,
+                            },
+                            "generations": [
+                                {
+                                    "text": best_text[i],
+                                    "original_text": AR_prediction_all[i],
+                                    "allsat": best_allsat[i].item(),
+                                    "losses": best_losses[i,:].tolist(),
+                                    "weighted_loss": best_weighted_loss[i].item(),
+                                    "edited": edited_at_all_yn[i].tolist(),
+                                } for i in range(len(AR_prediction_all))
+                            ],
+                        }
+            
+                json.dump(output, outfs[_iter])
+                outfs[_iter].write("\n")
+                outfs[_iter].flush()
+                iteration_specific_execution_times[_iter] += time.time() - iter_start_time
+
                 es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
 
                 if (config["early_stopping_patience"] != -1):
                     edit_yn[es_patience_count > config['early_stopping_patience']] = False
                 if edit_yn.sum() == 0:
+                    for _iter_future in range(_iter+1, config['n_iter']):
+                        # if early stop, save current iteration's result for the rest of iterations
+                        output = {
+                            "prompt": {
+                                "text": source_text,
+                            },
+                            "generations": [
+                                {
+                                    "text": best_text[i],
+                                    "original_text": AR_prediction_all[i],
+                                    "allsat": best_allsat[i].item(),
+                                    "losses": best_losses[i,:].tolist(),
+                                    "weighted_loss": best_weighted_loss[i].item(),
+                                    "edited": edited_at_all_yn[i].tolist(),
+                                } for i in range(len(AR_prediction_all))
+                            ],
+                        }
+            
+                        json.dump(output, outfs[_iter_future])
+                        outfs[_iter_future].write("\n")
+                        outfs[_iter_future].flush()
+                        iteration_specific_execution_times[_iter_future] += 0
                     break
                 
             
                 running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
         
-
-        output = {
-                    "prompt": {
-                        "text": source_text,
-                    },
-                    "generations": [
-                        {
-                            "text": best_text[i],
-                            "original_text": AR_prediction_all[i],
-                            "allsat": best_allsat[i].item(),
-                            "losses": best_losses[i,:].tolist(),
-                            "weighted_loss": best_weighted_loss[i].item(),
-                            "edited": edited_at_all_yn[i].tolist(),
-                        } for i in range(len(AR_prediction_all))
-                    ],
-                }
-            
-        intermediate_output = {
-                "prompt": {
-                    "text": source_text,
-                },
-                "generations": 
-                    int_output
-                ,
-            }
-
-        json.dump(output, outf)
-        outf.write("\n")
-        outf.flush()
-        
-        json.dump(intermediate_output, int_outf)
-        int_outf.write("\n")
-        int_outf.flush()
                 
         if (time.time() - main_start_time) > config['server_time_limit'] * 60 * 60 * 0.9:
             interrupted = True
             break
 
-    outf.close()
-    int_outf.close()
+    for _iter in range(config['n_iter']):
+        outfs[_iter].close()
+    # outf.close()
+    # int_outf.close()
 
+    
     if config["resume"]:
         try: 
             run.summary["decode_time"]+= time.time() - decode_start_time
@@ -494,6 +557,16 @@ def main(config):
     run.summary["num_skipped"] = num_skipped
     run.summary["num_edited"] = num_edited
 
+    # save approx. decoding time for each # of iteration 
+    # note that decoding time for 3 iterations include decoding time for 1st, 2nd, and 3rd iteration.
+    # thus, suppose that max # of iterations is 10 and we want to find out decoding time for 3 iterations,
+    # we subtract decoding time for 4th to 10th iteration from total decoding time.
+    for _iter in range(config['n_iter']):
+        iter_decode_time = run.summary["decode_time"]
+        for _iter_future in range(_iter+1, config['n_iter']):
+            iter_decode_time -= iteration_specific_execution_times[_iter_future]
+        run.summary[f'iter{_iter}_decode_time'] = iter_decode_time
+
     run.finish()
     
     ## delete loss functions to clear up gpu memory
@@ -504,49 +577,49 @@ def main(config):
     torch.cuda.empty_cache()
     
     if (not interrupted):
-        if config["task"] == "toxicity":
-            evaluate_main(
-                run.path,
-                outfile,
-                "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                toxicity_model_path=config["model_paths"][1],
-                toxicity_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )  # 시간 문제로, perspective api 제외
-        elif config["task"] == "formality":
-            evaluate_main(
-                run.path,
-                outfile,
-                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1", 
-                formality_model_path=config["model_paths"][1],
-                formality_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )
-        elif config["task"] == "sentiment":
-            evaluate_main(
-                run.path,
-                outfile,
-                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                sentiment_model_path=config["model_paths"][1],
-                sentiment_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )
-        elif config["task"] == "sentiment-lewis-compr":
-            evaluate_main(
-                run.path,
-                outfile,
-                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                sentiment_model_path=config["model_paths"][1],
-                sentiment_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )
-        elif config["task"] == "nli":
-            evaluate_main(
-                run.path,
-                outfile,
-                "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                source_file_path=config["source_data"]
-            )  
+        for _iter in range(config['n_iter']):
+            if config["task"] == "toxicity":
+                evaluate_main(
+                    "",
+                    outfile+f".{_iter}",
+                    "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    toxicity_model_path=config["model_paths"][1],
+                    toxicity_model_type=config["model_types"][1],
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )  # 시간 문제로, perspective api 제외
+            elif config["task"] == "formality":
+                evaluate_main(
+                    "",
+                    outfile+f".{_iter}",
+                    "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1", 
+                    formality_model_path=config["model_paths"][1],
+                    formality_model_type=config["model_types"][1],
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )
+            elif config["task"] == "sentiment":
+                evaluate_main(
+                    "",
+                    outfile+f".{_iter}",
+                    "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    sentiment_model_path=config["model_paths"][1],
+                    sentiment_model_type=config["model_types"][1],
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )
+            elif config["task"] == "nli":
+                evaluate_main(
+                    "",
+                    outfile+f".{_iter}",
+                    "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )  
 
 
 if __name__ == "__main__":
@@ -738,28 +811,25 @@ if __name__ == "__main__":
     #     }
     # }
     
-    sweep_config = {
-        'method': 'grid', #grid, random
-        'metric': {
-        'name': 'h1',
-        'goal': 'maximize'   
-        },
-        'parameters': {
-            # 'k_per_location': {
-            #     'values':[5, 10, 15]
-            # },
-            # 'beam_size': {
-            #     'values':[3, 5, 7]
-            # },
-            'num_edit_token_per_step': {
-                'values':[100,20,10]
-            },
-        }
-    }
+    # sweep_config = {
+    #     'method': 'grid', #grid, random
+    #     'metric': {
+    #     'name': 'h1',
+    #     'goal': 'maximize'   
+    #     },
+    #     'parameters': {
+    #         'k_per_location': {
+    #             'values':[5, 10, 15]
+    #         },
+    #         'beam_size': {
+    #             'values':[3, 5, 7]
+    #         },
+    #     }
+    # }
     
-    sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
-    sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
-    logger.info(f"Number of sweeps: {sw_count}")
-    main_for_sweep = functools.partial(main, config)
-    wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
-    # wandb.agent("hayleyson/nli-decoding/3ep0fc19", function=main_for_sweep)
+    # sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
+    # sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
+    # logger.info(f"Number of sweeps: {sw_count}")
+    # main_for_sweep = functools.partial(main, config)
+    # wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
+    main(config)
