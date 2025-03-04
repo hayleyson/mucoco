@@ -85,25 +85,23 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     # nli does not need any source files
     elif task == 'nli':
         sources = pd.read_json(sources_file, lines=True)
+        predictions = pd.read_json(outputs_file, lines=True)
         try:
             sources['premise']=sources.prompt.apply(lambda x: x['premise'])
             sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
-            predictions = pd.read_json(outputs_file, lines=True)
+            
             sources['generation']=predictions.generations.apply(lambda x: x[0]['text'])
             source_predictions_ = sources.rename(columns={'hypothesis': 'source', 'generation':'prediction'})
         except:
             sources = sources.explode('generations', ignore_index=True)
             sources['premise']=sources.prompt.apply(lambda x: x['text'])
-            sources['hypothesis']=sources.generations.apply(lambda x: x['text'])   
-            predictions = pd.read_json(outputs_file, lines=True)
-            predictions = predictions.explode('generations')
-            predictions['premise']=predictions.prompt.apply(lambda x: x['text'])
-            predictions['generation'] = predictions['generations'].apply(lambda x: x['text'])        
-            source_predictions_ = pd.merge(sources[['premise','hypothesis']],predictions[['premise','generation']],on='premise').rename(columns={'hypothesis': 'source', 'generation':'prediction'})
-            print(source_predictions_.head())
-            print(source_predictions_.columns)
-            del source_predictions_['premise']
+            sources['source']=sources.generations.apply(lambda x: x['text'])   
 
+            predictions = predictions.explode('generations', ignore_index=True)
+            predictions['premise']=predictions.prompt.apply(lambda x: x['text'])
+            predictions['prediction'] = predictions['generations'].apply(lambda x: x['text'])        
+
+            source_predictions_ = pd.concat([sources[['source']], predictions[['prediction']]], axis=1)
         
 
     ## start evaluation
@@ -387,12 +385,12 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         
     if 'toxicity-int' in metricset:
         logger.debug("toxicity-internal")
-        (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score_int(generations_df, output_dir / (output_file+".toxicity_int"), device,
+        (avg_max_toxicity_int, toxic_probability_p_int, avg_toxicity_int, toxic_probability_s_int) = toxicity_score_int(generations_df, output_dir / (output_file+".toxicity_int"), device,
                                                                                                         kwargs['toxicity_model_path'], kwargs['toxicity_model_type'])
         if run_path != "":
-            run.summary.update({'avg_max_toxicity_int': avg_max_toxicity, 'toxic_probability_p_int': toxic_probability_p,
-                'avg_toxicity_int': avg_toxicity, 'toxic_probability_s_int': toxic_probability_s})
-        fp.write(f'avg_max_toxicity_int: {avg_max_toxicity}, toxic_probability_p_int: {toxic_probability_p}, avg_toxicity_int: {avg_toxicity}, toxic_probability_s_int: {toxic_probability_s}\n')
+            run.summary.update({'avg_max_toxicity_int': avg_max_toxicity_int, 'toxic_probability_p_int': toxic_probability_p_int,
+                'avg_toxicity_int': avg_toxicity_int, 'toxic_probability_s_int': toxic_probability_s_int})
+        fp.write(f'avg_max_toxicity_int: {avg_max_toxicity_int}, toxic_probability_p_int: {toxic_probability_p_int}, avg_toxicity_int: {avg_toxicity_int}, toxic_probability_s_int: {toxic_probability_s_int}\n')
 
     if 'formality-ext' in metricset:
         logger.debug("formality-external")
@@ -403,11 +401,11 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         
     if 'formality-int' in metricset:
         logger.debug("formality-internal")
-        avg_formality, formal_proba = formality_score_int(generations_df, output_dir / (output_file+".formality_int"), device, 
+        avg_formality_int, formal_proba_int = formality_score_int(generations_df, output_dir / (output_file+".formality_int"), device, 
                                                           kwargs['formality_model_path'], kwargs['formality_model_type'])
         if run_path != "":
-            run.summary.update({'avg_formality_int': avg_formality, 'formal_proba_int': formal_proba})
-        fp.write(f'avg_formality_int: {avg_formality}, formal_proba_int: {formal_proba}\n')
+            run.summary.update({'avg_formality_int': avg_formality_int, 'formal_proba_int': formal_proba_int})
+        fp.write(f'avg_formality_int: {avg_formality_int}, formal_proba_int: {formal_proba_int}\n')
         
     if 'sentiment-ext' in metricset:
         logger.debug("sentiment-external")
@@ -423,28 +421,28 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
        
     if 'sentiment-gpt4o' in metricset:
         logger.debug("sentiment-gpt4o")
-        positive_proba, std_positive_proba_p = sentiment_classify_gpt4o(generations_df, output_dir / (output_file+".sentiment_gpt4o"))
+        positive_proba_gpt4o, std_positive_proba_p_gpt4o = sentiment_classify_gpt4o(generations_df, output_dir / (output_file+".sentiment_gpt4o"))
         if run_path != "":
             # run.summary.update({"avg_sentiment": None, "positive_proba": None, 
             #                 "avg_positive_proba_p": None, "std_positive_proba_p": None, 
             #                 "positive_proba_p_avg": None, "positive_proba_s": None})
-            run.summary.update({'positive_proba_gpt4o': positive_proba, 
-                                'positive_proba_std_gpt4o': std_positive_proba_p})
-        fp.write(f'positive_proba_gpt4o: {positive_proba}, positive_proba_std_gpt4o: {std_positive_proba_p}\n')
+            run.summary.update({'positive_proba_gpt4o': positive_proba_gpt4o, 
+                                'positive_proba_std_gpt4o': std_positive_proba_p_gpt4o})
+        fp.write(f'positive_proba_gpt4o: {positive_proba_gpt4o}, positive_proba_std_gpt4o: {std_positive_proba_p_gpt4o}\n')
        
         
     if 'sentiment-int' in metricset:
         logger.debug("sentiment-internal")
-        positive_proba, std_positive_proba_p, avg_positivity = sentiment_classify_own2(generations_df, output_dir / (output_file+".sentiment_int"),
+        positive_proba_int, std_positive_proba_p_int, avg_positivity_int = sentiment_classify_own2(generations_df, output_dir / (output_file+".sentiment_int"),
                                                           kwargs['sentiment_model_path'], kwargs['sentiment_model_type'])
         if run_path != "":
             # run.summary.update({"avg_sentiment_int": None, "positive_proba_int": None, 
             #                     "avg_positive_proba_p_int": None, "std_positive_proba_p_int": None, 
             #                     "positive_proba_p_avg_int": None, "positive_proba_s_int": None})
-            run.summary.update({'positive_proba_int': positive_proba, 
-                                'positive_proba_p_std_int': std_positive_proba_p,
-                                'avg_positivity_int': avg_positivity})
-        fp.write(f'positive_proba_int: {positive_proba}, positive_proba_p_std_int: {std_positive_proba_p}, avg_positivity_int: {avg_positivity}\n')
+            run.summary.update({'positive_proba_int': positive_proba_int, 
+                                'positive_proba_p_std_int': std_positive_proba_p_int,
+                                'avg_positivity_int': avg_positivity_int})
+        fp.write(f'positive_proba_int: {positive_proba_int}, positive_proba_p_std_int: {std_positive_proba_p_int}, avg_positivity_int: {avg_positivity_int}\n')
 
     if "dist-n" in metricset:
         logger.debug("dist-n")
@@ -461,12 +459,7 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         fp.write(f'repetition_rate: {rep_rate}\n')
         
     if "fluency" in metricset:
-        if task == 'nli':
-            # generations_df = rename_df_for_nli(generations_df, 'premise')
-            generations_df2 = generations_df
-            generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
-        else:
-            generations_df2 = generations_df
+        generations_df2 = generations_df
         fluency = fluency_classify(generations_df2, output_dir / (output_file+".fluency"))
         if run_path != "":
             run.summary.update({'fluent_proba': fluency})
@@ -476,11 +469,11 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         logger.debug("contents-preservation")
         
         torch.cuda.empty_cache()
-        if (task == "formality") and (target_style == 'informal'):
-            kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
-        elif (task == "formality") and (target_style == 'formal'):
-            kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
-        print(kwargs['source_file_path'])
+        # if (task == "formality") and (target_style == 'informal'):
+        #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
+        # elif (task == "formality") and (target_style == 'formal'):
+        #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
+        # print(kwargs['source_file_path'])
         sbleu_score, sbert_score, sbert_preserved_prop, sbert_preserved_count = contents_preservation_metrics(kwargs['source_file_path'],
                                                                     generations_file_path, 
                                                                     str(output_dir / output_file),
@@ -497,6 +490,33 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
             )
         fp.write(f"sbleu: {sbleu_score}\n")
         fp.write(f"sbert_score: {sbert_score}, sbert_preserved_prop: {sbert_preserved_prop}, sbert_preserved_count: {sbert_preserved_count}\n")
+            
+    if "h1" in metricset:
+        logger.debug("h1")
+        ## metric for sweep
+        ## harmonic mean of fluency and constraint satisfaction rate
+        if task == 'toxicity':
+            constraint_sat = 1 - toxic_probability_s
+        elif (task == 'sentiment') and (target_style == 'positive'):
+            constraint_sat = positive_proba
+        elif (task == 'sentiment') and (target_style == 'negative'):
+            constraint_sat = 1 - positive_proba
+        elif (task == 'formality') and (target_style == 'formal'):
+            constraint_sat = formal_proba
+        elif (task == 'formality') and (target_style == 'informal'):
+            constraint_sat = 1 - formal_proba
+        elif task == 'nli':
+            constraint_sat = 1 - contradiction_proba
+        logger.info(f"task: {task}, target_style: {target_style}, constraint_sat: {constraint_sat}, fluency: {fluency}")
+        
+        h1 = (2 * fluency * constraint_sat) / (fluency + constraint_sat)
+        
+        if run_path != "":
+            run.summary.update(
+                        {"h1": h1}
+                    )
+        fp.write(f"h1: {h1}\n")
+        
             
     if run_path != "":
         run.update()
@@ -515,10 +535,12 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         save_qualitative_results(task,
                                 kwargs['source_file_path'], 
                                 generations_file_path, 
-                                str(output_dir / (output_file+".ppl-big")), 
+                                str(output_dir / (output_file+".ppl-qwen")) if "ppl-qwen" in metricset else str(output_dir / (output_file+".ppl-big")), 
                                 str(output_dir / (output_file+f".{constraint_suffix}")), 
                                 str(output_dir / (output_file+".sbertscore")),
                                 str(output_dir / (output_file+".xlsx")))
+    
+
     
 if __name__ == "__main__":
     

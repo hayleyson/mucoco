@@ -104,7 +104,7 @@ def get_rr(row, binary_labels_col:str, pred_scores_col:str):
     else:
         return rr(np.array(row[pred_scores_col]),np.array(row[binary_labels_col]))
 
-def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloader, setting, save_results=True):
+def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloader, args, save_results=True):
     
     print('===== Start evaluating locate metrics for:', run_id, ' =====')
     contra_data = deepcopy(contra_data)
@@ -116,6 +116,7 @@ def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloa
     run = api.run(run_id)
     config = run.config
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    config['locate']['type'] = "gradnorm" if args.locate_method == "grad_norm" else "attention"
 
     ## load model
     model = EncoderModel(config)
@@ -146,15 +147,17 @@ def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloa
         hypotheses_end_idxes = [hypotheses_start_idxes[i] + list(x[hypotheses_start_idxes[i]:]).index(2) for i, x in enumerate(tokenized_sequences['input_ids'])]
         hypotheses_lengths = [hypotheses_end_idxes[i]-hypotheses_start_idxes[i] for i in range(len(batch))]
         
+        print(f"tokenized_sequences: {tokenized_sequences['input_ids'].shape}")
         masked_texts, scores, locate_ixes = locator.locate_main(
                                     tokenized_sequences, 
-                                    'grad_norm', 
-                                    max_num_tokens = max_num_tokens, 
+                                    method=args.locate_method, 
+                                    max_num_tokens = args.max_num_tokens, 
                                     unit="word", 
                                     label_id=config['energynet']['energy_col'], 
                                     tokenized_input=True,
                                     return_scores_and_indices=True,
-                                    use_energy=use_energy_for_gradient)
+                                    use_energy=args.use_energy_for_gradient,
+                                    num_layer=10)
         
         hypotheses_scores = [x.tolist()[hypotheses_start_idxes[i]:hypotheses_end_idxes[i]] for i, x in enumerate(scores)]
         pred_indexes = [list(np.array(x)-hypotheses_start_idxes[i]) for i, x in enumerate(locate_ixes)]
@@ -217,19 +220,19 @@ def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloa
 
     if save_results:
         if criterion is not None:
-            raw_result_save_path = os.path.join(os.path.dirname(model_path), f'{setting}_locate_result_{criterion}_{"energy" if use_energy_for_gradient else "proba"}.jsonl')
+            raw_result_save_path = os.path.join(os.path.dirname(model_path), f'{args.setting}_locate_result_{criterion}_{"energy" if args.use_energy_for_gradient else "proba"}_{args.locate_method}.jsonl')
             contra_data[['pairID', 'hypothesis_word_pred_binary', 'hypothesis_word_pred_scores', 'hypothesis_token_pred_binary', 'hypothesis_token_pred_scores']].to_json(raw_result_save_path, lines=True, orient='records')
         else:
-            raw_result_save_path = os.path.join(os.path.dirname(model_path), f'{setting}_locate_result_{"energy" if use_energy_for_gradient else "proba"}.jsonl')
+            raw_result_save_path = os.path.join(os.path.dirname(model_path), f'{args.setting}_locate_result_{"energy" if args.use_energy_for_gradient else "proba"}_{args.locate_method}.jsonl')
             contra_data[['pairID', 'hypothesis_word_pred_binary', 'hypothesis_word_pred_scores', 'hypothesis_token_pred_binary', 'hypothesis_token_pred_scores']].to_json(raw_result_save_path, lines=True, orient='records')
     
         print('Sample-level results saved at:', raw_result_save_path)
-        metrics_path = os.path.join(os.path.dirname(model_path), f'{setting}_locate_metrics.csv')
+        metrics_path = os.path.join(os.path.dirname(model_path), f'{args.setting}_locate_metrics_{args.locate_method}.csv')
 
         if not os.path.exists(metrics_path):
             pd.DataFrame({'run_id': [run_id],
                         'criterion': [criterion],
-                        'use_energy_for_gradient':[use_energy_for_gradient],
+                        'use_energy_for_gradient':[args.use_energy_for_gradient],
                         # 'classification_accuracy': [acc],
                         'mrr_words': [mrr],
                         'map_words': [map_score],
@@ -244,16 +247,13 @@ def get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloa
         else:
             with open(metrics_path, 'a') as f:
                 # f.write(f"{run_id},{criterion},{use_energy_for_gradient},{acc},{mrr},{map_score},{precision},{recall},{mrr_tokens},{map_score_tokens},{precision_tokens},{recall_tokens}\n")
-                f.write(f"{run_id},{criterion},{use_energy_for_gradient},{mrr},{map_score},{precision},{recall},{f1},{mrr_tokens},{map_score_tokens},{precision_tokens},{recall_tokens},{f1_tokens}\n")
+                f.write(f"{run_id},{criterion},{args.use_energy_for_gradient},{mrr},{map_score},{precision},{recall},{f1},{mrr_tokens},{map_score_tokens},{precision_tokens},{recall_tokens},{f1_tokens}\n")
         
         print('Summary metrics saved at:', metrics_path)
 
 
 # ARGS
-use_energy_for_gradient = False
-max_num_tokens = 10000
-batch_size = 64
-device = "cuda" if torch.cuda.is_available() else "cpu"
+
 
     
 if __name__ == "__main__":
@@ -286,17 +286,21 @@ if __name__ == "__main__":
         }
         
         
-    
     parser = argparse.ArgumentParser()
     parser.add_argument("--setting", type=str, default='nli_contra_300', help="dataset to use for evaluation")
+    parser.add_argument("--locate_method", type=str, default='grad_norm')
+    parser.add_argument("--use_energy_for_gradient", action='store_true')
+    parser.add_argument("--max_num_tokens", type=int, default=10000)
+    parser.add_argument("--batch_size", type=int, default=64)
     args = parser.parse_args()
-    setting = args.setting
     
-    if setting == 'nli_contra_300':
+    test_setting = args.setting
+    
+    if test_setting == 'nli_contra_300':
         # Load NLI locate data & define dataloader
         contra_data = pd.read_json('new_module/data/NLI_locate/nli_contra_300_locate_labels.jsonl', lines=True)
 
-    elif setting == 'epr_snli':
+    elif test_setting == 'epr_snli':
         
         # Load NLI locate data & define dataloader
         contra_data = pd.read_json('new_module/data/EPR/text_file/snli_annotation/snli_locate_labels.jsonl', lines=True)
@@ -305,7 +309,7 @@ if __name__ == "__main__":
     nli_dataset = contra_data.to_dict(orient="records")
     contradiction_indexes = list(range(len(nli_dataset)))
     contradiction_dataset = NLIDataset(nli_dataset, contradiction_indexes)
-    contra_dataloader = DataLoader(contradiction_dataset, batch_size=batch_size, collate_fn = collate_fn, shuffle=False)
+    contra_dataloader = DataLoader(contradiction_dataset, batch_size=args.batch_size, collate_fn = collate_fn, shuffle=False)
     print(f"# data used to evaluate: {len(contradiction_dataset)}")
         
     # run_id = 'hayleyson/nli_energynet/ub4nku33'
@@ -315,4 +319,4 @@ if __name__ == "__main__":
     
     for run_id, model_dir in runpath2modelpath.items():
         for criterion in ['loss', 'pearsonr']:
-            get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloader, setting, save_results=True)
+            get_locate_metrics(run_id, criterion, model_dir, contra_data, contra_dataloader, args, save_results=True)

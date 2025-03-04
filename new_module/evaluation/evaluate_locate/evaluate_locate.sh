@@ -2,8 +2,8 @@
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=10GB
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --partition=P1
+#SBATCH --cpus-per-task=1
+#SBATCH --nodelist=n02
 #SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/eval_loc_%j.out'
 
@@ -12,9 +12,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/shared/s3/lab07/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
+export HF_HOME=/data/hyeryung/hf_cache
+export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
+export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 
 # srun python new_module/locate/evaluate_locate.py \
 # --pred_file_path="new_module/locate/results/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/testset_gpt2_2500_gn.jsonl" \
@@ -75,10 +75,13 @@ export TRANSFORMERS_CACHE=/shared/s3/lab07/hyeryung/hf_cache
 # --method="attention" \
 # --dataset_type="tsd"
 
-echo 123
-srun python new_module/locate/evaluate_locate.py \
---pred_file_path="new_module/locate/results/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/testset_gpt2_2500_gn_refactored.jsonl" \
---label_file_path="new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl" \
---method="grad_norm" \
---dataset_type="gpt2" \
---tokenizer_path="/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/step_2800_best_checkpoint"
+# echo 123
+# srun python new_module/locate/evaluate_locate.py \
+# --pred_file_path="new_module/locate/results/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/testset_gpt2_2500_gn_refactored.jsonl" \
+# --label_file_path="new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl" \
+# --method="grad_norm" \
+# --dataset_type="gpt2" \
+# --tokenizer_path="/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/step_2800_best_checkpoint"
+
+python new_module/evaluation/evaluate_locate/evaluate_locate_nli.py \
+--setting nli_contra_300

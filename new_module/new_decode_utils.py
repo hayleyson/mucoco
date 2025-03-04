@@ -458,7 +458,6 @@ def get_beam_hypotheses_v0(source_text:str,
 
         tmp_hypotheses = torch.cat((tmp_hypotheses[ :, :curr_edit_index], new_func_candidates),dim=-1) ## tmp_hypotheses: [(a,b,c),(a,b,c), ..., (a,b,c)], new_func_candidates: [(p,p,p), (q,q,q), ..., (v,v,v)]
 
-        # loss_weights = [1 - config['closs_weight'], config['closs_weight']]
         loss_weights = config['loss_weights']
         curr_loss = torch.zeros(tmp_hypotheses.shape[0]).to(config['device'])
         for lossid, lossname in enumerate(config["losses"]):
@@ -626,9 +625,7 @@ def final_reranking(source_text:str,
     best_allsat = []
     best_logging_loss = []
     
-    # loss_weights = [1 - config['closs_weight'], config['closs_weight']]
     loss_weights = config['loss_weights']
-    # for i in tqdm(range(len(hypotheses))):
     for i in range(len(hypotheses)):
         curr_loss = torch.zeros(len(hypotheses[i])).to(config['device'])
         logging_loss = torch.zeros((len(hypotheses[i]),len(lossfns))).to(config['device'])

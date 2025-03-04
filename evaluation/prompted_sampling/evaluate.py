@@ -283,11 +283,11 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating PPL', mininterval=5):
         # prompt_input_ids = torch.LongTensor([row.prompt['tokens']]).to(device)
         prompt = row.prompt['text']
-
         prompt_is_empty = False
+        if prompt in ["", " ", "<|endoftext|>", tokenizer.bos_token]:
+            prompt_is_empty = True
         if prompt == "":
             prompt = tokenizer.bos_token if tokenizer.bos_token else " "
-            prompt_is_empty = True
         prompt_input_ids = tokenizer.encode(prompt, return_tensors='pt').to(device)
         #if not (prompt_input_ids.shape[1] == 1 and prompt_input_ids[0].tolist()[0] == tokenizer.bos_token_id): # this means unconditional, prompt is BOS token (verify)
         if not prompt_is_empty:

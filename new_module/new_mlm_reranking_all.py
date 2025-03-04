@@ -3,6 +3,7 @@
 
 from copy import deepcopy
 from itertools import chain
+import functools
 import math
 import argparse
 import json
@@ -45,11 +46,15 @@ def main(config):
         else:
             config["model_tag"] = "clsf"
 
-        if (config["task"] == "formality") and ("gyafc" in config["model_paths"][1]):
-            config["model_tag"] += "-gyafc"
-
-    config["build_loss_dict"]["length_normalize"] = True ## Default was False. This might one of the reasons why deletion was preferred.
-
+    # used fixed values for build_loss_dict
+    config["build_loss_dict"] = {"length_normalize": True, 
+                                 "alpha": 1.0, 
+                                 "AR_temperature": 1.0, # unused
+                                 "AR_top_k": 0, # unused
+                                 "AR_top_p": 0.96, # unused
+                                 "max_output_length": 20 # unused
+                                 }
+    
     if config["resume"]:
         logger.info("resuming from a previous run")
         run = wandb.init(
@@ -64,23 +69,18 @@ def main(config):
             entity=config["wandb_entity"],
             config=config,
         )
-
+    
+    config["k_per_location"] = wandb.config.k_per_location
+    config["beam_size"] = wandb.config.beam_size
+    
     run_id = run.path.split("/")[-1]
     display_name = f"{run_id}"
     
-
     outdir = os.path.join(config["output_dir_prefix"], display_name)
     os.makedirs(outdir, exist_ok=True)
     outfile = f"{outdir}/outputs_epsilon{config['min_epsilons'][0]}.txt"
     run.summary["outfile_path"] = outfile
 
-    class dummyArgs:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    build_loss_args = dummyArgs(**config["build_loss_dict"]) ## there are some arguments that are still needed. so don't delete this!
-    build_loss_args.task = config["task"]
 
     ## load data
     if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
@@ -91,7 +91,7 @@ def main(config):
         generation_dataset = [
             json.loads(l)["generations"] for l in open(config["source_data"])
         ]
-    elif (config["task"] == "formality") or (config["task"] == "sentiment-lewis-compr"):
+    elif (config["task"] == "formality"):
         with open(config["source_data"], "r") as f:
             generation_dataset = [line.rstrip('\n') for line in f.readlines()]
         source_dataset = ["" for l in generation_dataset]
@@ -194,11 +194,17 @@ def main(config):
 
     # for faster experiment. from internal ablation, performance didn't degrade much
     name2model[config["model_paths"][0]].half()
-    # for internal ablation (halving energy model as well)
-    # name2model[config["model_paths"][1]].half()
 
     mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
     mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base").to(config['device'])
+
+    class dummyArgs:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    build_loss_args = dummyArgs(**config["build_loss_dict"])
+    build_loss_args.task = config["task"]
 
     lossfns = []
     for i, loss in enumerate(config["losses"]):
@@ -216,6 +222,12 @@ def main(config):
     # define an object to locate problematic phrases
     locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
 
+    if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
+        config["loss_weights"] = [1, wandb.config.closs_weight]
+        run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
+    logger.info(f"loss_weights: {config['loss_weights']}")
+
+
     run.summary["prep_time"] = time.time() - main_start_time
     ## beginning of main logic
     decode_start_time = time.time()
@@ -229,14 +241,10 @@ def main(config):
         num_edited = 0
         num_decoded_tokens = 0
 
-    # loss_weights = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
-    loss_weights = config['loss_weights']
     interrupted = False
     if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
         text_id_interval = 1
-    elif (config["task"] == "formality") or (
-            config["task"] == "sentiment-lewis-compr"
-        ):
+    elif (config["task"] == "formality"):
         text_id_interval = config['num_samples']
         
         
@@ -255,9 +263,7 @@ def main(config):
             #     for x in predicted_batches
             # ]
             
-        elif (config["task"] == "formality") or (
-            config["task"] == "sentiment-lewis-compr"
-        ):
+        elif (config["task"] == "formality"):
             # AR_prediction_all = [generation_dataset[text_id]]
             AR_prediction_all = generation_dataset[text_id: text_id + text_id_interval]
  
@@ -279,7 +285,7 @@ def main(config):
                     label_id=config['target_label_ids'][lossid],
                 )
                 torch.cuda.empty_cache()
-            curr_loss += loss_weights[lossid] * lossvalue
+            curr_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
 
@@ -294,7 +300,7 @@ def main(config):
         best_losses = logging_loss.detach().clone()
         best_weighted_loss = curr_loss.detach().clone()            
         best_text = deepcopy(AR_prediction_all)
-        running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## 실제 고쳐야 할 sample만 가지고 있음
+        running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## hold only samples that need be edited
         int_output = [{} for _ in range(len(AR_prediction_all))]
 
         if (edit_yn.sum().item() == 0) and (not config["dont_skip_allsat"]):
@@ -501,7 +507,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
+                "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
                 toxicity_model_path=config["model_paths"][1],
                 toxicity_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -510,7 +516,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
+                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation", 
                 formality_model_path=config["model_paths"][1],
                 formality_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -519,7 +525,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -528,7 +534,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,qual",
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -655,12 +661,7 @@ if __name__ == "__main__":
         help="losses",
     )
     parser.add_argument("--loss_weights", nargs="+", type=float, default=[0.1,1.0], help="closs weight")
-    parser.add_argument(
-        "--build_loss_dict",
-        type=json.loads,
-        default='{"length_normalize": true, "alpha": 1.0,  "AR_temperature": 1.0, "AR_top_k": 0, "AR_top_p": 0.96, "max_output_length": 20}',
-        help="build loss dict",
-    )
+    
     parser.add_argument(
         "--num_edit_token_per_step",
         type=int,
@@ -722,4 +723,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = vars(args)
 
+   
     main(config)
