@@ -21,20 +21,20 @@ export LOGGING_LEVEL=INFO
 JOB_ID=$SLURM_JOB_ID
 DIRECTORY="/data/hyeryung/mucoco/new_module/iter_loc_edit_qwen"
 
-EXP_LABEL="31_neg"
-TOTAL_ITERATION=2
+EXP_LABEL="6_nli"
+TOTAL_ITERATION=10
 
-INPUT_FILE_PATH="/data/hyeryung/mucoco/new_module/data/sentiment/dev_set_below_negative_threshold_827.jsonl"
-ORIG_TEXT_PATH="/data/hyeryung/mucoco/new_module/data/sentiment/dev_set_below_negative_threshold_827.jsonl"
+INPUT_FILE_PATH="/data/hyeryung/mucoco/new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
+ORIG_TEXT_PATH="/data/hyeryung/mucoco/new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
 
-PRETRAINED_MODEL_PATH="/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint"
+PRETRAINED_MODEL_PATH="/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/"
 
 HF_MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" #"microsoft/Phi-3.5-mini-instruct"
-PROMPT_TYPE="senti_neg_both"
-TASK="sentiment"
-LABEL_ID=0
-LOCATE_OPTION="attention"
-THRESHOLD=0.92
+PROMPT_TYPE="nli_both"
+TASK="nli"
+LABEL_ID=1
+LOCATE_OPTION="grad_norm"
+THRESHOLD=0.99
 
 # toxicity (target: nontoxic) - 0
 # sentiment (target: positive) - 1
@@ -61,6 +61,7 @@ $JOB_ID \
 --label_id $LABEL_ID \
 --locate_option $LOCATE_OPTION \
 --threshold $THRESHOLD \
---total_iteration $TOTAL_ITERATION
+--total_iteration $TOTAL_ITERATION \
+--max_num_tokens 1
 
 

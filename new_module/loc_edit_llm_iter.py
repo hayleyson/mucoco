@@ -23,6 +23,7 @@ parser_main.add_argument("--task", type=str,  required=True, help="Task type.")
 parser_main.add_argument("--label_id", type=int,  required=True, help="Label ID for the task.")
 parser_main.add_argument("--locate_option", type=str,  required=True, help="Locate option.")
 parser_main.add_argument("--threshold", type=float,  required=True, help="Threshold value.")
+parser_main.add_argument("--max_num_tokens", type=int, default=7, help="Max number of tokens to locate.")
 
 args_main = parser_main.parse_args()
 
@@ -43,6 +44,7 @@ task = args_main.task
 label_id = args_main.label_id
 locate_option = args_main.locate_option
 threshold = args_main.threshold
+max_num_tokens = args_main.max_num_tokens
 
 locate_output_file_path = directory + f'/located/{exp_label}_located_{job_id}.jsonl'
 edit_output_file_path = directory + f'/edited/{exp_label}_edited_{job_id}.jsonl'
@@ -345,7 +347,7 @@ for iter_idx in range(total_iteration):
                  label_id,
                  locate_edit_idx,
                  locate_option,
-                 max_num_tokens=7
+                 max_num_tokens=max_num_tokens
                  )
 
 
