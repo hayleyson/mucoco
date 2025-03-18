@@ -3,8 +3,8 @@
 #SBATCH --mem=10GB
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH --nodelist=n01
-#SBATCH --gres=gpu:0
+#SBATCH --nodelist=n02
+#SBATCH --gres=gpu:1
 #SBATCH --output='new_module/_slurm_outs/eval_%j.out'
 
 source ~/.bashrc
