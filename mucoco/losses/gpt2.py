@@ -730,4 +730,5 @@ class GPT2VarLengthLoss(GPT2Loss):
             # print(str(**prepared_input))
             # print("gen", output)
             
-        return outputs, seq_lengths
+        # return outputs, seq_lengths
+        return outputs
