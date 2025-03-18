@@ -745,15 +745,15 @@ if __name__ == "__main__":
         'goal': 'maximize'   
         },
         'parameters': {
-            # 'k_per_location': {
-            #     'values':[5, 10, 15]
-            # },
-            # 'beam_size': {
-            #     'values':[3, 5, 7]
-            # },
-            'num_edit_token_per_step': {
-                'values':[100,20,10]
+            'k_per_location': {
+                'values':[5, 10, 15]
             },
+            'beam_size': {
+                'values':[3, 5, 7]
+            },
+            # 'num_edit_token_per_step': {
+            #     'values':[1,4,7,10,20]
+            # },
         }
     }
     

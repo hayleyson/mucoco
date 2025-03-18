@@ -72,32 +72,89 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
---num_edit_token_per_step 7 \
---max_tokens_per_span 3 \
---locate_unit word \
---beam_size 7 \
---k_per_location 15 \
---n_iter 1 \
---loss_weights 1 1 \
---selection_criteria allsat_primary \
---cache_dir '/data/hyeryung/hf_cache' \
---slurm_job_id $SLURM_JOB_ID \
---early_stopping_patience 0 \
---dont_skip_allsat \
---task toxicity \
---output_dir_prefix 'outputs/toxicity/llm' \
---source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_9.jsonl' \
---source_style 'toxic' \
---target_style 'nontoxic' \
---target_label_ids 0 0 \
---min_epsilons 0.9 \
---wandb_project 'toxicity-decoding' \
---model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
---tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
---locate_method 'grad_norm' \
---losses gpt2 classification_no_prefix_logprobloss \
---model_types AutoModelForCausalLM AutoModelForSequenceClassification
+# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# --num_edit_token_per_step 7 \
+# --max_tokens_per_span 3 \
+# --locate_unit word \
+# --beam_size 7 \
+# --k_per_location 15 \
+# --n_iter 1 \
+# --loss_weights 1 1 \
+# --selection_criteria allsat_primary \
+# --cache_dir '/data/hyeryung/hf_cache' \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --dont_skip_allsat \
+# --task toxicity \
+# --output_dir_prefix 'outputs/toxicity/llm' \
+# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_9.jsonl' \
+# --source_style 'toxic' \
+# --target_style 'nontoxic' \
+# --target_label_ids 0 0 \
+# --min_epsilons 0.9 \
+# --wandb_project 'toxicity-decoding' \
+# --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --locate_method 'grad_norm' \
+# --losses gpt2 classification_no_prefix_logprobloss \
+# --model_types AutoModelForCausalLM AutoModelForSequenceClassification
+
+# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# --num_edit_token_per_step 7 \
+# --max_tokens_per_span 3 \
+# --locate_unit word \
+# --beam_size 5 \
+# --k_per_location 15 \
+# --n_iter 1 \
+# --loss_weights 1 10 \
+# --selection_criteria allsat_primary \
+# --cache_dir '/data/hyeryung/hf_cache' \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --dont_skip_allsat \
+# --task toxicity \
+# --output_dir_prefix 'outputs/toxicity/llm' \
+# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_9.jsonl' \
+# --source_style 'toxic' \
+# --target_style 'nontoxic' \
+# --target_label_ids 0 0 \
+# --min_epsilons 0.9 \
+# --wandb_project 'toxicity-decoding' \
+# --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --locate_method 'grad_norm' \
+# --losses gpt2 classification_no_prefix_logprobloss \
+# --model_types AutoModelForCausalLM AutoModelForSequenceClassification
+
+
+# gpt2가 생성한 것을 고치기
+# hyperparameters: loss weights 1,10 / beam 5 / k 15 / n_iter 1
+# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# --num_edit_token_per_step 7 \
+# --max_tokens_per_span 3 \
+# --locate_unit word \
+# --beam_size 5 \
+# --k_per_location 15 \
+# --n_iter 1 \
+# --loss_weights 1 10 \
+# --selection_criteria allsat_primary \
+# --cache_dir '/data/hyeryung/hf_cache' \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --dont_skip_allsat \
+# --task toxicity \
+# --output_dir_prefix 'outputs/toxicity/llm' \
+# --source_data 'new_module/data/toxicity-avoidance/testset_gpt2_2500_below_nontoxic_threshold_468.jsonl' \
+# --source_style 'toxic' \
+# --target_style 'nontoxic' \
+# --target_label_ids 0 0 \
+# --min_epsilons 0.95 \
+# --wandb_project 'toxicity-decoding' \
+# --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --locate_method 'grad_norm' \
+# --losses gpt2 classification_no_prefix_logprobloss \
+# --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7 \
@@ -111,14 +168,13 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --cache_dir '/data/hyeryung/hf_cache' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
---dont_skip_allsat \
 --task toxicity \
 --output_dir_prefix 'outputs/toxicity/llm' \
---source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_9.jsonl' \
+--source_data 'new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl' \
 --source_style 'toxic' \
 --target_style 'nontoxic' \
 --target_label_ids 0 0 \
---min_epsilons 0.9 \
+--min_epsilons 0.95 \
 --wandb_project 'toxicity-decoding' \
 --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 --tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
