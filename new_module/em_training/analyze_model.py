@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from datasets import Dataset
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
-from sklearn.metrics import mean_squared_error, mean_absolute_error, confusion_matrix
+from sklearn.metrics import mean_squared_error, mean_absolute_error, confusion_matrix, accuracy_score, f1_score
 import seaborn as sns
 
 import mucoco.utils as utils
@@ -72,6 +72,7 @@ def predict_labels(args, device):
                 model = AutoModelForSequenceClassification.from_pretrained(args.checkpoint_dir, config=config)
             tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_dir)
         except:
+
             dirs = os.listdir(args.checkpoint_dir)
             dirs = [x for x in dirs if re.search('.*_best_checkpoint', x)]
             assert len(dirs) == 1
@@ -140,9 +141,15 @@ def main(args):
         print("Done.")
 
 
+    ### Obtain binary labels
+    labels_predictions['labels_binary'] = labels_predictions['labels'].apply(lambda x: 1 if x > 0.5 else 0)
+    labels_predictions['predictions_binary'] = labels_predictions['predictions'].apply(lambda x: 1 if x > 0.5 else 0)
+
     ### Plot & Analyze Model Outputs
 
     with open(os.path.join(args.output_dir, "results.txt"), "w") as f:
+        f.write(f"Classification Accuracy: {accuracy_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
+        f.write(f"Classification F1: {f1_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
         f.write(f"RMSE: {mean_squared_error(labels_predictions['labels'], labels_predictions['predictions'])**(1/2)}\n")
         f.write(f"MAE: {mean_absolute_error(labels_predictions['labels'], labels_predictions['predictions'])}\n")
         f.write(f"Pearson's r: {pearsonr(labels_predictions['labels'], labels_predictions['predictions'])[0]}\n")
@@ -224,7 +231,9 @@ if __name__ == "__main__":
     parser.add_argument("--test_data_type", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--model_type", type=str, choices=['roberta-base', 'roberta-base-custom'])
+    parser.add_argument("--model_type", type=str, choices=['roberta-base', 'roberta-base-custom', 'encoder-model'])
+    parser.add_argument("--model_file_name", type=str)
+    parser.add_argument("--task", type=str)
     args = parser.parse_args()
 
     main(args)

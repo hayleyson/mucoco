@@ -5,7 +5,7 @@ import os
 os.chdir('/data/hyeryung/mucoco')
 from evaluation.prompted_sampling.evaluate import distinctness, repetition
 os.getcwd()
-
+import argparse
 
 ## func to read output file
 def unravel(outputs_df):
@@ -50,75 +50,73 @@ def unravel_toxicity_data(df):
     return df
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--output_files', nargs='+', type=str)
+parser.add_argument('--index_files', nargs='+', type=str)
+parser.add_argument('--suffixes', nargs='+', type=str)
+parser.add_argument('--task', type=str)
+parser.add_argument('--sbert', action='store_true')
+args = parser.parse_args()
 
-# run_ids = ["qzu2dk28",
-# "wgarjlit",
-# "8qv0f6o3",]
-
-# run_ids = ["r7kykwge",]
-# ## edited index를 뽑아오고
-# outputs_dfs=[]
-# edited_ixs={}
-
-# for run_id in run_ids:
-
-#     output_file=[x for x in glob(f"outputs/toxicity/**/**/*{run_id}*/outputs_epsilon*.txt") if not x.endswith('filled.txt')]
-#     if len(output_file) == 0:
-#         output_file=[x for x in glob(f"outputs/toxicity/**/*{run_id}*/outputs_epsilon*.txt") if not x.endswith('filled.txt')]
-#     # print(output_file)
-#     outputs=pd.read_json(output_file[0], lines=True)
-#     outputs=unravel(outputs)[['prompt','text','edited']].copy()
-#     outputs_dfs.append(outputs)
-#     edited_ixs.update({run_id: sorted(list(set(outputs.loc[outputs['edited']].index.tolist())))})
-#     print(run_id, len(edited_ixs[run_id]))
 
 # 24/12/18 수정: index가 이미 저장되어 있는 경우. "1 24 5 63 ..\n" 형태로 저장되어 있음.
 edited_ixs={}
-run_ids = ['_below_nontoxic_threshold_0_95_332']
-output_file = ['/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt']
+suffixes = args.suffixes
+# index_files = ['/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt']
+# index_files = ['new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_to_0_9_index.txt']
+# index_files = ['/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_9_index.txt']
+index_files = args.index_files
 
-with open(output_file[0], 'r') as f:
+with open(index_files[0], 'r') as f:
     indexes = f.read()
 
 indexes = indexes.strip().split(' ')
 indexes = [int(x) for x in indexes]
 
-edited_ixs['_below_nontoxic_threshold_0_95_332'] = indexes
+edited_ixs[suffixes[0]] = indexes
 
-
-# import joblib 
-# joblib.dump(edited_ixs["qzu2dk28"], "/data/hyeryung/mucoco/new_module/dev_utils/edited_ixes_qzu2dk28.pkl")
 
 # save only the rows corresponding to the edited_ixs in the original generations
 # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
-output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl"]
+# output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl"]
+# output_files = ['saeheeeom/new_module/iter_loc_edit_qwen/edited/2_tox_edited_38592.jsonl_total_0']
+# output_files = ['saeheeeom/new_module/iter_loc_edit_qwen/final/5_tox_loc_edit_38576.jsonl']
+# output_files = ['new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl']
+output_files = args.output_files
 
-
-for i, run_id in enumerate(run_ids):
-    print(run_id)
+for i, suffix in enumerate(suffixes):
+    print(suffix)
 
     output_file=[output_files[i]]
     outputs=pd.read_json(output_file[0], lines=True)
     outputs=unravel(outputs)
     # print(outputs)
-    outputs=outputs.loc[edited_ixs[run_id]]
+    outputs=outputs.loc[edited_ixs[suffix]]
     
     outputs_reformat = reformat(outputs)
     
     print(outputs_reformat)
-    # outputs_reformat.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}_unraveled.jsonl"]), lines=True, orient='records')
+    # outputs_reformat.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{suffix}_unraveled.jsonl"]), lines=True, orient='records')
 
     outputs=ravel(outputs)
     # print(outputs)
-    # outputs.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{run_id}.jsonl"]), lines=True, orient='records')
+    # outputs.to_json('_'.join([os.path.splitext(output_file[0])[0], f"edited_by_{suffix}.jsonl"]), lines=True, orient='records')
 
 
 
 ## raw metrics 파일에서 해당 index에 대한 metrics를 뽑아온다.
-# metrics=['fluency','ppl-big-qwen','repetitions','sentiment_int','sentiment_ext', 'sentiment_gpt4o', 'dist-3', 'sbert']
-metrics=['fluency','ppl-big-qwen','repetitions','toxicity','toxicity_int', 'dist-3', 'sbert']
+# metrics=['fluency','ppl-big-qwen','repetitions','sentiment_ext','dist-3', 'sbert']
+# metrics=['fluency','ppl-big-qwen','repetitions','toxicity','toxicity_int', 'dist-3', 'sbert']
+# metrics=['fluency','ppl-big-qwen','repetitions','toxicity','toxicity_int', 'dist-3']
+if args.task == 'toxicity':
+    metrics = ['fluency','ppl-big-qwen','repetitions','toxicity','toxicity_int', 'dist-3']
+elif args.task == 'sentiment':
+    metrics = ['fluency','ppl-big-qwen','repetitions','sentiment_ext', 'dist-3']
+
+if args.sbert:
+    metrics += ['sbert']
 
 # ## ppl-big
 # metric='ppl-big'
@@ -132,8 +130,8 @@ metrics=['fluency','ppl-big-qwen','repetitions','toxicity','toxicity_int', 'dist
 # result_files = [f"{output_files[0]}-results.txt.ppl-big"]
 
 
-# for i, run_id in enumerate(run_ids):
-#     print(run_id)
+# for i, suffix in enumerate(suffixes):
+#     print(suffix)
 
 #     result_file=[result_files[i]]
 #     if metric in ['repetitions','toxicity']:
@@ -141,7 +139,7 @@ metrics=['fluency','ppl-big-qwen','repetitions','toxicity','toxicity_int', 'dist
 #     else:
 #         result=pd.read_csv(result_file[0],header=None)
     
-#     result=result.loc[edited_ixs[run_id]]
+#     result=result.loc[edited_ixs[suffix]]
 #     metric_value=result[0].mean()
 #     ppl_metrics.append(metric_value)
 #     metric_value=math.exp(result[1].sum()/result[2].sum())
@@ -155,8 +153,8 @@ total_ppl_qwen_metrics=[]
 result_files = [f"{output_files[0]}-results.txt.ppl-big-qwen"]
 
 
-for i, run_id in enumerate(run_ids):
-    print(run_id)
+for i, suffix in enumerate(suffixes):
+    print(suffix)
 
     result_file=[result_files[i]]
     if metric in ['repetitions','toxicity']:
@@ -164,7 +162,7 @@ for i, run_id in enumerate(run_ids):
     else:
         result=pd.read_csv(result_file[0],header=None)
     
-    result=result.loc[edited_ixs[run_id]]
+    result=result.loc[edited_ixs[suffix]]
     metric_value=result[0].mean()
     ppl_qwen_metrics.append(metric_value)
     metric_value=math.exp(result[1].sum()/result[2].sum())
@@ -177,10 +175,13 @@ fluency_metrics=[]
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.fluency",
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.fluency"]
 
-result_files = [f"{output_files[0]}-results.txt.fluency"]
+if 'saeheeeom' in output_files[0]:
+    result_files = [f"{output_files[0].replace('/final/', '/final_fluency/').replace('/edited/', '/edited_fluency/')}-results.txt.fluency"]
+else:
+    result_files = [f"{output_files[0]}-results.txt.fluency"]
 
-for i, run_id in enumerate(run_ids):
-    print(run_id)
+for i, suffix in enumerate(suffixes):
+    print(suffix)
 
     result_file=[result_files[i]]
     if metric in ['repetitions','toxicity']:
@@ -188,7 +189,7 @@ for i, run_id in enumerate(run_ids):
     else:
         result=pd.read_csv(result_file[0],header=None)
     
-    result=result.loc[edited_ixs[run_id]]
+    result=result.loc[edited_ixs[suffix]]
     metric_value=result.loc[result[0]=='LABEL_1'].shape[0]/result.shape[0]
     fluency_metrics.append(metric_value)
     
@@ -202,8 +203,8 @@ repetitions_metrics=[]
 result_files = [f"{output_files[0]}-results.txt.repetitions"]
 
 
-for i, run_id in enumerate(run_ids):
-    print(run_id)
+for i, suffix in enumerate(suffixes):
+    print(suffix)
 
     result_file=[result_files[i]]
     # print(result_file[0])
@@ -212,7 +213,7 @@ for i, run_id in enumerate(run_ids):
     else:
         result=pd.read_csv(result_file[0],header=None)
     
-    result=result.loc[edited_ixs[run_id]]
+    result=result.loc[edited_ixs[suffix]]
     if result.empty:
         metric_value = 0
     else:
@@ -228,14 +229,14 @@ dist3_metrics= []
 #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
 output_files = output_files
 
-for i, run_id in enumerate(run_ids):
-    print(run_id)
+for i, suffix in enumerate(suffixes):
+    print(suffix)
 
     output_file=[output_files[i]]
     outputs=pd.read_json(output_file[0], lines=True)
     outputs=unravel(outputs)
     # print(outputs)
-    outputs=outputs.loc[edited_ixs[run_id]]
+    outputs=outputs.loc[edited_ixs[suffix]]
     outputs=ravel(outputs)
     # print(outputs)
     _,_,dist3=distinctness(outputs)
@@ -247,14 +248,15 @@ if 'toxicity' in metrics:
     avg_toxicity_metrics=[]
     toxic_proba_metrics=[]
     toxic_proba_75_metrics=[]
+    avg_max_toxicity_metrics=[]
     # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_results.txt.toxicity", 
     #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.toxicity",
     #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_results.txt.toxicity"]
     result_files = [f"{output_files[0]}-results.txt.toxicity"]
 
 
-    for i, run_id in enumerate(run_ids):
-        print(run_id)
+    for i, suffix in enumerate(suffixes):
+        print(suffix)
 
         result_file=[result_files[i]]
         if metric in ['repetitions','toxicity']:
@@ -263,9 +265,9 @@ if 'toxicity' in metrics:
             result=pd.read_csv(result_file[0],header=None)
 
         if result.empty:
-            result_file=glob(f"outputs/toxicity/**/**/*{run_id}*/results_filled.txt.{metric}")
+            result_file=glob(f"outputs/toxicity/**/**/*{suffix}*/results_filled.txt.{metric}")
             if len(result_file) == 0:
-                result_file=glob(f"outputs/toxicity/**/*{run_id}*/results_filled.txt.{metric}")
+                result_file=glob(f"outputs/toxicity/**/*{suffix}*/results_filled.txt.{metric}")
             # print(result_file[0])
             if metric in ['repetitions','toxicity']:
                 result=pd.read_json(result_file[0],lines=True)
@@ -273,86 +275,125 @@ if 'toxicity' in metrics:
                 result=pd.read_csv(result_file[0],header=None)
         # print(result)
         result=unravel_toxicity_data(result)
-        result=result.loc[edited_ixs[run_id]]
+        result=result.loc[edited_ixs[suffix]]
         avg_toxicity=result['toxicity'].mean()
         toxic_proba=result['toxicity'].apply(lambda x: 1 if x>0.5 else 0).mean()
         toxic_proba_75=result['toxicity'].apply(lambda x: 1 if x>0.75 else 0).mean()
+        
+        outputs=pd.read_json(output_file[0], lines=True)
+        outputs=unravel(outputs)
+        outputs=outputs.loc[edited_ixs[suffix]]
+        outputs_result=pd.concat([outputs, result],axis=1)
+        avg_max_toxicity=outputs_result.groupby('prompt')['toxicity'].max().mean()
+        
+        avg_max_toxicity_metrics.append(avg_max_toxicity)
         avg_toxicity_metrics.append(avg_toxicity)
         toxic_proba_metrics.append(toxic_proba)
         toxic_proba_75_metrics.append(toxic_proba_75)
     
 if 'sentiment_ext' in metrics:
-    ## sentiment_int
-    metric='sentiment_int'
-    result_files = [f"{output_files[0]}-results.txt.{metric}"]
-    positive_proba_int_metrics=[]
-    for i, run_id in enumerate(run_ids):
+    # ## sentiment_int
+    # metric='sentiment_int'
+    # result_files = [f"{output_files[0]}-results.txt.{metric}"]
+    # positive_proba_int_metrics=[]
+    # for i, suffix in enumerate(suffixes):
         
-        result_file=result_files[i]
-        result=pd.read_json(result_file,lines=True)
-        result=result.loc[edited_ixs[run_id]]
-        metric_value=result['label'].apply(lambda x: 1 if x == 'LABEL_1' else 0).mean()
-        # avg_positivity=result['score'].mean()
-        positive_proba_int_metrics.append(metric_value)
+    #     result_file=result_files[i]
+    #     result=pd.read_json(result_file,lines=True)
+    #     result=result.loc[edited_ixs[suffix]]
+    #     metric_value=result['label'].apply(lambda x: 1 if x == 'LABEL_1' else 0).mean()
+    #     # avg_positivity=result['score'].mean()
+    #     positive_proba_int_metrics.append(metric_value)
             
     ## sentiment_ext
     metric='sentiment_ext'
     result_files = [f"{output_files[0]}-results.txt.{metric}"]
     positive_proba_ext_metrics=[]
-    for i, run_id in enumerate(run_ids):
+    for i, suffix in enumerate(suffixes):
         
         result_file=result_files[i]
         result=pd.read_json(result_file,lines=True)
-        result=result.loc[edited_ixs[run_id]]
-        metric_value=result['label'].apply(lambda x: 1 if x == 'LABEL_1' else 0).mean()
+        result=result.loc[edited_ixs[suffix]]
+        metric_value=result['label'].apply(lambda x: 1 if x == 'POSITIVE' else 0).mean()
         # avg_positivity=result['score'].mean()
         positive_proba_ext_metrics.append(metric_value)
 
-    ## sentiment_ext
-    metric='sentiment_gpt4o'
-    result_files = [f"{output_files[0]}-results.txt.{metric}"]
-    positive_proba_gpt4o_metrics=[]
-    for i, run_id in enumerate(run_ids):
+    # ## sentiment_ext
+    # metric='sentiment_gpt4o'
+    # result_files = [f"{output_files[0]}-results.txt.{metric}"]
+    # positive_proba_gpt4o_metrics=[]
+    # for i, suffix in enumerate(suffixes):
         
-        result_file=result_files[i]
-        result=pd.read_csv(result_file,header=None)
-        result.columns=['label']
-        result=result.loc[edited_ixs[run_id]]
-        metric_value=result['label'].mean()
-        # avg_positivity=result['score'].mean()
-        positive_proba_gpt4o_metrics.append(metric_value)
+    #     result_file=result_files[i]
+    #     result=pd.read_csv(result_file,header=None)
+    #     result.columns=['label']
+    #     result=result.loc[edited_ixs[suffix]]
+    #     metric_value=result['label'].mean()
+    #     # avg_positivity=result['score'].mean()
+    #     positive_proba_gpt4o_metrics.append(metric_value)
+
+
+## sbertscore
+if 'sbert' in metrics:
+    
+    sbert_metrics=[]
+    sbert_geq_5_counts=[]
+    sbert_geq_5_ratios=[]
+    for suffix in suffixes:
+        
+        result_files = [f"{output_files[0]}-results.txt.sbertscore"]
+        with open(result_files[0] , 'r') as f:
+            raw_data = f.readlines()
+            tmp_data = []
+            for x in raw_data[1:]:
+                try:
+                    tmp_data.append(float(x.strip()))
+                except:
+                    tmp_data.append(float("nan"))
+            
+        # print(outputs)
+        result=pd.DataFrame({'sbert':tmp_data})
+        result=result.loc[edited_ixs[suffix]]
+        sbert_score = result.sbert.mean()
+        sbert_count = result.loc[result.sbert>=0.5].shape[0]
+        sbert_ratio = sbert_count / result.shape[0]
+        sbert_metrics.append(sbert_score)        
+        sbert_geq_5_counts.append(sbert_count)
+        sbert_geq_5_ratios.append(sbert_ratio)
+
 
 ## putting all together
-# pd.DataFrame({'run_ids':["llama3_8b_instruct_gens","llama2_13b_chat_gens","gpt4o_gens"], 
-if 'toxicity' in metrics:
-    pd.DataFrame({'run_ids':[f"llm_gens_{run_ids[0]}"], 
-                'sbert': ["" for _ in range(len(run_ids))],
-                'sbert_count': ["" for _ in range(len(run_ids))],
-                'sbert_ratio': ["" for _ in range(len(run_ids))],
+# pd.DataFrame({'suffixes':["llama3_8b_instruct_gens","llama2_13b_chat_gens","gpt4o_gens"], 
+if args.task == 'toxicity':
+    pd.DataFrame({'suffixes':[f"llm_gens_{suffixes[0]}"], 
+                'sbert': sbert_metrics if 'sbert' in metrics else ["" for _ in range(len(suffixes))],
+                'sbert_count': sbert_geq_5_counts if 'sbert' in metrics else ["" for _ in range(len(suffixes))],
+                'sbert_ratio': sbert_geq_5_ratios if 'sbert' in metrics else ["" for _ in range(len(suffixes))],
+                'avg_max_toxicity':avg_max_toxicity_metrics,
                 'avg_toxicity':avg_toxicity_metrics,
                 'toxic_proba':toxic_proba_metrics,
                 'toxic_75_proba':toxic_proba_75_metrics,
                 'ppl_qwen':ppl_qwen_metrics,
                 'total_ppl_qwen':total_ppl_qwen_metrics,
-                'delta_ppl':['' for _ in range(len(run_ids))],
+                'delta_ppl':['' for _ in range(len(suffixes))],
                 'fluency_metrics':fluency_metrics,
                 'dist-3':dist3_metrics,
                 'rep_rate':repetitions_metrics,
-                'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
-            }).to_csv(f"{output_files[0].split('.jsonl')[0]}-results_{run_ids[0]}.csv",index=False)
-elif 'sentiment_ext' in metrics:
-    pd.DataFrame({'run_ids':[f"llm_gens_{run_ids[0]}"], 
-                'sbert': ["" for _ in range(len(run_ids))],
-                'sbert_count': ["" for _ in range(len(run_ids))],
-                'sbert_ratio': ["" for _ in range(len(run_ids))],
-                'sentiment_int':positive_proba_int_metrics,
+                'num_edits': [len(edited_ixs[suffix]) for suffix in suffixes],
+            }).to_csv(f"{output_files[0].split('.jsonl')[0]}-results_{suffixes[0]}.csv",index=False)
+elif args.task == 'sentiment':
+    pd.DataFrame({'suffixes':[f"llm_gens_{suffixes[0]}"], 
+                'sbert': sbert_metrics if 'sbert' in metrics else ["" for _ in range(len(suffixes))],
+                'sbert_count': sbert_geq_5_counts if 'sbert' in metrics else ["" for _ in range(len(suffixes))],
+                'sbert_ratio': sbert_geq_5_ratios if 'sbert' in metrics else ["" for _ in range(len(suffixes))],
+                # 'sentiment_int':positive_proba_int_metrics,
                 'sentiment_ext':positive_proba_ext_metrics,
-                'sentiment_gpt4o':positive_proba_gpt4o_metrics,
+                # 'sentiment_gpt4o':positive_proba_gpt4o_metrics,
                 'ppl':ppl_qwen_metrics,
                 'total_ppl':total_ppl_qwen_metrics,
-                'delta_ppl':['' for _ in range(len(run_ids))],
+                'delta_ppl':['' for _ in range(len(suffixes))],
                 'fluency_metrics':fluency_metrics,
                 'dist-3':dist3_metrics,
                 'rep_rate':repetitions_metrics,
-                'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
-            }).to_csv(f"{output_files[0].split('.jsonl')[0]}-results_{run_ids[0]}.csv",index=False)
+                'num_edits': [len(edited_ixs[suffix]) for suffix in suffixes],
+            }).to_csv(f"{output_files[0].split('.jsonl')[0]}-results_{suffixes[0]}.csv",index=False)
