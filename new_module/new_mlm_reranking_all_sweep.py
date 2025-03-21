@@ -151,6 +151,7 @@ def main(config):
                 name2model[model_path] = lossbuilder.ModelWrapper(model)
                 name2model[model_path].eval()
                 name2model[model_path].to(config['device'])
+                del model
                 
                 # tokenizer
                 name2tokenizer[config["tokenizer_paths"][i]] = name2model[model_path].tokenizer
@@ -497,10 +498,7 @@ def main(config):
     run.finish()
     
     ## delete loss functions to clear up gpu memory
-    try:
-        del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer
-    except:
-        pass
+    del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer, mlm, mlm_tokenizer
     torch.cuda.empty_cache()
     
     if (not interrupted):
@@ -725,41 +723,34 @@ if __name__ == "__main__":
     config = vars(args)
 
     # Configure the sweep – specify the parameters to search through, the search strategy, the optimization metric et all.
-    # sweep_config = {
-    #     'method': 'grid', #grid, random
-    #     'metric': {
-    #     'name': 'h1',
-    #     'goal': 'maximize'   
-    #     },
-    #     'parameters': {
-    #         'closs_weight': {
-    #             'values':[0.001, 0.01, 0.1, 1, 10, 100, 1000]
-    #         },
-    #     }
-    # }
-    
     sweep_config = {
-        'method': 'grid', #grid, random
+        'method': 'grid', #grid, random, bayes
         'metric': {
         'name': 'h1',
         'goal': 'maximize'   
         },
         'parameters': {
-            'k_per_location': {
-                'values':[5, 10, 15]
+            'closs_weight': {
+                'values':[0.001, 0.01, 0.1, 1, 10, 100, 1000]
             },
-            'beam_size': {
-                'values':[3, 5, 7]
-            },
+            # 'k_per_location': {
+            #     'values':[5, 10, 15]
+            # },
+            # 'beam_size': {
+            #     'values':[3, 5, 7]
+            # },
             # 'num_edit_token_per_step': {
             #     'values':[1,4,7,10,20]
             # },
         }
     }
     
-    sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
+    # sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
+    
     sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
     logger.info(f"Number of sweeps: {sw_count}")
+    
     main_for_sweep = functools.partial(main, config)
-    wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
-    # wandb.agent("hayleyson/nli-decoding/3ep0fc19", function=main_for_sweep)
+    
+    # wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
+    wandb.agent("hayleyson/nli-decoding/2csgfpiq", function=main_for_sweep)

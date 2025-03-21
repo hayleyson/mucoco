@@ -1182,6 +1182,8 @@ def nli_score(generations_df, write_file, device='cuda'):
     total_contradiction_prob = 0
     total_count = 0
     total_contradiction_count = 0
+    total_entail_count = 0
+    total_neutral_count = 0
 
     results = []
     # 각 row에 대해 NLI 점수 계산
@@ -1234,8 +1236,10 @@ def nli_score(generations_df, write_file, device='cuda'):
                 total_contradiction_count += 1
             elif entail_prob_avg == max(entail_prob_avg, neutral_prob_avg, contradiction_prob_avg):
                 classified_class = "entail" 
+                total_entail_count += 1
             else:
                 classified_class = 'neutral'
+                total_neutral_count += 1
             total_count += 1
 
             results.append({
@@ -1249,6 +1253,8 @@ def nli_score(generations_df, write_file, device='cuda'):
     avg_nli_entail = total_entail_prob / total_count
     avg_nli_neutral = total_neutral_prob / total_count
     avg_nli_contradiction = total_contradiction_prob / total_count
+    entail_ratio = total_entail_count / total_count
+    neutral_ratio = total_neutral_count / total_count
     contadiction_ratio = total_contradiction_count / total_count
 
     if write_file:
@@ -1256,7 +1262,7 @@ def nli_score(generations_df, write_file, device='cuda'):
             for result in results:
                 f.write(f"{result}\n")
 
-    return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contadiction_ratio
+    return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contadiction_ratio, entail_ratio, neutral_ratio
 
 def formality_score_ext(generations_df, output_file, device):
     

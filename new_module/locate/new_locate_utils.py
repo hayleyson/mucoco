@@ -132,6 +132,11 @@ class LocateMachine:
         stopwords = [" and", " of", " or", " so"] + punctuations + [token for token in self.tokenizer.special_tokens_map.values()]
         self.stopwords_ids = self.tokenizer.batch_encode_plus(stopwords, return_tensors="pt",add_special_tokens=False)['input_ids'].squeeze().to(self.device)
 
+    def extract_hypothesis(self, text):
+        text = text[:-len(self.tokenizer.eos_token)].rstrip() # remove eos_token at the end of the sentence
+        text = text.split(self.tokenizer.sep_token)[-1] # take only hypothesis
+        return text
+
     def locate_main(self, prediction, method, max_num_tokens = 6, unit="word",**kwargs):
         
         if kwargs.get('tokenized_input', False):
@@ -268,12 +273,13 @@ class LocateMachine:
         masked_sequence_text = self.tokenizer.batch_decode(
             [x[:lengths[i]] for i, x in enumerate(batch.input_ids.tolist())]
         )
-        ## clean up special tokens other than <mask> token for nli task
+        
         if self.task == "nli":
-            masked_sequence_text = [x.strip(self.tokenizer.eos_token).split(self.tokenizer.sep_token)[-1] for i, x in enumerate(masked_sequence_text)]
+            masked_sequence_text = [self.extract_hypothesis(x) for x in masked_sequence_text]
         
         if kwargs.get('return_scores_and_indices',False):
             return masked_sequence_text, token_wise_scores, locate_ixes_all
+        
         return masked_sequence_text
     
 if __name__ == "__main__":

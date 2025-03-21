@@ -316,10 +316,10 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         torch.cuda.empty_cache()
         if task=='nli':
             # generations_df2 = rename_df_for_nli(generations_df, 'premise')
-            generations_df2 = generations_df
+            generations_df2 = generations_df.copy()
             generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
         else:
-            generations_df2 = generations_df
+            generations_df2 = generations_df.copy()
         with torch.no_grad():
             ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big-qwen"))
         if run_path != "":
@@ -337,10 +337,10 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         torch.cuda.empty_cache()
         if task=='nli':
             # generations_df2 = rename_df_for_nli(generations_df, 'premise')
-            generations_df2 = generations_df
+            generations_df2 = generations_df.copy()
             generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
         else:
-            generations_df2 = generations_df
+            generations_df2 = generations_df.copy()
         with torch.no_grad():
             ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
         if run_path != "":
@@ -352,12 +352,13 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
     if 'nli' in metricset:
         logger.debug("nli-ensemble")
         # generations_df2 = rename_df_for_nli(generations_df, 'premise')
-        generations_df2 = generations_df
-        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contradiction_proba) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
+        generations_df2 = generations_df.copy()
+        print(generations_df2.head())
+        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contradiction_proba, entail_proba, neutral_proba) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
         if run_path != "":
             run.summary.update({'avg_nli_entail': avg_nli_entail, 'avg_nli_neutral': avg_nli_neutral,
-                'avg_nli_contradiction': avg_nli_contradiction, 'contradiction_proba': contradiction_proba})
-        fp.write(f'avg_nli_entail: {avg_nli_entail}, avg_nli_neutral: {avg_nli_neutral}, avg_nli_contradiction: {avg_nli_contradiction}, contradiction_proba: {contradiction_proba}\n')
+                'avg_nli_contradiction': avg_nli_contradiction, 'contradiction_proba': contradiction_proba, 'entail_proba': entail_proba, 'neutral_proba': neutral_proba})
+        fp.write(f'avg_nli_entail: {avg_nli_entail}, avg_nli_neutral: {avg_nli_neutral}, avg_nli_contradiction: {avg_nli_contradiction}, contradiction_proba: {contradiction_proba}, entail_proba: {entail_proba}, neutral_proba: {neutral_proba}\n')
 
     if 'toxicity' in metricset:
         logger.debug("toxicity-external")
@@ -459,7 +460,7 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         fp.write(f'repetition_rate: {rep_rate}\n')
         
     if "fluency" in metricset:
-        generations_df2 = generations_df
+        generations_df2 = generations_df.copy()
         fluency = fluency_classify(generations_df2, output_dir / (output_file+".fluency"))
         if run_path != "":
             run.summary.update({'fluent_proba': fluency})
