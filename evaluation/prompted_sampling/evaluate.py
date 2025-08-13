@@ -1633,15 +1633,23 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     if task in ['toxicity','sentiment']:
         sources = pd.read_json(sources_file, lines=True)
         sources.prompt=sources.prompt.apply(lambda x: x['text'])
+        sources.columns = sources.columns[:1].tolist() + [x+'_source' for x in sources.columns[1:]]
         
         predictions = pd.read_json(outputs_file, lines=True)
         predictions.prompt=predictions.prompt.apply(lambda x: x['text'])
+        predictions.columns = predictions.columns[:1].tolist() + [x+'_prediction' for x in predictions.columns[1:]]
+        
+        print(sources.columns)
+        print(predictions.columns)
         if task=='toxicity':
-            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
+            # source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
+            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner')
+            print(source_predictions.columns)
         elif task=='sentiment':
             source_predictions=pd.concat([sources,predictions],axis=1)
-            source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
-            source_predictions.columns=['prompt','generations_source','generations_prediction']
+            print(source_predictions.columns)
+            # source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
+            source_predictions=source_predictions[['prompt', 'generations_source','generations_prediction']].copy()
             
         prompt_list=[]
         source_list=[]
@@ -1663,6 +1671,27 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
         
         source_predictions_ = pd.DataFrame({'source': sources, 'prediction': predictions['generations'].tolist()}) 
         
+    elif task == 'nli':
+        sources = pd.read_json(sources_file, lines=True)
+        predictions = pd.read_json(outputs_file, lines=True)
+        try:
+            sources['premise']=sources.prompt.apply(lambda x: x['premise'])
+            sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
+            
+            sources['generation']=predictions.generations.apply(lambda x: x[0]['text'])
+            source_predictions_ = sources.rename(columns={'hypothesis': 'source', 'generation':'prediction'})
+        except:
+            sources = sources.explode('generations', ignore_index=True)
+            sources['premise']=sources.prompt.apply(lambda x: x['text'])
+            sources['source']=sources.generations.apply(lambda x: x['text'])   
+
+            predictions = predictions.explode('generations', ignore_index=True)
+            predictions['premise']=predictions.prompt.apply(lambda x: x['text'])
+            predictions['prediction'] = predictions['generations'].apply(lambda x: x['text'])        
+
+            source_predictions_ = pd.concat([sources[['source']], predictions[['prediction']]], axis=1)
+        
+
     ## start evaluation
     ## -- BLEU, SBLEU
     # https://huggingface.co/spaces/evaluate-metric/sacrebleu
@@ -1835,7 +1864,7 @@ def main(generations_file, output_file, metrics, extra):
         #     generations_df = [{'prompt':{'text':''}, 'generations':[{'text':l.strip()}]} for l in fin.readlines()]
         #     generations_df = pd.DataFrame(generations_df)
         
-        # (23-03-24: hyeryung) ^ above code results in empty prompt column. it results in the following error: 
+        # (23-03-24) ^ above code results in empty prompt column. it results in the following error: 
         # RuntimeError: cannot reshape tensor of 0 elements into shape [-1, 0] because the unspecified dimension size -1 can be any value and is ambiguous
         generations_df = pd.read_json(generations_file, lines=True) 
         print(generations_df.head())

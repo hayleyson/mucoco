@@ -1,3 +1,7 @@
+"""
+This code is adapted from Mucola's losses module. (https://github.com/Sachin19/mucoco/blob/sampling2/mucoco/losses)
+"""
+
 from typing import List
 
 import numpy as np

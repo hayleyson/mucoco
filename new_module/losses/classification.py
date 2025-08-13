@@ -1,3 +1,6 @@
+"""
+This code is adapted from Mucola's losses module. (https://github.com/Sachin19/mucoco/blob/sampling2/mucoco/losses)
+"""
 import logging
 from typing import List
 

@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import time
-# os.chdir('/data/hyeryung/mucoco')
 import numpy as np
 import pandas as pd
 import torch
@@ -73,6 +72,8 @@ def main(config):
     config["k_per_location"] = wandb.config.k_per_location
     config["beam_size"] = wandb.config.beam_size
     config["num_edit_token_per_step"] = wandb.config.num_edit_token_per_step
+    config["min_epsilons"] = [wandb.config.min_epsilons]
+    logger.info(f"min_epsilons: {config['min_epsilons']}")
     
     run_id = run.path.split("/")[-1]
     display_name = f"{run_id}"
@@ -580,7 +581,7 @@ if __name__ == "__main__":
         type=str,
         default=[
             "gpt2-large",
-            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
+            "loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
         ],
         help="model paths",
     )
@@ -590,7 +591,7 @@ if __name__ == "__main__":
         type=str,
         default=[
             "gpt2-large",
-            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
+            "loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
         ],
         help="tokenizer paths",
     )
@@ -644,7 +645,7 @@ if __name__ == "__main__":
         help="target type (embeds, simplex, probability) from prior work's code",
     )
     parser.add_argument(
-        "--cache_dir", type=str, default="/data/hyeryung/hf_cache", help="cache directory"
+        "--cache_dir", type=str, default="~/hf_cache", help="cache directory"
     )
     parser.add_argument(
         "--jsonl_primary_key", type=str, default="prompt", help="jsonl primary key"
@@ -730,9 +731,9 @@ if __name__ == "__main__":
         'goal': 'maximize'   
         },
         'parameters': {
-            'closs_weight': {
-                'values':[0.001, 0.01, 0.1, 1, 10, 100, 1000]
-            },
+            # 'closs_weight': {
+            #     'values':[0.001, 0.01, 0.1, 1, 10, 100, 1000]
+            # },
             # 'k_per_location': {
             #     'values':[5, 10, 15]
             # },
@@ -740,17 +741,20 @@ if __name__ == "__main__":
             #     'values':[3, 5, 7]
             # },
             # 'num_edit_token_per_step': {
-            #     'values':[1,4,7,10,20]
+                # 'values':[1,4,7,10,20]
             # },
+            'min_epsilons': {
+                'values': [0.99]
+            }
         }
     }
     
-    # sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
+    sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
     
     sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
     logger.info(f"Number of sweeps: {sw_count}")
     
     main_for_sweep = functools.partial(main, config)
     
-    # wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
-    wandb.agent("hayleyson/nli-decoding/2csgfpiq", function=main_for_sweep)
+    wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
+    # wandb.agent("hayleyson/nli-decoding/3hx99pb2", function=main_for_sweep)

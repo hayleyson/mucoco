@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import time
-# os.chdir('/data/hyeryung/mucoco')
 import numpy as np
 import pandas as pd
 import torch
@@ -628,70 +627,60 @@ if __name__ == "__main__":
         "--task",
         type=str,
         help="task name",
-        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr", "nli"],
+        choices=["toxicity", "formality", "sentiment", "nli"],
     )
     parser.add_argument(
         "--source_data",
         type=str,
-        default="data/formality/GYAFC_Corpus/Entertainment_Music/test/informal",
         help="source data path",
     )
     parser.add_argument(
-        "--source_style", type=str, default="informal", help="source style"
+        "--source_style", type=str, help="source style. e.g. toxic"
     )
     parser.add_argument(
-        "--target_style", type=str, default="formal", help="target style"
+        "--target_style", type=str, help="target style. e.g. nontoxic"
     )
     parser.add_argument(
         "--target_label_ids",
         nargs="+",
         type=int,
-        default=[1, 1],
         help="a list of indices of target label used in each of models. e.g. [1,1]",
     )
     parser.add_argument(
         "--model_paths",
         nargs="+",
         type=str,
-        default=[
-            "gpt2-large",
-            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
-        ],
-        help="model paths",
+        help="model paths for energy functions. the first has to be a language model for measuring fluency. e.g. gpt2-large, <path-to-your-energy-function>",
     )
     parser.add_argument(
         "--tokenizer_paths",
         nargs="+",
         type=str,
-        default=[
-            "gpt2-large",
-            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
-        ],
-        help="tokenizer paths",
+        help="tokenizer paths. e.g. gpt2-large, <path-to-your-energy-function>",
     )
     parser.add_argument(
         "--model_types",
         nargs="+",
         type=str,
-        default=["AutoModelForCausalLM", "RobertaCustomForSequenceClassification"],
+        default=["AutoModelForCausalLM", "AutoModelForSequenceClassification"],
         help="model types",
     )
     parser.add_argument(
         "--output_dir_prefix",
         type=str,
-        help="output directory prefix. e.g. outputs/formality/mlm-reranking",
+        help="output directory prefix. e.g. outputs/toxicity/",
     )
     parser.add_argument(
         "--early_stopping_patience",
         type=int,
-        default=-1,
+        default=0,
         help="early stopping patience",
     )
     parser.add_argument(
         "--method",
         type=str,
         default="mlm-beamsearch-v0",
-        help="method name",
+        help="method name for reranking. currently only support mlm-beamsearch-v0",
         choices=[
             "mlm-beamsearch-v0",
             "mlm-beamsearch-v1",
@@ -700,10 +689,10 @@ if __name__ == "__main__":
         ],
     )
     parser.add_argument(
-        "--locate_unit", type=str, default="token", help="unit to locate"
+        "--locate_unit", type=str, default="word", help="unit to locate"
     )
     parser.add_argument(
-        "--min_epsilons", nargs="+", type=float, default=[0.75], help="min epsilons"
+        "--min_epsilons", nargs="+", type=float, default=[0.75], help="a list of threshold values for constraint energy functions other than fluency. in probability scale."
     )
     parser.add_argument(
         "--num_samples",
@@ -713,13 +702,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--device", type=str, default="cuda", help="device")
     parser.add_argument(
-        "--target_type",
-        type=str,
-        default="embeds",
-        help="target type (embeds, simplex, probability) from prior work's code",
-    )
-    parser.add_argument(
-        "--cache_dir", type=str, default="/data/hyeryung/hf_cache", help="cache directory"
+        "--cache_dir", type=str, default="~/hf_cache", help="cache directory"
     )
     parser.add_argument(
         "--jsonl_primary_key", type=str, default="prompt", help="jsonl primary key"
@@ -734,7 +717,7 @@ if __name__ == "__main__":
         default=["gpt2", "classification_no_prefix_logprobloss"],
         help="losses",
     )
-    parser.add_argument("--loss_weights", nargs="+", type=float, default=[0.1,1.0], help="closs weight")
+    parser.add_argument("--loss_weights", nargs="+", type=float, default=[1,1], help="closs weight")
     
     parser.add_argument(
         "--num_edit_token_per_step",
@@ -755,13 +738,17 @@ if __name__ == "__main__":
         help="whether to consider source_text when generating token-level candidates",
     )
     
-    parser.add_argument("--k_per_location", type=int, default=15, help="k per location")
-    parser.add_argument("--n_iter", type=int, default=3, help="number of iterations")
+    parser.add_argument("--k_per_location", type=int, default=10, help="k per location")
+    parser.add_argument("--n_iter", type=int, default=1, help="number of iterations")
     parser.add_argument(
         "--selection_criteria",
         type=str,
-        default="weighted_sum",
+        default="allsat_primary",
         help="selection criteria",
+        choices=[
+            "weighted_sum",
+            "allsat_primary"
+        ],
     )
     parser.add_argument("--beam_size", type=int, default=5, help="beam size")
     parser.add_argument(
@@ -785,7 +772,7 @@ if __name__ == "__main__":
         type=str,
         help="method to use for locating tokens",
         choices=["attention", "grad_norm"],
-        default="attention",
+        default="grad_norm",
     )
     parser.add_argument(
         "--server_time_limit",

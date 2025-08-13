@@ -59,6 +59,7 @@ def remove_em(input_dir, save_dir, suffix):
     # Ensure the save directory exists
     os.makedirs(save_dir, exist_ok=True)
 
+    remove_em_count = 0
     # Iterate through all files in the input directory
     for filename in os.listdir(input_dir):
         if filename.endswith(suffix):
@@ -87,6 +88,7 @@ def remove_em(input_dir, save_dir, suffix):
                         # Step 2: Replace prompt with an empty string if they are identical
                         if prompt in gen_text:#gen_text.startswith(prompt):
                             gen_to_save = gen_text.replace(prompt, "")
+                            remove_em_count += 1
                         else:
                             gen_to_save = gen_text
 
@@ -98,7 +100,7 @@ def remove_em(input_dir, save_dir, suffix):
                             "prompt": {"text": prompt},
                             "generations": processed_generations
                         })
-
+            print(remove_em_count)
             # Save the processed lines to the save directory
             with open(save_path, 'w', encoding='utf-8') as outfile:
                 for processed_line in processed_lines:
