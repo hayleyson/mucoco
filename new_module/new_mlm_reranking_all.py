@@ -55,31 +55,36 @@ def main(config):
                                  "max_output_length": 20 # unused
                                  }
     
-    if config["resume"]:
-        logger.info("resuming from a previous run")
-        run = wandb.init(
-            project=config["wandb_project"],
-            entity=config["wandb_entity"],
-            id=config["wandb_run_id"],
-            resume="must",
-        )
+    if not config["turnoff_wandb"]:
+        if config["resume"]:
+            logger.info("resuming from a previous run")
+            run = wandb.init(
+                project=config["wandb_project"],
+                entity=config["wandb_entity"],
+                id=config["wandb_run_id"],
+                resume="must",
+            )
+        else:
+            run = wandb.init(
+                project=config["wandb_project"],
+                entity=config["wandb_entity"],
+                config=config,
+            )
+        
+        config["k_per_location"] = wandb.config.k_per_location
+        config["beam_size"] = wandb.config.beam_size
+        
+        run_id = run.path.split("/")[-1]
+        display_name = f"{run_id}"
     else:
-        run = wandb.init(
-            project=config["wandb_project"],
-            entity=config["wandb_entity"],
-            config=config,
-        )
-    
-    config["k_per_location"] = wandb.config.k_per_location
-    config["beam_size"] = wandb.config.beam_size
-    
-    run_id = run.path.split("/")[-1]
-    display_name = f"{run_id}"
+        run_id = ""
+        display_name = ""
     
     outdir = os.path.join(config["output_dir_prefix"], display_name)
     os.makedirs(outdir, exist_ok=True)
     outfile = f"{outdir}/outputs_epsilon{config['min_epsilons'][0]}.txt"
-    run.summary["outfile_path"] = outfile
+    if not config["turnoff_wandb"]:
+        run.summary["outfile_path"] = outfile
 
 
     ## load data
@@ -206,6 +211,13 @@ def main(config):
     build_loss_args = dummyArgs(**config["build_loss_dict"])
     build_loss_args.task = config["task"]
 
+    assert len(config["model_paths"]) == len(config["tokenizer_paths"])
+    if len(config["losses"]) > len(config["model_paths"]): 
+        
+        # for losses that do not have corresponding models (and tokenizers), use the model & tokenizer for main loss (classifier)
+        config["model_paths"].extend([config["model_paths"][1]]*(len(config["losses"]) - len(config["model_paths"])))
+        config["tokenizer_paths"].extend([config["tokenizer_paths"][1]]*(len(config["losses"]) - len(config["tokenizer_paths"])))
+        
     lossfns = []
     for i, loss in enumerate(config["losses"]):
         lossfns.append(
@@ -222,17 +234,17 @@ def main(config):
     # define an object to locate problematic phrases
     locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
 
-    if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
+    if (not config["turnoff_wandb"]) and (getattr(wandb.config, "closs_weight", None) is not None): ## closs_weight is used if sweep is used
         config["loss_weights"] = [1, wandb.config.closs_weight]
         run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
-    logger.info(f"loss_weights: {config['loss_weights']}")
+        logger.info(f"loss_weights: {config['loss_weights']}")
 
 
-    run.summary["prep_time"] = time.time() - main_start_time
+        run.summary["prep_time"] = time.time() - main_start_time
     ## beginning of main logic
     decode_start_time = time.time()
     # text_id = 0
-    if config["resume"]:
+    if (not config["turnoff_wandb"]) and (config["resume"]):
         num_skipped = run.summary.get("num_skipped", 0)
         num_edited = run.summary.get("num_edited", 0)
         num_decoded_tokens = run.summary.get("num_decoded_tokens", 0)
@@ -276,10 +288,16 @@ def main(config):
                 
         for lossid, lossname in enumerate(config["losses"]):
             with torch.no_grad():
-                lossvalue = lossfns[lossid].compute_gold_loss(
-                    source_text, AR_prediction_all,
-                    label_id=config['target_label_ids'][lossid],
-                )
+                if lossname in ["bertscore", "bleu", "hamming_distance", "edit_distance"]:
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, AR_prediction_all,
+                        references=AR_prediction_all,
+                    )
+                else:    
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, AR_prediction_all,
+                        label_id=config['target_label_ids'][lossid],
+                    )
                 torch.cuda.empty_cache()
             curr_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
@@ -359,6 +377,7 @@ def main(config):
                 tmp_running_text = []
                 edit_ixes_before_marking = edit_yn.nonzero().squeeze(-1)
                 for idx in range(len(masked_text)):
+                    ref_sent = AR_prediction_all[idx]
                     test_sent = masked_text[idx]
                     test_sent_span_lengths = span_lengths_es[idx]
                     if len(test_sent_span_lengths) == 0:
@@ -366,7 +385,7 @@ def main(config):
                         edit_yn[edit_ixes_before_marking[idx]] = False
                         continue                    
                     final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
-                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
+                        editing_with_delete_variable_replace(source_text, test_sent,ref_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
                     final_hypotheses_.extend(final_hypotheses_curr)
                     new_best_weighted_loss_.append(new_best_weighted_loss_curr)
                     new_best_allsat_.append(new_best_allsat_curr)
@@ -407,6 +426,14 @@ def main(config):
                     update = (~best_allsat & new_best_allsat) | \
                             (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
                             (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) 
+                            ## (~best_allsat & new_best_allsat) : edit_yn이 false였던 곳은 무조건 false
+                            ## (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) : edit_yn이 false 였던 곳은 무조건 false
+                            ## (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) : edit_yn이 false였던 곳은 무조건 false
+                elif config['selection_criteria'] == "allsat_rest":
+                    pass # TODO
+                    # update = (~best_allsat & new_best_allsat) | \
+                    #         (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
+                    #         (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) 
                             ## (~best_allsat & new_best_allsat) : edit_yn이 false였던 곳은 무조건 false
                             ## (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) : edit_yn이 false 였던 곳은 무조건 false
                             ## (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) : edit_yn이 false였던 곳은 무조건 false
@@ -477,20 +504,21 @@ def main(config):
     outf.close()
     int_outf.close()
 
-    if config["resume"]:
-        try: 
-            run.summary["decode_time"]+= time.time() - decode_start_time
-        except:
-            run.summary["decode_time"]= time.time() - decode_start_time
-    else:
-        run.summary["decode_time"] = time.time() - decode_start_time
-    run.summary['num_decoded_tokens'] = num_decoded_tokens
-    run.summary['toks_p_sec'] = (num_decoded_tokens/run.summary['decode_time'])
-    run.summary["num_skipped"] = num_skipped
-    run.summary["num_edited"] = num_edited
+    if not config["turnoff_wandb"]:
+        if config["resume"]:
+            try: 
+                run.summary["decode_time"]+= time.time() - decode_start_time
+            except:
+                run.summary["decode_time"]= time.time() - decode_start_time
+        else:
+            run.summary["decode_time"] = time.time() - decode_start_time
+        run.summary['num_decoded_tokens'] = num_decoded_tokens
+        run.summary['toks_p_sec'] = (num_decoded_tokens/run.summary['decode_time'])
+        run.summary["num_skipped"] = num_skipped
+        run.summary["num_edited"] = num_edited
 
-    run.finish()
-    
+        run.finish()
+        
     ## delete loss functions to clear up gpu memory
     try:
         del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer
@@ -498,7 +526,7 @@ def main(config):
         pass
     torch.cuda.empty_cache()
     
-    if (not interrupted):
+    if (not config["turnoff_wandb"]) and  (not interrupted):
         if config["task"] == "toxicity":
             run_generation_evaluation(
                 run.path,
@@ -714,6 +742,10 @@ if __name__ == "__main__":
         type=float,
         help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
         default=10000
+    )
+    parser.add_argument(
+        "--turnoff_wandb",
+        action='store_true'
     )
 
     args = parser.parse_args()

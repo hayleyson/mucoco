@@ -96,17 +96,18 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
         tmp_hypotheses_dec = mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True)
         data_loader = DataLoader(CustomDataset(tmp_hypotheses_dec),batch_size=batch_size)
         for lossid, lossname in enumerate(config["losses"]):
-            lossvalues=[]
-            with torch.no_grad():
-                for batch in data_loader:
-                    lossvalue = lossfns[lossid].compute_gold_loss(
-                        source_text, batch,
-                        label_id=config['target_label_ids'][lossid],
-                    )
-                    lossvalues.append(lossvalue)
-                    torch.cuda.empty_cache()
-            lossvalue = torch.cat(lossvalues,dim=0)
-            curr_loss += loss_weights[lossid] * lossvalue
+            if lossname not in ["bertscore", "bleu", "edit_distance"]: # do not include content preservation during beam search
+                lossvalues=[]
+                with torch.no_grad():
+                    for batch in data_loader:
+                        lossvalue = lossfns[lossid].compute_gold_loss(
+                            source_text, batch,
+                            label_id=config['target_label_ids'][lossid],
+                        )
+                        lossvalues.append(lossvalue)
+                        torch.cuda.empty_cache()
+                lossvalue = torch.cat(lossvalues,dim=0)
+                curr_loss += loss_weights[lossid] * lossvalue
             
         final_hypotheses_losses = [[x.squeeze(0)] for x in torch.split(curr_loss, 1)]
         # print(f"final_hypotheses_losses: {final_hypotheses_losses}")
@@ -129,18 +130,19 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
         tmp_hypotheses_dec = mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True)
         data_loader = DataLoader(CustomDataset(tmp_hypotheses_dec),batch_size=batch_size)
         for lossid, lossname in enumerate(config["losses"]):
-            lossvalues=[]
-            with torch.no_grad():
-                for batch in data_loader:
-                    lossvalue = lossfns[lossid].compute_gold_loss(
-                        source_text, batch,
-                        label_id=config['target_label_ids'][lossid],
-                    )
-                    lossvalues.append(lossvalue)
-                    torch.cuda.empty_cache()
-            lossvalue = torch.cat(lossvalues,dim=0)
-            curr_loss += loss_weights[lossid] * lossvalue
-            
+            if lossname not in ["bertscore", "bleu", "edit_distance"]: # do not include content preservation during beam search
+                lossvalues=[]
+                with torch.no_grad():
+                    for batch in data_loader:
+                        lossvalue = lossfns[lossid].compute_gold_loss(
+                            source_text, batch,
+                            label_id=config['target_label_ids'][lossid],
+                        )
+                        lossvalues.append(lossvalue)
+                        torch.cuda.empty_cache()
+                lossvalue = torch.cat(lossvalues,dim=0)
+                curr_loss += loss_weights[lossid] * lossvalue
+                
         curr_loss = torch.split(curr_loss, num_initial_tmp_hypotheses, dim=0)
         top_beams = [torch.topk(x, k=config['beam_size'], dim=-1, largest=False).indices for x in curr_loss]
         tmp_hypotheses = torch.split(tmp_hypotheses, num_initial_tmp_hypotheses, dim=0)
@@ -160,7 +162,7 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
 
         return [mlm_tokenizer.batch_decode(x, skip_special_tokens=True) for x in final_final_hypotheses], final_final_scores
         
-def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_sent_span_lengths:List[int], 
+def editing_with_delete_variable_replace(source_text:str, test_sent:str, ref_sent:str, test_sent_span_lengths:List[int], 
                                          mlm:AutoModelForMaskedLM, mlm_tokenizer:AutoTokenizer, 
                                          lossfns:List[lossbuilder.BaseLoss], config: dict, batch_size:int=16) -> \
                                              Tuple[List[str],torch.FloatTensor,torch.BoolTensor,torch.FloatTensor]:
@@ -281,24 +283,37 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
         logging_loss = torch.zeros((len(hypotheses_all),len(lossfns))).to(config['device'])
 
         for lossid, lossname in enumerate(config["losses"]):
-            lossvalues=[]
-            with torch.no_grad():
-                for batch in data_loader:
-                    lossvalue = lossfns[lossid].compute_gold_loss(
-                        source_text, batch,
-                        label_id=config['target_label_ids'][lossid],
-                    )
-                    lossvalues.append(lossvalue)
-                    torch.cuda.empty_cache()
-            lossvalue = torch.cat(lossvalues,dim=0)
-            curr_loss += config['loss_weights'][lossid] * lossvalue
-            logging_loss[:, lossid] = lossvalue.clone()
+            if ((i < len(mask_spans)-1) and (lossname in ["bertscore", "bleu", "edit_distance"])): 
+                continue # do not include content preservation until reaching the last span
+            else:
+                print(lossname, i)
+                lossvalues=[]
+                with torch.no_grad():
+                    for batch in data_loader:
+                        if lossname in ["bertscore", "bleu", "hamming_distance", "edit_distance"]:
+                            lossvalue = lossfns[lossid].compute_gold_loss(
+                                source_text, batch,
+                                references=[ref_sent]*len(batch),
+                            )
+                        else:    
+                            lossvalue = lossfns[lossid].compute_gold_loss(
+                                source_text, batch,
+                                label_id=config['target_label_ids'][lossid],
+                            )
+                        lossvalues.append(lossvalue)
+                        torch.cuda.empty_cache()
+                lossvalue = torch.cat(lossvalues,dim=0)
+                curr_loss += config['loss_weights'][lossid] * lossvalue
+                logging_loss[:, lossid] = lossvalue.clone()
 
         torch.cuda.empty_cache()
         if i == len(mask_spans) -1:
             allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
             if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
                 best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
+            elif (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_rest"):
+                curr_loss_minus_main_loss = curr_loss - config['loss_weights'][1] * logging_loss[:,1]
+                best_ix = allsat_ix[curr_loss_minus_main_loss[allsat_ix].argmin()]
             else: ## in case config['selection_criteria'] == "weighted_sum" or allsat is all False
                 best_ix = torch.argmin(curr_loss)
             
@@ -313,8 +328,11 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
         del curr_loss, logging_loss
         torch.cuda.empty_cache()
 
-    return final_hypotheses, torch.FloatTensor(best_weighted_loss).to(config['device']), \
-            torch.BoolTensor(best_allsat).to(config['device']), torch.FloatTensor(best_logging_loss).to(config['device'])
+    if (config['selection_criteria'] == "allsat_rest"):
+        pass # TODO
+    else:
+        return final_hypotheses, torch.FloatTensor(best_weighted_loss).to(config['device']), \
+                torch.BoolTensor(best_allsat).to(config['device']), torch.FloatTensor(best_logging_loss).to(config['device'])
 
 
 
