@@ -96,7 +96,7 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
         tmp_hypotheses_dec = mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True)
         data_loader = DataLoader(CustomDataset(tmp_hypotheses_dec),batch_size=batch_size)
         for lossid, lossname in enumerate(config["losses"]):
-            if lossname not in ["bertscore", "bleu", "edit_distance"]: # do not include content preservation during beam search
+            if lossname not in ["bertscore", "edit_distance"]: # do not include content preservation during beam search
                 lossvalues=[]
                 with torch.no_grad():
                     for batch in data_loader:
@@ -130,7 +130,7 @@ def get_beam_hypotheses_v0_variable_length_v2(source_text:str,
         tmp_hypotheses_dec = mlm_tokenizer.batch_decode(tmp_hypotheses,skip_special_tokens=True)
         data_loader = DataLoader(CustomDataset(tmp_hypotheses_dec),batch_size=batch_size)
         for lossid, lossname in enumerate(config["losses"]):
-            if lossname not in ["bertscore", "bleu", "edit_distance"]: # do not include content preservation during beam search
+            if lossname not in ["bertscore", "edit_distance"]: # do not include content preservation during beam search
                 lossvalues=[]
                 with torch.no_grad():
                     for batch in data_loader:
@@ -279,18 +279,18 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, ref_sen
 
         # Scoring the hypotheses and select top beam hypotheses
         curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
+        curr_loss_minus_main_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
         data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
         logging_loss = torch.zeros((len(hypotheses_all),len(lossfns))).to(config['device'])
 
         for lossid, lossname in enumerate(config["losses"]):
-            if ((i < len(mask_spans)-1) and (lossname in ["bertscore", "bleu", "edit_distance"])): 
+            if ((i < len(mask_spans)-1) and (lossname in ["bertscore", "edit_distance"])): 
                 continue # do not include content preservation until reaching the last span
             else:
-                print(lossname, i)
                 lossvalues=[]
                 with torch.no_grad():
                     for batch in data_loader:
-                        if lossname in ["bertscore", "bleu", "hamming_distance", "edit_distance"]:
+                        if lossname in ["bertscore", "edit_distance"]:
                             lossvalue = lossfns[lossid].compute_gold_loss(
                                 source_text, batch,
                                 references=[ref_sent]*len(batch),
@@ -304,6 +304,8 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, ref_sen
                         torch.cuda.empty_cache()
                 lossvalue = torch.cat(lossvalues,dim=0)
                 curr_loss += config['loss_weights'][lossid] * lossvalue
+                if lossname not in config['main_losses']:
+                    curr_loss_minus_main_loss += config['loss_weights'][lossid] * lossvalue
                 logging_loss[:, lossid] = lossvalue.clone()
 
         torch.cuda.empty_cache()
@@ -312,13 +314,14 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, ref_sen
             if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
                 best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
             elif (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_rest"):
-                curr_loss_minus_main_loss = curr_loss - config['loss_weights'][1] * logging_loss[:,1]
                 best_ix = allsat_ix[curr_loss_minus_main_loss[allsat_ix].argmin()]
+                
             else: ## in case config['selection_criteria'] == "weighted_sum" or allsat is all False
                 best_ix = torch.argmin(curr_loss)
             
             final_hypotheses = [hypotheses_all[best_ix]]
             best_weighted_loss = [curr_loss[best_ix].item()]
+            best_weighted_loss_minus_main_loss = [curr_loss_minus_main_loss[best_ix].item()]
             best_allsat = [1 if best_ix in allsat_ix else 0]
             best_logging_loss = [logging_loss[best_ix].cpu().tolist()]
         else:
@@ -329,7 +332,8 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, ref_sen
         torch.cuda.empty_cache()
 
     if (config['selection_criteria'] == "allsat_rest"):
-        pass # TODO
+        return final_hypotheses, torch.FloatTensor(best_weighted_loss).to(config['device']), torch.FloatTensor(best_weighted_loss_minus_main_loss).to(config['device']), \
+                torch.BoolTensor(best_allsat).to(config['device']), torch.FloatTensor(best_logging_loss).to(config['device'])
     else:
         return final_hypotheses, torch.FloatTensor(best_weighted_loss).to(config['device']), \
                 torch.BoolTensor(best_allsat).to(config['device']), torch.FloatTensor(best_logging_loss).to(config['device'])

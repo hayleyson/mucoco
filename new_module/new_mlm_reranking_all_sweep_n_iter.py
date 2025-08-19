@@ -71,6 +71,9 @@ def main(config):
     
     config["k_per_location"] = wandb.config.k_per_location
     config["beam_size"] = wandb.config.beam_size
+    config["num_edit_token_per_step"] = wandb.config.num_edit_token_per_step
+    config["min_epsilons"] = [wandb.config.min_epsilons]
+    logger.info(f"min_epsilons: {config['min_epsilons']}")
     
     run_id = run.path.split("/")[-1]
     display_name = f"{run_id}"
@@ -209,6 +212,13 @@ def main(config):
 
     build_loss_args = dummyArgs(**config["build_loss_dict"])
     build_loss_args.task = config["task"]
+    
+    assert len(config["model_paths"]) == len(config["tokenizer_paths"])
+    if len(config["losses"]) > len(config["model_paths"]): 
+        
+        # for losses that do not have corresponding models (and tokenizers), use the model & tokenizer for main loss (classifier)
+        config["model_paths"].extend([config["model_paths"][1]]*(len(config["losses"]) - len(config["model_paths"])))
+        config["tokenizer_paths"].extend([config["tokenizer_paths"][1]]*(len(config["losses"]) - len(config["tokenizer_paths"])))
 
     lossfns = []
     for i, loss in enumerate(config["losses"]):
@@ -227,7 +237,9 @@ def main(config):
     locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
 
     if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
-        config["loss_weights"] = [1, wandb.config.closs_weight]
+        # config["loss_weights"] = [1, wandb.config.closs_weight]
+        config["loss_weights"][1] = wandb.config.closs_weight
+        print(config["loss_weights"])
         run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
     logger.info(f"loss_weights: {config['loss_weights']}")
 
@@ -280,17 +292,26 @@ def main(config):
         ## check whether initial text satisfies constraint
 
         curr_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
+        curr_loss_minus_main_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
         logging_loss = torch.zeros((len(AR_prediction_all),len(config["losses"]))).to(config['device'])
         edit_yn = torch.ones(len(AR_prediction_all), dtype=torch.bool).to(config['device'])
                 
         for lossid, lossname in enumerate(config["losses"]):
             with torch.no_grad():
-                lossvalue = lossfns[lossid].compute_gold_loss(
-                    source_text, AR_prediction_all,
-                    label_id=config['target_label_ids'][lossid],
-                )
+                if lossname in ["bertscore", "bleu", "hamming_distance", "edit_distance"]:
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, AR_prediction_all,
+                        references=AR_prediction_all,
+                    )
+                else:    
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, AR_prediction_all,
+                        label_id=config['target_label_ids'][lossid],
+                    )
                 torch.cuda.empty_cache()
             curr_loss += config["loss_weights"][lossid] * lossvalue
+            if lossname not in config['main_losses']:
+                curr_loss_minus_main_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
 
@@ -303,7 +324,8 @@ def main(config):
         es_patience_count = torch.zeros(len(AR_prediction_all),dtype=torch.long).to(config['device'])
         best_allsat = allsat.detach().clone()
         best_losses = logging_loss.detach().clone()
-        best_weighted_loss = curr_loss.detach().clone()            
+        best_weighted_loss = curr_loss.detach().clone()   
+        best_weighted_loss_minus_main_loss = curr_loss_minus_main_loss.detach().clone()         
         best_text = deepcopy(AR_prediction_all)
         running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## hold only samples that need be edited
         int_output = [{} for _ in range(len(AR_prediction_all))]
@@ -409,6 +431,7 @@ def main(config):
                 # Arguments
                 final_hypotheses_ = []
                 new_best_weighted_loss_ = []
+                new_best_weighted_loss_minus_main_loss_ = []
                 new_best_allsat_ = []
                 new_best_logging_loss_ = []
                 
@@ -416,16 +439,23 @@ def main(config):
                 tmp_running_text = []
                 edit_ixes_before_marking = edit_yn.nonzero().squeeze(-1)
                 for idx in range(len(masked_text)):
+                    ref_sent = AR_prediction_all[idx]
                     test_sent = masked_text[idx]
                     test_sent_span_lengths = span_lengths_es[idx]
                     if len(test_sent_span_lengths) == 0:
                         # corner case: when text is short, locator sometimes returns no mask. (this occurs when length is smaller than 3.)
                         edit_yn[edit_ixes_before_marking[idx]] = False
-                        continue                    
-                    final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
-                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
+                        continue
+                    if (config['selection_criteria'] == "allsat_rest"):
+                        final_hypotheses_curr, new_best_weighted_loss_curr, new_best_weighted_loss_minus_main_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
+                            editing_with_delete_variable_replace(source_text, test_sent,ref_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
+                    else:
+                        final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
+                            editing_with_delete_variable_replace(source_text, test_sent,ref_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
+                        new_best_weighted_loss_minus_main_loss_curr = torch.empty((1,)).fill_(float("inf")).to(config['device']) ## TEMP
                     final_hypotheses_.extend(final_hypotheses_curr)
                     new_best_weighted_loss_.append(new_best_weighted_loss_curr)
+                    new_best_weighted_loss_minus_main_loss_.append(new_best_weighted_loss_minus_main_loss_curr)
                     new_best_allsat_.append(new_best_allsat_curr)
                     new_best_logging_loss_.append(new_best_logging_loss_curr)
                     tmp_masked_text.append(test_sent)
@@ -435,16 +465,21 @@ def main(config):
                 running_text = tmp_running_text
                 if len(new_best_weighted_loss_) == 0:
                     new_best_weighted_loss_ = torch.empty((0,)).to(config['device'])
+                    new_best_weighted_loss_minus_main_loss_ = torch.empty((0,)).to(config['device'])
                     new_best_allsat_ = torch.empty((0,)).bool().to(config['device'])
                     new_best_logging_loss_ = torch.empty((0, len(config['losses']))).to(config['device'])
                 else:
                     new_best_weighted_loss_ = torch.cat(new_best_weighted_loss_)
+                    new_best_weighted_loss_minus_main_loss_ = torch.cat(new_best_weighted_loss_minus_main_loss_)
                     new_best_allsat_ = torch.cat(new_best_allsat_)
                     new_best_logging_loss_ = torch.cat(new_best_logging_loss_, dim=0)
                 
 
                 new_best_weighted_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
                 new_best_weighted_loss[edit_yn] = new_best_weighted_loss_
+                
+                new_best_weighted_loss_minus_main_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
+                new_best_weighted_loss_minus_main_loss[edit_yn] = new_best_weighted_loss_minus_main_loss_
                 
                 new_best_logging_loss = torch.empty((len(AR_prediction_all), len(config['losses']))).fill_(float("inf")).to(config['device'])
                 new_best_logging_loss[edit_yn, :] = new_best_logging_loss_
@@ -454,6 +489,19 @@ def main(config):
                 edit_ixes = edit_yn.nonzero().squeeze(-1)
                 final_hypotheses = [final_hypotheses_[torch.where(edit_ixes==i)[0].item()] if edit_yn[i] else '' for i in range(len(AR_prediction_all))]
                 
+                ##
+                # For rows where best text is equal to the original text, subtract content preservation-related loss from the weighted loss 
+                is_best_text_original = [best_text[i] == AR_prediction_all[i] for i in range(len(best_text))]
+                
+                if "bertscore" in config["losses"]:
+                    ix = config["losses"].index("bertscore")
+                    best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * best_losses[is_best_text_original, ix]
+                    new_best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * new_best_logging_loss[is_best_text_original, ix]
+                if "edit_distance" in config["losses"]:
+                    ix = config["losses"].index("edit_distance")
+                    best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * best_losses[is_best_text_original, ix]
+                    new_best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * new_best_logging_loss[is_best_text_original, ix]
+                ##
                 update = torch.Tensor([]).bool().to(config['device'])
                 if config['selection_criteria'] == "weighted_sum":
                     update = best_weighted_loss > new_best_weighted_loss ## edit_yn이 false 였던 곳은 무조건 false
@@ -464,6 +512,10 @@ def main(config):
                             ## (~best_allsat & new_best_allsat) : edit_yn이 false였던 곳은 무조건 false
                             ## (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) : edit_yn이 false 였던 곳은 무조건 false
                             ## (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) : edit_yn이 false였던 곳은 무조건 false
+                elif config['selection_criteria'] == "allsat_rest":
+                    update = (~best_allsat & new_best_allsat) | \
+                            (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
+                            (best_allsat & new_best_allsat & (best_weighted_loss_minus_main_loss > new_best_weighted_loss_minus_main_loss)) 
                 update = (update & edit_yn) # edit 대상인 것들만 update하기 위해서 update 조건에 edit_yn을 sum.
 
                 ## intermediate output for debugging
@@ -479,6 +531,7 @@ def main(config):
                 best_allsat[update] = new_best_allsat[update]
                 best_losses[update] = new_best_logging_loss[update]
                 best_weighted_loss[update] = new_best_weighted_loss[update]
+                best_weighted_loss_minus_main_loss[update] = new_best_weighted_loss_minus_main_loss[update]
 
                 output = {
                             "prompt": {
@@ -692,7 +745,7 @@ if __name__ == "__main__":
         "--locate_unit", type=str, default="word", help="unit to locate"
     )
     parser.add_argument(
-        "--min_epsilons", nargs="+", type=float, default=[0.75], help="a list of threshold values for constraint energy functions other than fluency. in probability scale."
+        "--min_epsilons", nargs="+", type=float, help="a list of threshold values for constraint energy functions other than fluency. in probability scale."
     )
     parser.add_argument(
         "--num_samples",
@@ -717,7 +770,14 @@ if __name__ == "__main__":
         default=["gpt2", "classification_no_prefix_logprobloss"],
         help="losses",
     )
-    parser.add_argument("--loss_weights", nargs="+", type=float, default=[1,1], help="closs weight")
+    parser.add_argument(
+        "--main_losses",
+        nargs="+",
+        type=str,
+        default=["classification_no_prefix_logprobloss"],
+        help="losses that we want to prioritize",
+    )
+    parser.add_argument("--loss_weights", nargs="+", type=float, default=[0.1,1.0], help="closs weight")
     
     parser.add_argument(
         "--num_edit_token_per_step",
@@ -747,7 +807,8 @@ if __name__ == "__main__":
         help="selection criteria",
         choices=[
             "weighted_sum",
-            "allsat_primary"
+            "allsat_primary",
+            "allsat_rest"
         ],
     )
     parser.add_argument("--beam_size", type=int, default=5, help="beam size")

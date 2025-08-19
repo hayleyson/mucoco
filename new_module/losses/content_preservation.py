@@ -18,6 +18,7 @@ class BertScoreLoss(BaseLoss):
     def __init__(self, model, tokenizer, args):
         super().__init__() 
         self.args = args
+        self.model = model
         self.tokenizer = tokenizer
         # https://huggingface.co/spaces/evaluate-metric/bertscore
         # The function returns a dictionary with the following keys - precision, recall, f1, hashcode - and corresponding values for each sentence
@@ -29,7 +30,7 @@ class BertScoreLoss(BaseLoss):
         '''
         metric = getattr(self.args, "bertscore_mode", "recall")
         
-        sbert_score_raw = np.array(
+        sbert_score = np.array(
                 self.scorer.compute(
                     predictions=predictions,
                     references=references,
@@ -38,92 +39,7 @@ class BertScoreLoss(BaseLoss):
                 )[metric]
         )
             
-        # Take average
-        sbert_score = np.mean(sbert_score_raw)
-        return -1 * torch.tensor(sbert_score,dtype=torch.float32) # change to negative log scale to match with causal lm and classifier loss.
-
-
-@register_loss("bleu")
-class BleuLoss(BaseLoss):
-
-    def __init__(self, model, tokenizer, args):
-        super().__init__() 
-        self.args = args
-        self.tokenizer = tokenizer
-        # https://huggingface.co/spaces/evaluate-metric/sacrebleu
-        self.scorer = evaluate.load("sacrebleu")
-            
-    def compute_gold_loss(self, prompt:str, predictions:List[str], references:List[str], **kwargs):
-        '''
-        given predictions and references (original generations) as list of string, return bleu score ([0,100] range)
-        '''
-        ## start evaluation
-        
-        sbleu_score = self.scorer.compute(
-            predictions=predictions, references=[[text] for text in references]
-        )["score"]
-
-        return -1 * torch.tensor(sbleu_score/100., dtype=torch.float32) # change to negative log scale to match with causal lm and classifier loss.
-
-@register_loss("hamming_distance")
-class HammingDistanceLoss(BaseLoss):
-    """
-    Implements Hamming distance loss with support for pairs of unequal length strings.
-    This function is largely taken and adapted from Mix&Match's evaluation code ().
-    """
-    def __init__(self, model, tokenizer, args):
-        super().__init__()
-        self.args = args
-        self.tokenizer = tokenizer
-        
-    def compute_gold_loss(self, prompt: str, predictions: List[str], references: List[str], **kwargs):
-           
-        cnt= 0
-        dist =0
-        
-        len_diff_sum =0
-    
-        list_hammings =[]
-        list_lens = []
-
-        for i,(line, line_src) in enumerate(zip(predictions, references)):
-                
-            text = line[:-1].lower()
-            line_src = line_src[:-1].lower()
-            #seed_text = seed_text.split('\t')[1]
-            #print(seed_text)
-
-            text = self.tokenizer.tokenize(text)
-            line_src = self.tokenizer.tokenize(line_src)
-            
-            if len(text) == len(line_src):
-                dist += sum([a !=b for (a,b) in zip(text,line_src)  ])
-                list_hammings.append(sum([a !=b for (a,b) in zip(text,line_src)  ]))
-                list_lens.append(0)
-            
-            else:
-                dist_2 =max(len(text), len(line_src))
-                dist += max(len(text), len(line_src))
-                if len(line_src) > len(text):
-                    for element in text:
-                            if element in line_src:
-                                dist -= 1
-                                dist_2 -=1
-                else:
-                    for element in line_src:
-                        if element in text:
-                            dist -= 1
-                            dist_2 -=1
-                len_diff_sum += abs(len(text)-len(line_src))
-                
-                list_hammings.append(dist_2)
-                list_lens.append(abs(len(text)-len(line_src)))
-            
-            cnt+= 1
-    
-        #print(dist,len_diff_sum)
-        # return dist/cnt, len_diff_sum/cnt, list_hammings, list_lens
-        return torch.tensor(dist/cnt, dtype=torch.float32)
+        return -1 * torch.tensor(sbert_score,dtype=torch.float32, device=self.model.device) # change to negative log scale to match with causal lm and classifier loss.
 
         
 @register_loss("edit_distance")
@@ -137,6 +53,7 @@ class EditDistanceLoss(BaseLoss):
         super().__init__()
         self.args = args
         self.tokenizer = tokenizer
+        self.model = model
 
     def _levenshtein(self, a_seq, b_seq):
         """
@@ -185,7 +102,7 @@ class EditDistanceLoss(BaseLoss):
         case_sensitive = getattr(self.args, "case_sensitive", True)
         normalize = getattr(self.args, "normalize", True) # default to normalize to keep the distance in 0~1 range.
 
-        total = 0.0
+        all_list = []
         for pred, ref in zip(predictions, references):
             # Basic sanitation
             pred = "" if pred is None else str(pred)
@@ -211,7 +128,7 @@ class EditDistanceLoss(BaseLoss):
                 denom = max(len(a_seq), len(b_seq))
                 dist = (dist / denom) if denom > 0 else 0.0
 
-            total += dist
+            all_list.append(dist)
 
-        avg_dist = total / n
-        return torch.tensor(avg_dist, dtype=torch.float32)
+        
+        return torch.tensor(all_list, dtype=torch.float32, device=self.model.device)

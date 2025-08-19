@@ -208,7 +208,14 @@ def main(config):
 
     build_loss_args = dummyArgs(**config["build_loss_dict"])
     build_loss_args.task = config["task"]
-
+    
+    assert len(config["model_paths"]) == len(config["tokenizer_paths"])
+    if len(config["losses"]) > len(config["model_paths"]): 
+        
+        # for losses that do not have corresponding models (and tokenizers), use the model & tokenizer for main loss (classifier)
+        config["model_paths"].extend([config["model_paths"][1]]*(len(config["losses"]) - len(config["model_paths"])))
+        config["tokenizer_paths"].extend([config["tokenizer_paths"][1]]*(len(config["losses"]) - len(config["tokenizer_paths"])))
+        
     lossfns = []
     for i, loss in enumerate(config["losses"]):
         lossfns.append(
@@ -226,7 +233,9 @@ def main(config):
     locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
 
     if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
-        config["loss_weights"] = [1, wandb.config.closs_weight]
+        # config["loss_weights"] = [1, wandb.config.closs_weight]
+        config["loss_weights"][1] = wandb.config.closs_weight
+        print(config["loss_weights"])
         run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
     logger.info(f"loss_weights: {config['loss_weights']}")
 
@@ -278,17 +287,26 @@ def main(config):
         ## check whether initial text satisfies constraint
 
         curr_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
+        curr_loss_minus_main_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
         logging_loss = torch.zeros((len(AR_prediction_all),len(config["losses"]))).to(config['device'])
         edit_yn = torch.ones(len(AR_prediction_all), dtype=torch.bool).to(config['device'])
                 
         for lossid, lossname in enumerate(config["losses"]):
             with torch.no_grad():
-                lossvalue = lossfns[lossid].compute_gold_loss(
-                    source_text, AR_prediction_all,
-                    label_id=config['target_label_ids'][lossid],
-                )
+                if lossname in ["bertscore", "bleu", "hamming_distance", "edit_distance"]:
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, AR_prediction_all,
+                        references=AR_prediction_all,
+                    )
+                else:    
+                    lossvalue = lossfns[lossid].compute_gold_loss(
+                        source_text, AR_prediction_all,
+                        label_id=config['target_label_ids'][lossid],
+                    )
                 torch.cuda.empty_cache()
             curr_loss += config["loss_weights"][lossid] * lossvalue
+            if lossname not in config['main_losses']:
+                curr_loss_minus_main_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
 
@@ -301,7 +319,8 @@ def main(config):
         es_patience_count = torch.zeros(len(AR_prediction_all),dtype=torch.long).to(config['device'])
         best_allsat = allsat.detach().clone()
         best_losses = logging_loss.detach().clone()
-        best_weighted_loss = curr_loss.detach().clone()            
+        best_weighted_loss = curr_loss.detach().clone()   
+        best_weighted_loss_minus_main_loss = curr_loss_minus_main_loss.detach().clone()         
         best_text = deepcopy(AR_prediction_all)
         running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## hold only samples that need be edited
         int_output = [{} for _ in range(len(AR_prediction_all))]
@@ -359,6 +378,7 @@ def main(config):
                 # Arguments
                 final_hypotheses_ = []
                 new_best_weighted_loss_ = []
+                new_best_weighted_loss_minus_main_loss_ = []
                 new_best_allsat_ = []
                 new_best_logging_loss_ = []
                 
@@ -366,16 +386,23 @@ def main(config):
                 tmp_running_text = []
                 edit_ixes_before_marking = edit_yn.nonzero().squeeze(-1)
                 for idx in range(len(masked_text)):
+                    ref_sent = AR_prediction_all[idx]
                     test_sent = masked_text[idx]
                     test_sent_span_lengths = span_lengths_es[idx]
                     if len(test_sent_span_lengths) == 0:
                         # corner case: when text is short, locator sometimes returns no mask. (this occurs when length is smaller than 3.)
                         edit_yn[edit_ixes_before_marking[idx]] = False
-                        continue                    
-                    final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
-                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
+                        continue
+                    if (config['selection_criteria'] == "allsat_rest"):
+                        final_hypotheses_curr, new_best_weighted_loss_curr, new_best_weighted_loss_minus_main_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
+                            editing_with_delete_variable_replace(source_text, test_sent,ref_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
+                    else:
+                        final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
+                            editing_with_delete_variable_replace(source_text, test_sent,ref_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
+                        new_best_weighted_loss_minus_main_loss_curr = torch.empty((1,)).fill_(float("inf")).to(config['device']) ## TEMP
                     final_hypotheses_.extend(final_hypotheses_curr)
                     new_best_weighted_loss_.append(new_best_weighted_loss_curr)
+                    new_best_weighted_loss_minus_main_loss_.append(new_best_weighted_loss_minus_main_loss_curr)
                     new_best_allsat_.append(new_best_allsat_curr)
                     new_best_logging_loss_.append(new_best_logging_loss_curr)
                     tmp_masked_text.append(test_sent)
@@ -385,10 +412,12 @@ def main(config):
                 running_text = tmp_running_text
                 if len(new_best_weighted_loss_) == 0:
                     new_best_weighted_loss_ = torch.empty((0,)).to(config['device'])
+                    new_best_weighted_loss_minus_main_loss_ = torch.empty((0,)).to(config['device'])
                     new_best_allsat_ = torch.empty((0,)).bool().to(config['device'])
                     new_best_logging_loss_ = torch.empty((0, len(config['losses']))).to(config['device'])
                 else:
                     new_best_weighted_loss_ = torch.cat(new_best_weighted_loss_)
+                    new_best_weighted_loss_minus_main_loss_ = torch.cat(new_best_weighted_loss_minus_main_loss_)
                     new_best_allsat_ = torch.cat(new_best_allsat_)
                     new_best_logging_loss_ = torch.cat(new_best_logging_loss_, dim=0)
                 
@@ -399,6 +428,9 @@ def main(config):
                 new_best_weighted_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
                 new_best_weighted_loss[edit_yn] = new_best_weighted_loss_
                 
+                new_best_weighted_loss_minus_main_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
+                new_best_weighted_loss_minus_main_loss[edit_yn] = new_best_weighted_loss_minus_main_loss_
+                
                 new_best_logging_loss = torch.empty((len(AR_prediction_all), len(config['losses']))).fill_(float("inf")).to(config['device'])
                 new_best_logging_loss[edit_yn, :] = new_best_logging_loss_
                 
@@ -407,6 +439,19 @@ def main(config):
                 edit_ixes = edit_yn.nonzero().squeeze(-1)
                 final_hypotheses = [final_hypotheses_[torch.where(edit_ixes==i)[0].item()] if edit_yn[i] else '' for i in range(len(AR_prediction_all))]
                 
+                ##
+                # For rows where best text is equal to the original text, subtract content preservation-related loss from the weighted loss 
+                is_best_text_original = [best_text[i] == AR_prediction_all[i] for i in range(len(best_text))]
+                
+                if "bertscore" in config["losses"]:
+                    ix = config["losses"].index("bertscore")
+                    best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * best_losses[is_best_text_original, ix]
+                    new_best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * new_best_logging_loss[is_best_text_original, ix]
+                if "edit_distance" in config["losses"]:
+                    ix = config["losses"].index("edit_distance")
+                    best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * best_losses[is_best_text_original, ix]
+                    new_best_weighted_loss[is_best_text_original] -= config["loss_weights"][ix] * new_best_logging_loss[is_best_text_original, ix]
+                ##
                 update = torch.Tensor([]).bool().to(config['device'])
                 if config['selection_criteria'] == "weighted_sum":
                     update = best_weighted_loss > new_best_weighted_loss ## edit_yn이 false 였던 곳은 무조건 false
@@ -417,6 +462,10 @@ def main(config):
                             ## (~best_allsat & new_best_allsat) : edit_yn이 false였던 곳은 무조건 false
                             ## (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) : edit_yn이 false 였던 곳은 무조건 false
                             ## (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) : edit_yn이 false였던 곳은 무조건 false
+                elif config['selection_criteria'] == "allsat_rest":
+                    update = (~best_allsat & new_best_allsat) | \
+                            (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
+                            (best_allsat & new_best_allsat & (best_weighted_loss_minus_main_loss > new_best_weighted_loss_minus_main_loss)) 
                 update = (update & edit_yn) # edit 대상인 것들만 update하기 위해서 update 조건에 edit_yn을 sum.
 
                 ## intermediate output for debugging
@@ -432,6 +481,7 @@ def main(config):
                 best_allsat[update] = new_best_allsat[update]
                 best_losses[update] = new_best_logging_loss[update]
                 best_weighted_loss[update] = new_best_weighted_loss[update]
+                best_weighted_loss_minus_main_loss[update] = new_best_weighted_loss_minus_main_loss[update]
 
                 es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
 
@@ -499,53 +549,56 @@ def main(config):
     run.finish()
     
     ## delete loss functions to clear up gpu memory
-    del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer, mlm, mlm_tokenizer
+    try:
+        del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer
+    except:
+        pass
     torch.cuda.empty_cache()
     
     if (not interrupted):
-        if config["task"] == "toxicity":
-            run_generation_evaluation(
-                run.path,
-                outfile,
-                "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                toxicity_model_path=config["model_paths"][1],
-                toxicity_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )  # 시간 문제로, perspective api 제외
-        elif config["task"] == "formality":
-            run_generation_evaluation(
-                run.path,
-                outfile,
-                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1", 
-                formality_model_path=config["model_paths"][1],
-                formality_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )
-        elif config["task"] == "sentiment":
-            run_generation_evaluation(
-                run.path,
-                outfile,
-                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                sentiment_model_path=config["model_paths"][1],
-                sentiment_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )
-        elif config["task"] == "sentiment-lewis-compr":
-            run_generation_evaluation(
-                run.path,
-                outfile,
-                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                sentiment_model_path=config["model_paths"][1],
-                sentiment_model_type=config["model_types"][1],
-                source_file_path=config["source_data"]
-            )
-        elif config["task"] == "nli":
-            run_generation_evaluation(
-                run.path,
-                outfile,
-                "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
-                source_file_path=config["source_data"]
-            )  
+        for _iter in range(config['n_iter']):
+            if config["task"] == "toxicity":
+                run_generation_evaluation(
+                    "",
+                    outfile+f".{_iter}",
+                    "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    toxicity_model_path=config["model_paths"][1],
+                    toxicity_model_type=config["model_types"][1],
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )  # 시간 문제로, perspective api 제외
+            elif config["task"] == "formality":
+                run_generation_evaluation(
+                    "",
+                    outfile+f".{_iter}",
+                    "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1", 
+                    formality_model_path=config["model_paths"][1],
+                    formality_model_type=config["model_types"][1],
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )
+            elif config["task"] == "sentiment":
+                run_generation_evaluation(
+                    "",
+                    outfile+f".{_iter}",
+                    "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    sentiment_model_path=config["model_paths"][1],
+                    sentiment_model_type=config["model_types"][1],
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )
+            elif config["task"] == "nli":
+                run_generation_evaluation(
+                    "",
+                    outfile+f".{_iter}",
+                    "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    source_file_path=config["source_data"],
+                    task=config["task"],
+                    target_style=config["target_style"]
+                )  
 
 
 if __name__ == "__main__":
@@ -554,70 +607,60 @@ if __name__ == "__main__":
         "--task",
         type=str,
         help="task name",
-        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr", "nli"],
+        choices=["toxicity", "formality", "sentiment", "nli"],
     )
     parser.add_argument(
         "--source_data",
         type=str,
-        default="data/formality/GYAFC_Corpus/Entertainment_Music/test/informal",
         help="source data path",
     )
     parser.add_argument(
-        "--source_style", type=str, default="informal", help="source style"
+        "--source_style", type=str, help="source style. e.g. toxic"
     )
     parser.add_argument(
-        "--target_style", type=str, default="formal", help="target style"
+        "--target_style", type=str, help="target style. e.g. nontoxic"
     )
     parser.add_argument(
         "--target_label_ids",
         nargs="+",
         type=int,
-        default=[1, 1],
         help="a list of indices of target label used in each of models. e.g. [1,1]",
     )
     parser.add_argument(
         "--model_paths",
         nargs="+",
         type=str,
-        default=[
-            "gpt2-large",
-            "loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
-        ],
-        help="model paths",
+        help="model paths for energy functions. the first has to be a language model for measuring fluency. e.g. gpt2-large, <path-to-your-energy-function>",
     )
     parser.add_argument(
         "--tokenizer_paths",
         nargs="+",
         type=str,
-        default=[
-            "gpt2-large",
-            "loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
-        ],
-        help="tokenizer paths",
+        help="tokenizer paths. e.g. gpt2-large, <path-to-your-energy-function>",
     )
     parser.add_argument(
         "--model_types",
         nargs="+",
         type=str,
-        default=["AutoModelForCausalLM", "RobertaCustomForSequenceClassification"],
+        default=["AutoModelForCausalLM", "AutoModelForSequenceClassification"],
         help="model types",
     )
     parser.add_argument(
         "--output_dir_prefix",
         type=str,
-        help="output directory prefix. e.g. outputs/formality/mlm-reranking",
+        help="output directory prefix. e.g. outputs/toxicity/",
     )
     parser.add_argument(
         "--early_stopping_patience",
         type=int,
-        default=-1,
+        default=0,
         help="early stopping patience",
     )
     parser.add_argument(
         "--method",
         type=str,
         default="mlm-beamsearch-v0",
-        help="method name",
+        help="method name for reranking. currently only support mlm-beamsearch-v0",
         choices=[
             "mlm-beamsearch-v0",
             "mlm-beamsearch-v1",
@@ -626,10 +669,10 @@ if __name__ == "__main__":
         ],
     )
     parser.add_argument(
-        "--locate_unit", type=str, default="token", help="unit to locate"
+        "--locate_unit", type=str, default="word", help="unit to locate"
     )
     parser.add_argument(
-        "--min_epsilons", nargs="+", type=float, default=[0.75], help="min epsilons"
+        "--min_epsilons", nargs="+", type=float, help="a list of threshold values for constraint energy functions other than fluency. in probability scale."
     )
     parser.add_argument(
         "--num_samples",
@@ -638,12 +681,6 @@ if __name__ == "__main__":
         help="number of samples to edit per prompt. This becomes the batch size for decoding.",
     )
     parser.add_argument("--device", type=str, default="cuda", help="device")
-    parser.add_argument(
-        "--target_type",
-        type=str,
-        default="embeds",
-        help="target type (embeds, simplex, probability) from prior work's code",
-    )
     parser.add_argument(
         "--cache_dir", type=str, default="~/hf_cache", help="cache directory"
     )
@@ -659,6 +696,13 @@ if __name__ == "__main__":
         type=str,
         default=["gpt2", "classification_no_prefix_logprobloss"],
         help="losses",
+    )
+    parser.add_argument(
+        "--main_losses",
+        nargs="+",
+        type=str,
+        default=["classification_no_prefix_logprobloss"],
+        help="losses that we want to prioritize",
     )
     parser.add_argument("--loss_weights", nargs="+", type=float, default=[0.1,1.0], help="closs weight")
     
@@ -681,13 +725,18 @@ if __name__ == "__main__":
         help="whether to consider source_text when generating token-level candidates",
     )
     
-    parser.add_argument("--k_per_location", type=int, default=15, help="k per location")
-    parser.add_argument("--n_iter", type=int, default=3, help="number of iterations")
+    parser.add_argument("--k_per_location", type=int, default=10, help="k per location")
+    parser.add_argument("--n_iter", type=int, default=1, help="number of iterations")
     parser.add_argument(
         "--selection_criteria",
         type=str,
-        default="weighted_sum",
+        default="allsat_primary",
         help="selection criteria",
+        choices=[
+            "weighted_sum",
+            "allsat_primary",
+            "allsat_rest"
+        ],
     )
     parser.add_argument("--beam_size", type=int, default=5, help="beam size")
     parser.add_argument(
@@ -711,7 +760,7 @@ if __name__ == "__main__":
         type=str,
         help="method to use for locating tokens",
         choices=["attention", "grad_norm"],
-        default="attention",
+        default="grad_norm",
     )
     parser.add_argument(
         "--server_time_limit",
@@ -725,15 +774,15 @@ if __name__ == "__main__":
 
     # Configure the sweep – specify the parameters to search through, the search strategy, the optimization metric et all.
     sweep_config = {
-        'method': 'grid', #grid, random, bayes
+        'method': 'random', #grid, random, bayes
         'metric': {
         'name': 'h1',
         'goal': 'maximize'   
         },
         'parameters': {
-            # 'closs_weight': {
-            #     'values':[0.001, 0.01, 0.1, 1, 10, 100, 1000]
-            # },
+            'closs_weight': {
+                'values':[10, 100, 1000, 1]
+            },
             # 'k_per_location': {
             #     'values':[5, 10, 15]
             # },
@@ -744,7 +793,7 @@ if __name__ == "__main__":
                 # 'values':[1,4,7,10,20]
             # },
             'min_epsilons': {
-                'values': [0.99]
+                'values': [0.97]
             }
         }
     }
