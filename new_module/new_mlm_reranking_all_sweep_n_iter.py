@@ -72,7 +72,7 @@ def main(config):
     config["k_per_location"] = wandb.config.k_per_location
     config["beam_size"] = wandb.config.beam_size
     config["num_edit_token_per_step"] = wandb.config.num_edit_token_per_step
-    config["min_epsilons"] = [wandb.config.min_epsilons]
+    # config["min_epsilons"] = wandb.config.min_epsilons
     logger.info(f"min_epsilons: {config['min_epsilons']}")
     
     run_id = run.path.split("/")[-1]
