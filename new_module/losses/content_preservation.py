@@ -88,7 +88,7 @@ class EditDistanceLoss(BaseLoss):
         Optional args (via self.args):
           - edit_level: "char", "word", or "tokens"(default)
           - case_sensitive: bool (default True)
-          - normalize: bool (default True)  # distance / max(len(pred), len(ref))
+          - normalize: bool (default True)  # distance / len(ref)
         '''
         if len(predictions) != len(references):
             raise ValueError(f"predictions and references must have the same length, "
@@ -125,7 +125,7 @@ class EditDistanceLoss(BaseLoss):
             dist = self._levenshtein(a_seq, b_seq)
 
             if normalize:
-                denom = max(len(a_seq), len(b_seq))
+                denom = len(b_seq)
                 dist = (dist / denom) if denom > 0 else 0.0
 
             all_list.append(dist)
