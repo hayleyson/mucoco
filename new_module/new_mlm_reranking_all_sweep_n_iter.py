@@ -123,7 +123,7 @@ def main(config):
     else:
         resume_idx = 0
         # outf = open(outfile, "w")
-        # int_outf = open(outfile+".intermediate", "w")
+        int_outf = open(outfile+".intermediate", "w")
         outfs= dict()
         for _iter in range(config['n_iter']):
             outfs[_iter] = open(outfile+f".{_iter}", "w")
@@ -585,7 +585,19 @@ def main(config):
                 
             
                 running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
-        
+            
+        intermediate_output = {
+            "prompt": {
+                "text": source_text,
+            },
+            "generations": 
+                int_output
+            ,
+        }
+        json.dump(intermediate_output, int_outf)
+        int_outf.write("\n")
+        int_outf.flush()
+
                 
         if (time.time() - main_start_time) > config['server_time_limit'] * 60 * 60 * 0.9:
             interrupted = True
@@ -594,7 +606,7 @@ def main(config):
     for _iter in range(config['n_iter']):
         outfs[_iter].close()
     # outf.close()
-    # int_outf.close()
+    int_outf.close()
 
     
     if config["resume"]:
@@ -840,6 +852,13 @@ if __name__ == "__main__":
         type=float,
         help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
         default=10000
+    )
+
+    parser.add_argument(
+        "--memo",
+        type=str,
+        default="",
+        help="memo to pass to wandb",
     )
 
     args = parser.parse_args()

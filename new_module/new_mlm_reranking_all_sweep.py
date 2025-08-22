@@ -232,11 +232,16 @@ def main(config):
     # define an object to locate problematic phrases
     locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
 
-    if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
-        # config["loss_weights"] = [1, wandb.config.closs_weight]
-        config["loss_weights"][1] = wandb.config.closs_weight
-        print(config["loss_weights"])
-        run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
+    # if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
+    #     # config["loss_weights"] = [1, wandb.config.closs_weight]
+    #     config["loss_weights"][1] = wandb.config.closs_weight
+    #     print(config["loss_weights"])
+    #     run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
+    
+    #### UPDATE HERE ACCORDING TO SWEEP CONFIG!
+    config["loss_weights"][config["losses"].index("bertscore")] = wandb.config.bertscore_weight
+    config["loss_weights"][config["losses"].index("edit_distance")] = wandb.config.edit_distance
+    run.config.update({"loss_weights": config["loss_weights"]}, allow_val_change=True)
     logger.info(f"loss_weights: {config['loss_weights']}")
 
 
@@ -768,6 +773,12 @@ if __name__ == "__main__":
         help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
         default=10000
     )
+    parser.add_argument(
+        "--memo",
+        type=str,
+        default="",
+        help="memo to pass to wandb",
+    )
 
     args = parser.parse_args()
     config = vars(args)
@@ -780,8 +791,11 @@ if __name__ == "__main__":
         'goal': 'maximize'   
         },
         'parameters': {
-            'closs_weight': {
-                'values':[10, 100, 1000, 1]
+            'bertscore_weight': {
+                'values':[0,2,4,6,8,10]
+            },
+            'edit_distance_weight': {
+                'values':[0,2,4,6,8,10]
             },
             # 'k_per_location': {
             #     'values':[5, 10, 15]
@@ -792,15 +806,16 @@ if __name__ == "__main__":
             # 'num_edit_token_per_step': {
                 # 'values':[1,4,7,10,20]
             # },
-            'min_epsilons': {
-                'values': [0.97]
-            }
+            # 'min_epsilons': {
+                # 'values': [0.97]
+            # }
         }
     }
     
     sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
     
     sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
+    sw_count = 10
     logger.info(f"Number of sweeps: {sw_count}")
     
     main_for_sweep = functools.partial(main, config)

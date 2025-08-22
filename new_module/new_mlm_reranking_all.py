@@ -767,6 +767,12 @@ if __name__ == "__main__":
         "--turnoff_wandb",
         action='store_true'
     )
+    parser.add_argument(
+        "--memo",
+        type=str,
+        default="",
+        help="memo to pass to wandb",
+    )
 
     args = parser.parse_args()
     config = vars(args)
