@@ -310,7 +310,8 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, ref_sen
 
         torch.cuda.empty_cache()
         if i == len(mask_spans) -1:
-            allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
+            # allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
+            allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -1*config["min_epsilons"][0])[0]
             if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
                 best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
             elif (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_rest"):
@@ -963,7 +964,8 @@ def final_reranking(source_text:str,
             curr_loss += loss_weights[lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
             
-        allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
+        # allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
+        allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -1*config["min_epsilons"][0])[0]
         if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
         #if (allsat_ix.shape[0] > 0) and (config['selection_criteria'] == "allsat_primary"):
             # best_ix = allsat_ix[curr_loss[allsat_ix].argmin()]

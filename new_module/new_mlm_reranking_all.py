@@ -304,7 +304,8 @@ def main(config):
             logging_loss[:, lossid] = lossvalue.clone()
 
 
-        allsat = logging_loss[:,1] < -math.log(config["min_epsilons"][0])
+        # allsat = logging_loss[:,1] < -math.log(config["min_epsilons"][0])
+        allsat = logging_loss[:,1] < -1*config["min_epsilons"][0]
         allsat_ix = allsat.nonzero().squeeze(0)
         if (not config["dont_skip_allsat"]):
             edit_yn[allsat_ix] = False
