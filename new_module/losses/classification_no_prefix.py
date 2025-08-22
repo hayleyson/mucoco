@@ -37,6 +37,10 @@ class ClassificationLogProbLoss(BaseLoss):
             prediction = self.tokenizer.batch_encode_plus(prediction, add_special_tokens=True, return_tensors="pt", padding=True, truncation=True).to(self.device)
         model_output = self.model(**prediction)
         lm_logits = model_output[0]
-        lm_logprobs = F.log_softmax(lm_logits, dim=-1)
-        loss = -lm_logprobs[:, label_id]
+        lm_probs = F.softmax(lm_logits, dim=-1)
+        loss = -lm_probs[:, label_id]
         return loss
+        # return -1 * lm_logits[:, label_id]
+        # lm_logprobs = F.log_softmax(lm_logits, dim=-1)
+        # loss = -lm_logprobs[:, label_id]
+        # return loss

@@ -53,9 +53,11 @@ class GPT2Loss(BaseLoss):
         loss = loss * predictions_enc.attention_mask # make losses for pad tokens 0.
         
         loss = loss.sum(dim=-1)
+        # exponentiate the loss value
+        exp_loss = torch.exp(loss)
         if self.args.length_normalize:
-            loss /= torch.pow(predictions_enc.attention_mask.sum(dim=-1), self.args.alpha) 
-        return loss # dimensions: (N)
+            exp_loss = torch.pow(exp_loss, 1 / torch.pow(predictions_enc.attention_mask.sum(dim=-1), self.args.alpha))
+        return exp_loss # dimensions: (N)
     
     def generate(self, input_ids, **kwargs):
         prepared_input = self._prepare_input_for_generation(input_ids, **kwargs)
