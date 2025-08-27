@@ -46,17 +46,20 @@ class GPT2Loss(BaseLoss):
             model_output = self.model(input_ids=input_tokens,
                                 attention_mask=attention_masks)
         lm_logits = model_output[0][:, prompt_enc.input_ids.size(1)-1:-1, :]
-        lm_probs = F.softmax(lm_logits, dim=-1)
+        lm_logprobs = F.log_softmax(lm_logits, dim=-1)
 
         # input dimensions : (N, C, d1), (N, d1)
-        loss = torch.gather(lm_probs.permute(0,2,1), dim=1, index=predictions_enc.input_ids.unsqueeze(1)) # select lm_probs for predicted tokens
-        loss = loss.squeeze(1) * predictions_enc.attention_mask # make losses for pad tokens 0.
+        loss = F.nll_loss(lm_logprobs.permute(0,2,1), predictions_enc.input_ids, reduction="none")
+        loss = loss * predictions_enc.attention_mask # make losses for pad tokens 0.
+        
+        loss = loss.sum(dim=-1)
         
         if self.args.length_normalize:
-            loss = torch.pow(loss, 1 / torch.unsqueeze(torch.pow(predictions_enc.attention_mask.sum(dim=-1), self.args.alpha),-1))
-        loss = torch.prod(loss, dim=-1)
+            loss = loss / torch.pow(predictions_enc.attention_mask.sum(dim=-1), self.args.alpha)
         
-        return -1 * loss # dimensions: (N)
+        # exponentiate the loss value
+        exp_loss = torch.exp(-1 * loss)
+        return -1 * exp_loss # dimensions: (N)
     
     def generate(self, input_ids, **kwargs):
         prepared_input = self._prepare_input_for_generation(input_ids, **kwargs)
