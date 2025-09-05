@@ -69,10 +69,10 @@ def main(config):
             config=config,
         )
     
-    config["k_per_location"] = wandb.config.k_per_location
-    config["beam_size"] = wandb.config.beam_size
-    config["num_edit_token_per_step"] = wandb.config.num_edit_token_per_step
-    config["min_epsilons"] = [wandb.config.min_epsilons]
+    # config["k_per_location"] = wandb.config.k_per_location
+    # config["beam_size"] = wandb.config.beam_size
+    # config["num_edit_token_per_step"] = wandb.config.num_edit_token_per_step
+    # config["min_epsilons"] = wandb.config.min_epsilons
     logger.info(f"min_epsilons: {config['min_epsilons']}")
     
     run_id = run.path.split("/")[-1]
@@ -239,8 +239,9 @@ def main(config):
     #     run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
     
     #### UPDATE HERE ACCORDING TO SWEEP CONFIG!
+    config["loss_weights"][1] = wandb.config.constraint_weight
     config["loss_weights"][config["losses"].index("bertscore")] = wandb.config.bertscore_weight
-    config["loss_weights"][config["losses"].index("edit_distance")] = wandb.config.edit_distance
+    config["loss_weights"][config["losses"].index("edit_distance")] = wandb.config.edit_distance_weight
     run.config.update({"loss_weights": config["loss_weights"]}, allow_val_change=True)
     logger.info(f"loss_weights: {config['loss_weights']}")
 
@@ -315,7 +316,8 @@ def main(config):
             logging_loss[:, lossid] = lossvalue.clone()
 
 
-        allsat = logging_loss[:,1] < -math.log(config["min_epsilons"][0])
+        # allsat = logging_loss[:,1] < -math.log(config["min_epsilons"][0])
+        allsat = logging_loss[:,1] < -1*config["min_epsilons"][0]
         allsat_ix = allsat.nonzero().squeeze(0)
         if (not config["dont_skip_allsat"]):
             edit_yn[allsat_ix] = False
@@ -566,7 +568,7 @@ def main(config):
                 run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
-                    "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
                     toxicity_model_path=config["model_paths"][1],
                     toxicity_model_type=config["model_types"][1],
                     source_file_path=config["source_data"],
@@ -577,7 +579,7 @@ def main(config):
                 run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
-                    "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1", 
+                    "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert", 
                     formality_model_path=config["model_paths"][1],
                     formality_model_type=config["model_types"][1],
                     source_file_path=config["source_data"],
@@ -588,7 +590,7 @@ def main(config):
                 run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
-                    "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
                     sentiment_model_path=config["model_paths"][1],
                     sentiment_model_type=config["model_types"][1],
                     source_file_path=config["source_data"],
@@ -599,7 +601,7 @@ def main(config):
                 run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
-                    "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                    "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
                     source_file_path=config["source_data"],
                     task=config["task"],
                     target_style=config["target_style"]
@@ -785,17 +787,26 @@ if __name__ == "__main__":
 
     # Configure the sweep – specify the parameters to search through, the search strategy, the optimization metric et all.
     sweep_config = {
-        'method': 'random', #grid, random, bayes
+        'method': 'bayes', #grid, random, bayes
         'metric': {
-        'name': 'h1',
+        'name': 'hmean_fluency_constraint_sbert',
         'goal': 'maximize'   
         },
         'parameters': {
+            'constraint_weight': {
+                'distribution': 'uniform',
+                'min': 0,
+                'max': 1
+            },
             'bertscore_weight': {
-                'values':[0,2,4,6,8,10]
+                'distribution': 'uniform',
+                'min': 0,
+                'max': 1
             },
             'edit_distance_weight': {
-                'values':[0,2,4,6,8,10]
+                'distribution': 'uniform',
+                'min': 0,
+                'max': 1
             },
             # 'k_per_location': {
             #     'values':[5, 10, 15]
@@ -814,8 +825,8 @@ if __name__ == "__main__":
     
     sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
     
-    sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
-    sw_count = 10
+    # sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
+    sw_count = 48
     logger.info(f"Number of sweeps: {sw_count}")
     
     main_for_sweep = functools.partial(main, config)

@@ -364,15 +364,17 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         logger.debug("contents-preservation")
         
         torch.cuda.empty_cache()
+        tokenizer = AutoTokenizer.from_pretrained('roberta-base') ## choose a model that is not dependent on experiment conditions
         # if (task == "formality") and (target_style == 'informal'):
         #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
         # elif (task == "formality") and (target_style == 'formal'):
         #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
         # print(kwargs['source_file_path'])
-        sbleu_score, sbert_score, sbert_preserved_prop, sbert_preserved_count = contents_preservation_metrics(kwargs['source_file_path'],
+        sbleu_score, sbert_score, sbert_preserved_prop, sbert_preserved_count, normalized_edit_distance, edit_distance = contents_preservation_metrics(kwargs['source_file_path'],
                                                                     generations_file_path, 
                                                                     str(output_dir / output_file),
-                                                                    task)
+                                                                    task,
+                                                                    tokenizer)
         
         if run_path != "":
             run.summary.update(
@@ -380,11 +382,14 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
                     "sbleu": sbleu_score,
                     "sbert": sbert_score,
                     "sbert_preserved_prop": sbert_preserved_prop,
-                    "sbert_preserved_count": sbert_preserved_count
+                    "sbert_preserved_count": sbert_preserved_count,
+                    "normalized_edit_distance": normalized_edit_distance,
+                    "edit_distance": edit_distance
                 }
             )
         fp.write(f"sbleu: {sbleu_score}\n")
         fp.write(f"sbert_score: {sbert_score}, sbert_preserved_prop: {sbert_preserved_prop}, sbert_preserved_count: {sbert_preserved_count}\n")
+        fp.write(f"normalized_edit_distance: {normalized_edit_distance}, edit_distance: {edit_distance}\n")
             
     if "h1" in metricset:
         logger.debug("h1")
@@ -411,6 +416,37 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
                         {"h1": h1}
                     )
         fp.write(f"h1: {h1}\n")
+        
+    if "hmean_fluency_constraint_sbert" in metricset:
+        logger.debug("hmean_fluency_constraint_sbert")
+        
+        # Harmonic mean of CoLA accuracy, constraint satisfaction rate, and Source BERTScore
+        
+        # Define constraint satisfaction rate depending on the task
+        if task == 'toxicity':
+            constraint_sat = 1 - toxic_probability_s
+        elif (task == 'sentiment') and (target_style == 'positive'):
+            constraint_sat = positive_proba
+        elif (task == 'sentiment') and (target_style == 'negative'):
+            constraint_sat = 1 - positive_proba
+        elif (task == 'formality') and (target_style == 'formal'):
+            constraint_sat = formal_proba
+        elif (task == 'formality') and (target_style == 'informal'):
+            constraint_sat = 1 - formal_proba
+        elif task == 'nli':
+            constraint_sat = 1 - contradiction_proba
+        logger.info(f"task: {task}, target_style: {target_style}, constraint_sat: {constraint_sat}, fluency: {fluency}")
+        
+        # Calculate harmonic mean
+        weights = [0.4, 0.4, 0.2]
+        metrics = [fluency, constraint_sat, sbert_score]
+        harmonic_mean = sum(weights) / sum([weights[i]/metrics[i] for i in range(len(metrics))])
+        
+        if run_path != "":
+            run.summary.update(
+                        {"hmean_fluency_constraint_sbert": harmonic_mean}
+                    )
+        fp.write(f"hmean_fluency_constraint_sbert: {harmonic_mean}\n")
         
             
     if run_path != "":
