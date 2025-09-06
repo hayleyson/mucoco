@@ -563,49 +563,48 @@ def main(config):
     torch.cuda.empty_cache()
     
     if (not interrupted):
-        for _iter in range(config['n_iter']):
-            if config["task"] == "toxicity":
-                run_generation_evaluation(
-                    "",
-                    outfile+f".{_iter}",
-                    "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
-                    toxicity_model_path=config["model_paths"][1],
-                    toxicity_model_type=config["model_types"][1],
-                    source_file_path=config["source_data"],
-                    task=config["task"],
-                    target_style=config["target_style"]
-                )  # 시간 문제로, perspective api 제외
-            elif config["task"] == "formality":
-                run_generation_evaluation(
-                    "",
-                    outfile+f".{_iter}",
-                    "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert", 
-                    formality_model_path=config["model_paths"][1],
-                    formality_model_type=config["model_types"][1],
-                    source_file_path=config["source_data"],
-                    task=config["task"],
-                    target_style=config["target_style"]
-                )
-            elif config["task"] == "sentiment":
-                run_generation_evaluation(
-                    "",
-                    outfile+f".{_iter}",
-                    "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
-                    sentiment_model_path=config["model_paths"][1],
-                    sentiment_model_type=config["model_types"][1],
-                    source_file_path=config["source_data"],
-                    task=config["task"],
-                    target_style=config["target_style"]
-                )
-            elif config["task"] == "nli":
-                run_generation_evaluation(
-                    "",
-                    outfile+f".{_iter}",
-                    "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
-                    source_file_path=config["source_data"],
-                    task=config["task"],
-                    target_style=config["target_style"]
-                )  
+        if config["task"] == "toxicity":
+            run_generation_evaluation(
+                run.path,
+                outfile,
+                "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
+                toxicity_model_path=config["model_paths"][1],
+                toxicity_model_type=config["model_types"][1],
+                source_file_path=config["source_data"],
+                task=config["task"],
+                target_style=config["target_style"]
+            )  # 시간 문제로, perspective api 제외
+        elif config["task"] == "formality":
+            run_generation_evaluation(
+                run.path,
+                outfile,
+                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert", 
+                formality_model_path=config["model_paths"][1],
+                formality_model_type=config["model_types"][1],
+                source_file_path=config["source_data"],
+                task=config["task"],
+                target_style=config["target_style"]
+            )
+        elif config["task"] == "sentiment":
+            run_generation_evaluation(
+                run.path,
+                outfile,
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
+                sentiment_model_path=config["model_paths"][1],
+                sentiment_model_type=config["model_types"][1],
+                source_file_path=config["source_data"],
+                task=config["task"],
+                target_style=config["target_style"]
+            )
+        elif config["task"] == "nli":
+            run_generation_evaluation(
+                run.path,
+                outfile,
+                "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1,hmean_fluency_constraint_sbert",
+                source_file_path=config["source_data"],
+                task=config["task"],
+                target_style=config["target_style"]
+            )  
 
 
 if __name__ == "__main__":
@@ -825,6 +824,7 @@ if __name__ == "__main__":
     
     sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
     
+    
     # sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
     sw_count = 48
     logger.info(f"Number of sweeps: {sw_count}")
@@ -832,4 +832,4 @@ if __name__ == "__main__":
     main_for_sweep = functools.partial(main, config)
     
     wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
-    # wandb.agent("hayleyson/nli-decoding/3hx99pb2", function=main_for_sweep)
+    
