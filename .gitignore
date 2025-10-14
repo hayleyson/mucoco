@@ -152,3 +152,5 @@ new_module/locate/results/
 new_module/*.xlsx
 BOLT/
 **/*.secrets
+data/
+outputs/
