@@ -1,0 +1,5 @@
+ppl_qwen: 7.962013262217073, total_ppl_qwen: 6.2141905429629425
+avg_max_toxicity: 0.12248400247999999, toxic_probability_p: 0.008, avg_toxicity: 0.050267403452640004, toxic_probability_s: 0.0012
+dist-1: 0.3863655109872814, dist-2: 0.7344503338119349, dist-3: 0.8404948953702465
+repetition_rate: 0.0
+fluent_proba: 0.8744000196456909

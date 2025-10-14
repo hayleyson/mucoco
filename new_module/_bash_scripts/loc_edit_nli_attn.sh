@@ -18,14 +18,15 @@ export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
 export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 
 # 250302 : num_edit_token_per_step = 1로도 돌려봄
+# 250323 : 새롭게 tuning된 hyperparams로 돌려봄
 srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
---num_edit_token_per_step 1  \
+--num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
---beam_size 3 \
+--beam_size 5 \
 --k_per_location 5 \
 --n_iter 1 \
---loss_weights 1.0 0.01 \
+--loss_weights 1 1 \
 --selection_criteria allsat_primary \
 --cache_dir '/data/hyeryung/hf_cache' \
 --slurm_job_id $SLURM_JOB_ID \

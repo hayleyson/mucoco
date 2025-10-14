@@ -17,12 +17,40 @@ export HF_HOME=/data/hyeryung/hf_cache
 export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
 export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 
-# srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
-# --num_edit_token_per_step 7  \
+srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+--num_edit_token_per_step 7  \
+--max_tokens_per_span 3 \
+--locate_unit word \
+--beam_size 5 \
+--k_per_location 5 \
+--n_iter 1 \
+--loss_weights 1 1 \
+--selection_criteria allsat_primary \
+--cache_dir '/data/hyeryung/hf_cache' \
+--slurm_job_id $SLURM_JOB_ID \
+--early_stopping_patience 0 \
+--dont_skip_allsat \
+--task nli \
+--output_dir_prefix 'outputs/nli/' \
+--source_data 'new_module/data/logical-consistency/llama/filtered_0.99_r2-test_500_Llama-3.1-8B-Instruct_49578.jsonl' \
+--source_style 'inconsistent' \
+--target_style 'consistent' \
+--target_label_ids 1 1 \
+--min_epsilons 0.99 \
+--wandb_project 'nli-decoding' \
+--model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+--tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+--locate_method 'grad_norm' \
+--losses gpt2_no_prefix classification \
+--model_types AutoModelForCausalLM EncoderModel
+
+# # sweep으로 돌릴 때 7,15 / 7,10 에서 에러가 나서 따로 돌림
+# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# --num_edit_token_per_step 1  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
-# --beam_size 5 \
-# --k_per_location 10 \
+# --beam_size 7 \
+# --k_per_location 15 \
 # --n_iter 1 \
 # --loss_weights 1.0 0.01 \
 # --selection_criteria allsat_primary \
@@ -43,34 +71,6 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --locate_method 'grad_norm' \
 # --losses gpt2_no_prefix classification \
 # --model_types AutoModelForCausalLM EncoderModel
-
-# sweep으로 돌릴 때 7,15 / 7,10 에서 에러가 나서 따로 돌림
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
---num_edit_token_per_step 1  \
---max_tokens_per_span 3 \
---locate_unit word \
---beam_size 7 \
---k_per_location 15 \
---n_iter 1 \
---loss_weights 1.0 0.01 \
---selection_criteria allsat_primary \
---cache_dir '/data/hyeryung/hf_cache' \
---slurm_job_id $SLURM_JOB_ID \
---early_stopping_patience 0 \
---dont_skip_allsat \
---task nli \
---output_dir_prefix 'outputs/nli/' \
---source_data 'new_module/data/logical-consistency/llama/filtered_0.99_r2-test_500_Llama-3.1-8B-Instruct_49578.jsonl' \
---source_style 'inconsistent' \
---target_style 'consistent' \
---target_label_ids 1 1 \
---min_epsilons 0.99 \
---wandb_project 'nli-decoding' \
---model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
---tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
---locate_method 'grad_norm' \
---losses gpt2_no_prefix classification \
---model_types AutoModelForCausalLM EncoderModel
 
 # # threshold 0.9 데이터에 대해서 실행
 # srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \

@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=edit_once
 #SBATCH --output='new_module/_slurm_outs/edit_once_%j.out'
-#SBATCH --nodelist=n02
+#SBATCH --nodelist=n01
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh

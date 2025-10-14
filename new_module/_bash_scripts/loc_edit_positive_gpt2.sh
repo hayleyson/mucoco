@@ -126,13 +126,41 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
-srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamsearch-v0 \
---num_edit_token_per_step 100  \
+# srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamsearch-v0 \
+# --num_edit_token_per_step 7  \
+# --max_tokens_per_span 3 \
+# --locate_unit word \
+# --beam_size 7 \
+# --k_per_location 15 \
+# --n_iter 10 \
+# --loss_weights 1 1 \
+# --selection_criteria allsat_primary \
+# --cache_dir '/data/hyeryung/hf_cache' \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --dont_skip_allsat \
+# --task sentiment \
+# --output_dir_prefix 'outputs/sentiment/positive_gpt2/' \
+# --source_data '/data/hyeryung/mucoco/new_module/data/sentiment/dev_set_below_positive_threshold_778.jsonl' \
+# --source_style 'negative' \
+# --target_style 'positive' \
+# --target_label_ids 1 1 \
+# --min_epsilons 0.97 \
+# --wandb_project 'sentiment-decoding' \
+# --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --locate_method 'grad_norm' \
+# --losses gpt2 classification_no_prefix_logprobloss \
+# --model_types AutoModelForCausalLM AutoModelForSequenceClassification
+
+
+srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+--num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
 --beam_size 7 \
 --k_per_location 15 \
---n_iter 10 \
+--n_iter 1 \
 --loss_weights 1 1 \
 --selection_criteria allsat_primary \
 --cache_dir '/data/hyeryung/hf_cache' \

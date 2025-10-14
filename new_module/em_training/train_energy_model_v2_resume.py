@@ -7,7 +7,9 @@ import os
 import sys
 import time
 from operator import itemgetter
+import random
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -16,7 +18,7 @@ from accelerate.logging import get_logger
 from accelerate.utils import set_seed
 from datasets import Dataset
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 from tqdm import tqdm
@@ -30,6 +32,15 @@ import wandb
 from new_module.utils.load_ckpt import define_model
 
 logger = get_logger(__name__, log_level = os.environ.get("LOGGING_LEVEL", "ERROR"))
+
+def set_global_seed(seed):
+    set_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def create_pairs_for_ranking(logits, labels):
     """ Given model predictions(logits or probabilities) and ground truth labels of a list of examples, 
@@ -72,7 +83,7 @@ class CustomMarginRankingLoss(nn.Module):
     
     def forward(self, fy_i, fy_1_i):
         return self.loss_func(fy_i, fy_1_i, torch.ones_like(fy_i, dtype=torch.long))
-        
+       
 
 def validate_model(model, accelerator, eval_dataloader, args):
     "Compute performance of the model on the validation dataset"
@@ -117,7 +128,7 @@ def validate_model(model, accelerator, eval_dataloader, args):
 
 
 def main(args):
-    
+    set_global_seed(42)
     start_time = time.time()
     
     batch_size = args.batch_size
@@ -139,6 +150,7 @@ def main(args):
     num_validate_steps = args.num_validate_steps
     training_loss_type = args.training_loss_type
     model_type = args.model_type
+    balanced_sampling = args.balanced_sampling
     
     config = {'batch_size': batch_size, 
               'num_epochs': num_epochs, 
@@ -152,6 +164,7 @@ def main(args):
               'ranking_loss_type': ranking_loss_type,
               'train_data_path': train_data_path,
               'valid_data_path': valid_data_path,
+              'balanced_samplng': balanced_sampling
               }
     if ranking_loss_type == "scaled_ranking_loss":
         del config['margin']
@@ -210,7 +223,27 @@ def main(args):
         train_dataset = Dataset.from_pandas(train_data)
         valid_dataset = Dataset.from_pandas(valid_data)
 
-    train_dataloader = DataLoader(train_dataset, shuffle=True,batch_size=batch_size,collate_fn=collate_fn,drop_last=True)
+
+    classes = np.unique(train_data['labels'])
+    # print(f"classes: {classes}")
+    # print(f"type(classes[0]): {type(classes[0])}")
+    # print(f"np.where(classes == t): {np.where(classes == train_data['labels'][0])}")
+    class_sample_count = np.array(
+        [len(np.where(train_data['labels'] == t)[0]) for t in np.unique(train_data['labels'])])
+    # print(f"class_sample_count: {class_sample_count}")
+    weight = 1. / class_sample_count
+    # print(f"weight: {weight}")
+    samples_weight = np.array([weight[np.where(classes ==t)[0][0]] for t in train_data['labels']])
+    samples_weight = torch.from_numpy(samples_weight)
+    samples_weight = samples_weight.double()
+    # print(f"samples_weight[:10]: {samples_weight[:10]}")
+    # print(f"samples_weight.shape: {samples_weight.shape}")
+    sampler = WeightedRandomSampler(samples_weight, len(samples_weight), replacement=False)
+    
+    if balanced_sampling:
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size,collate_fn=collate_fn,drop_last=True, sampler=sampler)
+    else:    
+        train_dataloader = DataLoader(train_dataset, shuffle=True,batch_size=batch_size,collate_fn=collate_fn,drop_last=True)
     # update: 23/01/09: noticed that collate_fn most likely go with the train collate_fn. 
     # will take care of edge case later.
     eval_dataloader = DataLoader(valid_dataset, shuffle=False,batch_size=batch_size,collate_fn=collate_fn) 
@@ -273,8 +306,7 @@ def main(args):
     if num_validate_steps == -1:
         num_validate_steps = len(train_dataloader)
 
-    ## setting seed for reproducibility in data_loaders!
-    set_seed(42)
+    
     for epoch in tqdm(range(starting_epoch, num_epochs),
                       disable=not accelerator.is_local_main_process):
 
@@ -331,7 +363,7 @@ def main(args):
             optimizer.zero_grad()
             overall_step+=1
             
-            if overall_step % num_validate_steps == 0:
+            if (overall_step % num_validate_steps == 0) or (overall_step == len(train_dataloader)*num_epochs):
                 
                 valid_loss = validate_model(model, accelerator, eval_dataloader, args)
                 valid_metrics = {'epoch':epoch, 'valid_loss': valid_loss}
@@ -352,7 +384,7 @@ def main(args):
                     with open(f"{ckpt_save_path}/step_{overall_step}/val_loss.txt", 'w') as f:
                         f.write(str(best_val_loss))
                     
-                    accelerator.save_state(f"{ckpt_save_path}/step_{overall_step}")
+                    # accelerator.save_state(f"{ckpt_save_path}/step_{overall_step}")
                     torch.save({"best_val_loss": best_val_loss,
                                 "best_val_step": best_val_step
                                 }, os.path.join(f"{ckpt_save_path}/step_{overall_step}", "best_val_info.pt"))
@@ -412,7 +444,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Script to train an energy model')
     
-    parser.add_argument('--task', type=str, default='formality', choices=['formality', 'sentiment', 'toxicity'], help='task name')
+    parser.add_argument('--task', type=str, default='formality', choices=['formality', 'sentiment', 'toxicity', 'irony'], help='task name')
     parser.add_argument('--model', type=str, default='roberta-base', help='model name')
     parser.add_argument('--model_type', type=str, help='type of model', choices=['AutoModelForSequenceClassification', 'RobertaCustomForSequenceClassification'])
     parser.add_argument('--batch_size', type=int, default=16, help='batch size')
@@ -439,6 +471,8 @@ if __name__ == "__main__":
     parser.add_argument('--resume_from_checkpoint', type=str, help='directory of checkpoint to resume training from')
     parser.add_argument('--resume_wandb_id', type=str, help='wandb id to resume training from')
     parser.add_argument('--hours_limit', type=int, default=47, help='number of hours at which voluntarily stop the training considering the time limit in the servers the script is run.')
+    
+    parser.add_argument('--balanced_sampling', action='store_true', help='whether to sample training examples considering class imbalance.')
     
     args = parser.parse_args()
     if (args.training_loss_type == "cross_entropy"):

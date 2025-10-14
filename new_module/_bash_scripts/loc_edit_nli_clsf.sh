@@ -23,9 +23,9 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --max_tokens_per_span 3 \
 # --locate_unit word \
 # --beam_size 5 \
-# --k_per_location 10 \
+# --k_per_location 5 \
 # --n_iter 1 \
-# --loss_weights 1.0 0.01 \
+# --loss_weights 1 1 \
 # --selection_criteria allsat_primary \
 # --cache_dir '/data/hyeryung/hf_cache' \
 # --slurm_job_id $SLURM_JOB_ID \
@@ -45,45 +45,16 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --losses gpt2_no_prefix classification \
 # --model_types AutoModelForCausalLM EncoderModel
 
-# # clsf에 대해서 loss weights tuning -> k, beam tuning (sweep 을 할 때 beam 7 이면 memeory 에러가 나서 다시 돌림)
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
-# --num_edit_token_per_step 7  \
-# --max_tokens_per_span 3 \
-# --locate_unit word \
-# --beam_size 7 \
-# --k_per_location 10 \
-# --n_iter 1 \
-# --loss_weights 1.0 0.01 \
-# --selection_criteria allsat_primary \
-# --cache_dir '/data/hyeryung/hf_cache' \
-# --slurm_job_id $SLURM_JOB_ID \
-# --early_stopping_patience 0 \
-# --dont_skip_allsat \
-# --task nli \
-# --output_dir_prefix 'outputs/nli/' \
-# --source_data '/data/hyeryung/mucoco/new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105_sweep_1000.jsonl' \
-# --source_style 'inconsistent' \
-# --target_style 'consistent' \
-# --target_label_ids 1 1 \
-# --min_epsilons 0.98974 \
-# --wandb_project 'nli-decoding' \
-# --model_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/' \
-# --tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/' \
-# --locate_method 'grad_norm' \
-# --losses gpt2_no_prefix classification \
-# --model_types AutoModelForCausalLM EncoderModel
-
-
-# 전체 데이터에 대해서 돌리기
-# 250302 : num_edit_token_per_step = 1로도 돌려봄
+# # 전체 데이터에 대해서 돌리기
+# # 250302 : num_edit_token_per_step = 1로도 돌려봄
 srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
---num_edit_token_per_step 1  \
+--num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
---beam_size 3 \
+--beam_size 5 \
 --k_per_location 5 \
 --n_iter 1 \
---loss_weights 1.0 0.01 \
+--loss_weights 1 1 \
 --selection_criteria allsat_primary \
 --cache_dir '/data/hyeryung/hf_cache' \
 --slurm_job_id $SLURM_JOB_ID \

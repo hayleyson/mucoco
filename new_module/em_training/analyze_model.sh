@@ -46,22 +46,42 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 #  --output_dir new_module/em_training/roberta-base-yelp-sentiment-classifier/valid\
 #  --batch_size 32
 
-srun python new_module/em_training/analyze_model.py\
- --checkpoint_dir /data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/\
- --model_file_name best_model_pearsonr.pth\
- --model_type encoder-model\
- --test_data_path data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl\
- --test_data_type valid\
- --output_dir new_module/em_training/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/valid\
- --batch_size 32\
- --task nli
+# srun python new_module/em_training/analyze_model.py\
+#  --checkpoint_dir /data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/\
+#  --model_file_name best_model_pearsonr.pth\
+#  --model_type encoder-model\
+#  --test_data_path data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl\
+#  --test_data_type valid\
+#  --output_dir new_module/em_training/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/valid\
+#  --batch_size 32\
+#  --task nli
+
+# srun python new_module/em_training/analyze_model.py\
+#  --checkpoint_dir /data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/\
+#  --model_file_name best_model_pearsonr.pth\
+#  --model_type encoder-model\
+#  --test_data_path data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl\
+#  --test_data_type valid\
+#  --output_dir new_module/em_training/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/valid\
+#  --batch_size 32\
+#  --task nli
 
 srun python new_module/em_training/analyze_model.py\
- --checkpoint_dir /data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/\
- --model_file_name best_model_pearsonr.pth\
- --model_type encoder-model\
- --test_data_path data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl\
- --test_data_type valid\
- --output_dir new_module/em_training/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/valid\
+ --checkpoint_dir /data/hyeryung/loc_edit/models/roberta-base-irony-energy-model/step_200_best_checkpoint\
+ --model_file_name model.safetensors\
+ --model_type roberta-base\
+ --test_data_path data/ACL-2014-irony/test_binary.jsonl\
+ --test_data_type test\
+ --output_dir new_module/em_training/roberta-base-irony-energy-model/test\
  --batch_size 32\
- --task nli
+ --task irony
+
+# srun python new_module/em_training/analyze_model.py\
+#  --checkpoint_dir /data/hyeryung/loc_edit/models/roberta-base-irony-classifier/step_200_best_checkpoint\
+#  --model_file_name model.safetensors\
+#  --model_type roberta-base\
+#  --test_data_path data/ACL-2014-irony/test_binary.jsonl\
+#  --test_data_type test\
+#  --output_dir new_module/em_training/roberta-base-irony-classifier/test\
+#  --batch_size 32\
+#  --task irony

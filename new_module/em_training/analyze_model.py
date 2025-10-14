@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from datasets import Dataset
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
-from sklearn.metrics import mean_squared_error, mean_absolute_error, confusion_matrix, accuracy_score, f1_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, confusion_matrix, accuracy_score, f1_score, recall_score, precision_score
 import seaborn as sns
 
 import mucoco.utils as utils
@@ -142,14 +142,16 @@ def main(args):
 
 
     ### Obtain binary labels
-    labels_predictions['labels_binary'] = labels_predictions['labels'].apply(lambda x: 1 if x > 0.5 else 0)
-    labels_predictions['predictions_binary'] = labels_predictions['predictions'].apply(lambda x: 1 if x > 0.5 else 0)
+    labels_predictions['labels_binary'] = labels_predictions['labels'].apply(lambda x: 1 if x >= 0.5 else 0)
+    labels_predictions['predictions_binary'] = labels_predictions['predictions'].apply(lambda x: 1 if x >= 0.5 else 0)
 
     ### Plot & Analyze Model Outputs
 
     with open(os.path.join(args.output_dir, "results.txt"), "w") as f:
         f.write(f"Classification Accuracy: {accuracy_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
         f.write(f"Classification F1: {f1_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
+        f.write(f"Classification Recall: {recall_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
+        f.write(f"Classification Precision: {precision_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
         f.write(f"RMSE: {mean_squared_error(labels_predictions['labels'], labels_predictions['predictions'])**(1/2)}\n")
         f.write(f"MAE: {mean_absolute_error(labels_predictions['labels'], labels_predictions['predictions'])}\n")
         f.write(f"Pearson's r: {pearsonr(labels_predictions['labels'], labels_predictions['predictions'])[0]}\n")
