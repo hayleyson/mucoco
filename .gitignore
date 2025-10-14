@@ -155,3 +155,10 @@ BOLT/
 **/*.secrets
 data/
 outputs/
+*.json
+*.jsonl
+*.xlsx
+*.txt.*
+*.txt
+*.jsonl*
+*.ipynb

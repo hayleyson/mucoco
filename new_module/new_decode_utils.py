@@ -13,6 +13,7 @@ import wandb
 from torch.utils.data import DataLoader,Dataset
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
+from new_module.set_consistency_energy.locate_and_edit.edit import mask_text
 import new_module.losses as lossbuilder
 
 logging.basicConfig(level=os.environ.get('LOGGING_LEVEL', 'DEBUG').upper(), 
@@ -396,6 +397,150 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
 
     return final_hypotheses, torch.FloatTensor(best_weighted_loss).to(config['device']), \
             torch.BoolTensor(best_allsat).to(config['device']), torch.FloatTensor(best_logging_loss).to(config['device'])
+
+
+def editing_lconvqa(source_text:str, test_sent:str, test_sent_located_sentence_indices:List[int], test_sent_located_token_indices:List[int], 
+                                         mlm:AutoModelForMaskedLM, mlm_tokenizer:AutoTokenizer, 
+                                         lossfns:List[lossbuilder.BaseLoss], config: dict, batch_size:int=16) -> \
+                                             Tuple[List[str],torch.FloatTensor,torch.BoolTensor,torch.FloatTensor]:
+    
+    """
+    
+    params: 
+        source_text: a prompt text 
+        test_sent: a masked text returned by LocateMachine     
+        test_sent_located_sentence_indices: a list of located sentence indices
+        test_sent_located_token_indices: a list of located token indices
+        mlm:
+        mlm_tokenizer:
+        lossfns: 
+        config:
+        batch_size:             
+    
+    returns:
+        hypotheses: list of one best hypothesis(editing result)
+        best_weighted_loss: torch.FloatTensor of weighted loss for the best hypothesis.
+        best_allsat: torch.ByteTensor of indicator(1,0) whether the best hypothesis satisfy cutoff (min_epsilons) for constraint energy score.
+        best_logging_loss: torch.FloatTensor of shape (num samples, 2) of fluency energy score and constraint energy score for each best hypothesis.
+    """
+    
+    special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
+    max_mask_cnt_per_span = [config['max_tokens_per_span']]
+    
+    queue = [test_sent]
+    # loop over predicted sentence index
+    for i in range(len(test_sent_located_sentence_indices)):
+        test_sent_located_sentence_index = test_sent_located_sentence_indices[i]
+        new_queue = []
+        for hypothesis in queue:
+        
+            curr_full_text_hyp = mask_text(hypothesis, test_sent_located_sentence_index, config['max_tokens_per_span'], dataset='convqa')
+            ## Tokenize & conduct MLM inference
+            inputs = mlm_tokenizer(
+                curr_full_text_hyp, return_tensors="pt", padding=True, truncation=True, add_special_tokens=False
+            ) ## add_special_tokens=False to skip adding bos token
+            inputs = inputs.to(config['device']) 
+            masked_sequence=inputs['input_ids']
+            
+            with torch.no_grad():
+                logits = mlm(**inputs).logits
+                
+            logits[:, :, special_token_ids] = -float("inf")
+            
+            
+            indices_in_mlm_tokens = (
+                inputs.input_ids == mlm_tokenizer.mask_token_id
+            ).nonzero(as_tuple=False) # if as_tuple=False, returns a tensor where column 1 indicates row indices, column 2 indicates column indices e.g. torch.Tensor([[0, 19],[0, 20], [0,38]])
+            
+
+            ## For each hypothesis in curr_full_text_hyp, first max_mask_cnt_per_span[i] mask locations are relevant
+            indices_in_mlm_tokens = torch.cat([x[:config['max_tokens_per_span']] for x in torch.chunk(indices_in_mlm_tokens, curr_queue_size)],dim=0)
+            indices_in_mlm_tokens_0 = indices_in_mlm_tokens[:,0]
+            indices_in_mlm_tokens_1 = indices_in_mlm_tokens[:,1]
+
+            ## Get top k tokens for the j masks
+            predicted_token_ids = torch.topk(
+                logits[indices_in_mlm_tokens_0, indices_in_mlm_tokens_1, :],
+                k=config['k_per_location'],
+                dim=-1,
+            )       
+            ## beam search에 넣기 전에 이런 작업을 해주는게 좋을까? ## right side를 아예 안볼거면 ok.  -> 꼭 해주지 않아도 indices_in_mlm_tokens 에서 현재 span까지만 index를 뽑기 때문에 같은 결과가 나오긴 함.
+            # masked_sequence = [masked_sequence[ix, :indices_in_mlm_tokens_1[max_mask_cnt_per_span[i]*(ix+1)-1]+1] for ix in range(masked_sequence.shape[0])]
+            masked_sequence = torch.nn.utils.rnn.pad_sequence(masked_sequence, batch_first=True, padding_value=mlm_tokenizer.pad_token_id)        
+
+            hypotheses=list(queue) # deletion case
+            beam_outputs, _ = get_beam_hypotheses_v0_variable_length_v2(source_text, 
+                                    masked_sequence, 
+                                    (indices_in_mlm_tokens_0, indices_in_mlm_tokens_1),
+                                    predicted_token_ids.indices,
+                                    mlm_tokenizer, 
+                                    lossfns,
+                                    config,
+                                    return_all_hypotheses=True,
+                                    batch_size=batch_size)
+            hypotheses.extend(beam_outputs)
+            
+            # Scoring the hypotheses and select top beam hypotheses
+            curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
+            data_loader = DataLoader(CustomDataset(hypotheses_all),batch_size=batch_size)
+            logging_loss = torch.zeros((len(hypotheses_all),len(lossfns))).to(config['device'])
+
+            for lossid, lossname in enumerate(config["losses"]):
+                lossvalues=[]
+                with torch.no_grad():
+                    for batch in data_loader:
+                        lossvalue = lossfns[lossid].compute_gold_loss(
+                            source_text, batch,
+                            label_id=config['target_label_ids'][lossid],
+                        )
+                        lossvalues.append(lossvalue)
+                        torch.cuda.empty_cache()
+                lossvalue = torch.cat(lossvalues,dim=0)
+                curr_loss += config['loss_weights'][lossid] * lossvalue
+                logging_loss[:, lossid] = lossvalue.clone()
+
+            torch.cuda.empty_cache()
+
+            top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
+            new_queue.extend([hypotheses_all[ix] for ix in top_beams])
+                
+            del curr_loss, logging_loss
+        queue = new_queue
+        
+    # Scoring the hypotheses and select top beam hypotheses
+    curr_loss = torch.zeros(len(queue)).to(config['device'])
+    data_loader = DataLoader(CustomDataset(queue),batch_size=batch_size)
+    logging_loss = torch.zeros((len(queue),len(lossfns))).to(config['device'])
+
+    for lossid, lossname in enumerate(config["losses"]):
+        lossvalues=[]
+        with torch.no_grad():
+            for batch in data_loader:
+                lossvalue = lossfns[lossid].compute_gold_loss(
+                    source_text, batch,
+                    label_id=config['target_label_ids'][lossid],
+                )
+                lossvalues.append(lossvalue)
+                torch.cuda.empty_cache()
+        lossvalue = torch.cat(lossvalues,dim=0)
+        curr_loss += config['loss_weights'][lossid] * lossvalue
+        logging_loss[:, lossid] = lossvalue.clone()
+
+    torch.cuda.empty_cache()   
+    allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
+    if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
+        best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
+    else: ## in case config['selection_criteria'] == "weighted_sum" or allsat is all False
+        best_ix = torch.argmin(curr_loss)
+    
+    final_hypotheses = [queue[best_ix]]
+    best_weighted_loss = [curr_loss[best_ix].item()]
+    best_allsat = [1 if best_ix in allsat_ix else 0]
+    best_logging_loss = [logging_loss[best_ix].cpu().tolist()]
+        
+    return final_hypotheses, torch.FloatTensor(best_weighted_loss).to(config['device']), \
+            torch.BoolTensor(best_allsat).to(config['device']), torch.FloatTensor(best_logging_loss).to(config['device'])
+
 
 
 def get_beam_hypotheses_v0(source_text:str, 
