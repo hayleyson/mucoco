@@ -42,6 +42,7 @@ def read_metric_file(result_file, metric) -> Union[np.array, pd.DataFrame]:
         
     if metric == 'ppl-big-qwen':
         result=pd.read_csv(result_file,header=None)
+        result.columns = ['ppl', 'nll', 'num_tokens']
         return result
     
     elif metric == 'fluency':
