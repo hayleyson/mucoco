@@ -34,9 +34,9 @@ class SCEnergy(BaseLoss):
         # print(f"output: {output}")
         
         if (self.model.output_form == 'real_num'):
-            return output.reshape(-1)
+            return F.sigmoid(output).reshape(-1)
         elif (self.model.output_form == '2dim_vec'):
-            return output[:,1].reshape(-1) # label_id hardcoded to 1
+            return F.softmax(output, dim=1)[:,1].reshape(-1) # label_id hardcoded to 1
         else:
             raise NotImplementedError
         
