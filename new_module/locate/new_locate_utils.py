@@ -500,13 +500,18 @@ class LocateMachine4SCE:
             thresholds = []
             prediction_list = []
             for b in range(batch_size):
-                thresholds.append(np.max(instance_scores[b]))
-                # add tie breaking logic
-                candidates = [i for i, score in enumerate(instance_scores[b]) if score == thresholds[b]]
-                if len(candidates) > 1:
-                    candidates = [random.choice(candidates)]
-                prediction_list.append(candidates)
-                # print("prediction_list:", prediction_list)
+                # Handle edge case where all instances were filtered out
+                if len(instance_scores[b]) == 0:
+                    logger.warning(f"No valid instances found for batch {b}. All instances contain only masked tokens.")
+                    prediction_list.append([])
+                else:
+                    thresholds.append(np.max(instance_scores[b]))
+                    # add tie breaking logic
+                    candidates = [i for i, score in enumerate(instance_scores[b]) if score == thresholds[b]]
+                    if len(candidates) > 1:
+                        candidates = [random.choice(candidates)]
+                    prediction_list.append(candidates)
+                    # print("prediction_list:", prediction_list)
                 
         return prediction_list
     
@@ -567,6 +572,23 @@ class LocateMachine4SCE:
         final_mask = (mask == 0) | torch.isin(input_tensor, self.stopwords_ids)
         token_scores[final_mask] = -float("inf")
         token_scores = token_scores.softmax(dim=-1)
+        
+        # Filter out degenerate instances (those with only masked tokens)
+        # This prevents division by zero errors in instance scoring
+        filtered_instance_locations = []
+        for b in range(batch_size):
+            valid_instances = []
+            for start, end in instance_locations[b]:
+                # Check if instance has at least one non-masked token
+                instance_has_nonmasked = (~final_mask[b][start:end]).any().item()
+                if instance_has_nonmasked:
+                    valid_instances.append((start, end))
+                else:
+                    logger.debug(f"Filtering out degenerate instance at ({start}, {end}) with only masked tokens")
+            filtered_instance_locations.append(valid_instances)
+        
+        # Update instance_locations to use only valid instances
+        instance_locations = filtered_instance_locations
         
         # First locate at instance-level
         logger.debug(f"final_mask: {final_mask}")
