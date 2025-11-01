@@ -89,6 +89,7 @@ from torch.utils.data import DataLoader
 
 from new_module.em_training.nli.models import EncoderModel  
 from new_module.locate.new_locate_utils import LocateMachine
+from new_module.set_consistency_energy.energynets.energynet import energynet
 
 import new_module.losses as lossbuilder
 
@@ -96,6 +97,35 @@ import huggingface_hub
 import argparse
 from argparse import Namespace
 import re
+
+import yaml
+import os
+
+
+def load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device):
+    
+    model_config = yaml.load(open(config_path), 
+                                Loader=yaml.FullLoader)
+    dataset = 'set_nli' if task == 'nli' else 'lconvqa'
+    
+    model_config['dataset'] = dataset
+    model_config['task'] = task
+    model_config['folder_path'] = folder_path
+    model_config['model_path'] = model_path
+    model_config['time_key'] = time_key
+
+    energy_net = energynet(params=model_config)
+    model_object = torch.load(model_config["model_path"], 
+                                map_location=device,
+                                weights_only=True)
+    energy_net.load_state_dict(model_object['state_dict'], strict=False)
+    if 'threshold' in model_object:
+        energy_net.threshold = model_object['threshold']
+    
+    energy_net.eval()
+    energy_net.to(device)
+    
+    return energy_net
 
 ###############################################################################
 ###############################################################################
@@ -125,6 +155,27 @@ if task == "nli":
     model.to(device)
 
     tokenizer = model.tokenizer
+    
+elif task in ["set_nli", "set-nli", "set_snli", "set-snli"]:
+    
+    config_path = 'new_module/set_consistency_energy/params.yaml'
+    folder_path = 'new_module/set_consistency_energy/results/nli/set_nli/46853'
+    model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
+    time_key = '46853'
+    
+    model = load_sc_energy_model(config_path, folder_path, model_path, time_key, "nli", device)
+    tokenizer = model.representation_model.tokenizer
+
+elif task in ["vqa", "lconvqa", "convqa", "set-lconvqa", "set_lconvqa"]:
+    
+    config_path = 'new_module/set_consistency_energy/params.yaml'
+    folder_path = 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068'
+    model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
+    time_key = '1225068'
+
+    model = load_sc_energy_model(config_path, folder_path, model_path, time_key, "vqa", device)
+    tokenizer = model.representation_model.tokenizer
+    
 else:
     model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_path)
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_path)
