@@ -161,14 +161,7 @@ def main(config):
     # Load dataset
     ###########################################################
 
-    if (task == 'nli') or (task == 'set_nli'):
-        data_path = 'new_module/data/set_nli/processed_data/set_nli_test.jsonl'
-    elif (task == 'vqa') or (task == 'convqa') or (task == 'lconvqa') or (task == 'set_lconvqa'):
-        data_path = 'new_module/data/convqa/processed_data/lconvqa_test.jsonl'
-    else:
-        raise ValueError(f"Task {task} not supported")
-
-    with open(data_path, 'r') as f:
+    with open(config['source_data_path'], 'r') as f:
         data = [json.loads(line.rstrip()) for line in f]
 
     if lossfns[0].tokenizer.bos_token is not None:
@@ -413,7 +406,7 @@ def main(config):
             run.path,
             outfile,
             "set-consistency,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
-            source_file_path=data_path,
+            source_file_path=config["source_data_path"],
             task=task,
         )  
         
@@ -423,6 +416,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("task", type=str)
+    parser.add_argument("source_data_path", type=str)
     parser.add_argument("--early_stopping_patience", type=int, default=0)
     parser.add_argument("--losses", nargs="+", type=str, default=['gpt2', 'sc_energy'])
     parser.add_argument("--min_epsilons", nargs="+", type=float, default=[0.95])
