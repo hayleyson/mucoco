@@ -481,11 +481,7 @@ class LocateMachine4SCE:
             # for denominator, only consider nonzero values (=exclude stopwords)
             for b in range(batch_size):
                 for l in instance_locations[b]:
-                    logger.debug(f"b: {b}, l: {l}")
-                    logger.debug(f"token_scores[b][l[0]:l[1]]: {token_scores[b][l[0]:l[1]]}")
-                    logger.debug(f"token_scores[b][l[0]:l[1]].sum().item(): {token_scores[b][l[0]:l[1]].sum().item()}")
-                    logger.debug(f"token_scores[b][l[0]:l[1]].nonzero().shape[0]: {token_scores[b][l[0]:l[1]].nonzero().shape[0]}")
-                instance_scores.append([token_scores[b][l[0]:l[1]].sum().item() / token_scores[b][l[0]:l[1]].nonzero().shape[0] for l in instance_locations[b]])
+                    instance_scores.append([token_scores[b][l[0]:l[1]].sum().item() / token_scores[b][l[0]:l[1]].nonzero().shape[0] for l in instance_locations[b]])
        
         elif 'median' == self.params['locate']['agg_method']:
             
@@ -591,8 +587,6 @@ class LocateMachine4SCE:
         instance_locations = filtered_instance_locations
         
         # First locate at instance-level
-        logger.debug(f"final_mask: {final_mask}")
-        logger.debug(f"token_scores: {token_scores}")
         prediction_list = self._locate_instance(token_scores, instance_locations, batch_size)
 
         # Mask tokens that are not in located instances

@@ -1,9 +1,4 @@
 
-### 간단하게 batch size 1 을 가정하고 코드를 짜보자.
-
-
-
-
 ###########################################################
 # Package import 
 import joblib
@@ -23,6 +18,7 @@ from transformers import AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokeniz
 import wandb
 
 import new_module.losses as lossbuilder
+from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
 from new_module.new_decode_utils import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
@@ -166,19 +162,14 @@ def main(config):
     ###########################################################
 
     if (task == 'nli') or (task == 'set_nli'):
-        data_path = 'new_module/data/set_nli/processed_data/set_nli_test_for_locate_edit.pickle'
+        data_path = 'new_module/data/set_nli/processed_data/set_nli_test.jsonl'
     elif (task == 'vqa') or (task == 'convqa') or (task == 'lconvqa') or (task == 'set_lconvqa'):
-        data_path = 'new_module/data/convqa/processed_data/lconvqa_test_for_locate_edit.pickle'
+        data_path = 'new_module/data/convqa/processed_data/lconvqa_test.jsonl'
     else:
         raise ValueError(f"Task {task} not supported")
 
-    data = joblib.load(data_path)
-
-    # Filter only inconsistent data
-    # incon = list(filter(lambda x: x[-1] == 'incon', data))
-
-    # Filter data with length greater than 9 sentences 
-    # incon = list(filter(lambda x: len(x[2]) > 9, incon))
+    with open(data_path, 'r') as f:
+        data = [json.loads(line.rstrip()) for line in f]
 
     if lossfns[0].tokenizer.bos_token is not None:
         source_text = lossfns[0].tokenizer.bos_token
@@ -195,11 +186,12 @@ def main(config):
     num_edited = 0
     num_decoded_tokens = 0
 
+    # NOTE. batch_size = 1
     for i in range(len(data)):
         
         logger.debug(f"================================ Doing {i}th sample ==================================")
 
-        AR_prediction_all = [data[i][0]]
+        AR_prediction_all = [data[i]['generations'][0]['text']]
         
         curr_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
         logging_loss = torch.zeros((len(AR_prediction_all),len(config["losses"]))).to(config['device'])
@@ -216,7 +208,7 @@ def main(config):
             logging_loss[:, lossid] = lossvalue.clone()
 
 
-        allsat = logging_loss[:,1] < lossfns[1].model.threshold
+        allsat = logging_loss[:,1] <= lossfns[1].model.threshold
         allsat_ix = allsat.nonzero().squeeze(0)
         if (not config["dont_skip_allsat"]):
             edit_yn[allsat_ix] = False
@@ -230,7 +222,7 @@ def main(config):
         running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## hold only samples that need be edited
         int_output = [{} for _ in range(len(AR_prediction_all))]
 
-        # If all samples satisfy constraints and dont_skip_allsat is not passed, skip the sample
+        # If the sample satisfies constraints and dont_skip_allsat is not passed, skip the sample (Recall: batch size = 1)
         if (edit_yn.sum().item() == 0) and (not config["dont_skip_allsat"]):
             
             num_edited += 0
@@ -243,6 +235,11 @@ def main(config):
                 )
         
         else:
+            
+            num_edited += edit_yn.sum().item()
+            num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
+            num_decoded_tokens += sum([len(x) for x in causal_lm_tokenizer(running_text).input_ids])       
+                    
         
             for _iter in range(config['n_iter']):
                 
@@ -301,9 +298,9 @@ def main(config):
                         new_best_logging_loss_ = torch.cat(new_best_logging_loss_, dim=0)
                     
 
-                    ## final_hypotheses, new_best_weighted_loss, new_best_allsat, new_best_logging_loss 모두 N 의 길이를 가짐 
-                    ## 특히 edit 대상이 iteration마다 달라지면 best_... tensor와 new_best_... tensor간에 크기가 달라서 아래 코드 실행시 에러가 날 것이다.
-                    
+                    # Variables that end with "_" are tensors with the same length as running_text
+                    # But we want variables without "_" suffix to be tensors with the same length as AR_prediction_all
+                    # Thus, we first declare tensors with the same length as AR_prediction_all, and then update the values for the edit_yn indices.
                     new_best_weighted_loss = torch.empty((len(AR_prediction_all),)).fill_(float("inf")).to(config['device'])
                     new_best_weighted_loss[edit_yn] = new_best_weighted_loss_
                     
@@ -350,73 +347,75 @@ def main(config):
             
 
                     
-                    output = {
-                        "prompt": {
-                            "text": source_text,
-                        },
-                        "generations": [
-                            {
-                                "text": best_text[i],
-                                "original_text": AR_prediction_all[i],
-                                "allsat": best_allsat[i].item(),
-                                "losses": best_losses[i,:].tolist(),
-                                "weighted_loss": best_weighted_loss[i].item(),
-                                "edited": edited_at_all_yn[i].tolist(),
-                            } for i in range(len(AR_prediction_all))
-                        ],
-                    }
-                
-                    intermediate_output = {
-                            "prompt": {
-                                "text": source_text,
-                            },
-                            "generations": 
-                                int_output
-                            ,
-                        }
-
-                    json.dump(output, outf)
-                    outf.write("\n")
-                    outf.flush()
-                    
-                    json.dump(intermediate_output, int_outf)
-                    int_outf.write("\n")
-                    int_outf.flush()
+              
                 else:
-                    ## save data
-                    num_edited += 0
-                    num_skipped += len(AR_prediction_all)
-                    num_decoded_tokens += 0
                     
-                    
-                    logger.info(
-                            f"skipping this sample since it already satisfies constraint. {best_losses}"
+                    logger.warning(
+                            f"No span is detected during locate step. Skipping this sample. Text: {running_text[0]}"
                         )
-                                
+                    break
+                    
+                    
+        output = {
+            "prompt": {
+                "text": source_text,
+            },
+            "generations": [
+                {
+                    "text": best_text[i],
+                    "original_text": AR_prediction_all[i],
+                    "allsat": best_allsat[i].item(),
+                    "losses": best_losses[i,:].tolist(),
+                    "weighted_loss": best_weighted_loss[i].item(),
+                    "edited": edited_at_all_yn[i].tolist(),
+                } for i in range(len(AR_prediction_all))
+            ],
+        }
+    
+        intermediate_output = {
+                "prompt": {
+                    "text": source_text,
+                },
+                "generations": 
+                    int_output
+                ,
+            }
+
+        json.dump(output, outf)
+        outf.write("\n")
+        outf.flush()
+        
+        json.dump(intermediate_output, int_outf)
+        int_outf.write("\n")
+        int_outf.flush()       
+                    
     outf.close()
     int_outf.close()
 
     if not config["debug"]:
         run.summary["decode_time"] = time.time() - decode_start_time
-        # run.summary['num_decoded_tokens'] = num_decoded_tokens
-        # run.summary['toks_p_sec'] = (num_decoded_tokens/run.summary['decode_time'])
+        run.summary['num_decoded_tokens'] = num_decoded_tokens
+        run.summary['toks_p_sec'] = (num_decoded_tokens/run.summary['decode_time'])
         run.summary["num_skipped"] = num_skipped
         run.summary["num_edited"] = num_edited
+        run.summary["outfile_path"] = outfile
 
         run.finish()
     else:
-        logger.info(f"decode_time: {time.time() - decode_start_time}")
+        decode_time = time.time() - decode_start_time
+        logger.info(f"decode_time: {decode_time}")
         logger.info(f"num_skipped: {num_skipped}")
-        logger.info(f"num_edited: {num_edited}")    
+        logger.info(f"num_edited: {num_edited}")  
+        logger.info(f"nun_decoded_tokens: {num_decoded_tokens}")
+        logger.info(f"toks_p_sec: {num_decoded_tokens/decode_time}")
     
-    # evaluate_main(
-    #         run.path,
-    #         outfile,
-    #         "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
-    #         source_file_path=data_path,
-    #         task=task,
-    #         target_label_ids=config['target_label_ids']
-    #     )  
+    evaluate_main(
+            run.path,
+            outfile,
+            "set-consistency,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+            source_file_path=data_path,
+            task=task,
+        )  
         
 if __name__ == "__main__":
     
@@ -435,6 +434,8 @@ if __name__ == "__main__":
     parser.add_argument("--locate_method", type=str, choices=["attention", "grad_norm"], default="grad_norm")
     parser.add_argument("--slurm_job_id", type=str)
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--wandb_project", type=str)
+    parser.add_argument("--wandb_entity", type=str)
     parser.add_argument("--dont_skip_allsat", action="store_true", help="if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints",)
     args = parser.parse_args()
 
@@ -449,8 +450,6 @@ if __name__ == "__main__":
             'consider_prompt_for_cand_gen': True,
             'num_edit_tokens_per_step': 7,
             'max_tokens_per_span': 3,
-            'wandb_project': 'sc_energy',
-            'wandb_entity': 'hayleyson',
             'output_dir_prefix': f'outputs/sc_energy/{task}/',
             })
 

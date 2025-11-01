@@ -79,6 +79,10 @@ def read_metric_file(result_file, metric) -> Union[np.array, pd.DataFrame]:
         result = pd.read_csv(result_file,header=None)
         return result[0].values
     
+    elif metric == 'set-consistency':
+        result = pd.read_csv(result_file,header=None)
+        return result[0].values
+    
     elif metric == 'sbertscore':
         with open(result_file , 'r') as f:
             raw_data = f.readlines()

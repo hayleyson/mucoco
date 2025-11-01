@@ -29,7 +29,8 @@ from evaluation.prompted_sampling.evaluate import (
     nli_score,
     sentiment_classify_gpt4o,
     contents_preservation_metrics,
-    save_qualitative_results
+    save_qualitative_results,
+    set_consistency_score
 )
 
 ## logging-related
@@ -359,6 +360,28 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         if run_path != "":
             run.summary.update({'fluent_proba': fluency})
         fp.write(f'fluent_proba: {fluency}\n')
+        
+    if "set-consistency" in metricset:
+        logger.debug("set-consistency")
+        
+        device = 'cuda'
+        config_path = 'new_module/set_consistency_energy/params.yaml'
+            
+        if task in ['nli', 'set_nli', 'set-nli', 'set_snli', 'set-snli']:
+            folder_path = 'new_module/set_consistency_energy/results/nli/set_nli/46853'
+            model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
+            time_key = '46853'
+            task_for_sc = 'nli'
+        elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
+            folder_path = 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068'
+            model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
+            time_key = '1225068'
+            task_for_sc = 'vqa'
+        
+        avg_sc_score, cons_prop = set_consistency_score(generations_df, output_dir / (output_file+".sc"), device, config_path, folder_path, model_path, time_key, task_for_sc)
+        if run_path != "":
+            run.summary.update({'avg_sc_score': avg_sc_score, 'consistent_proba': cons_prop})
+        fp.write(f'avg_sc_score: {avg_sc_score}, consistent_proba: {cons_prop}\n')
         
     if "contents-preservation" in metricset:
         logger.debug("contents-preservation")

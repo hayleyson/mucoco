@@ -10,6 +10,8 @@ from collections import Counter
 from functools import partial
 from multiprocessing.pool import Pool
 from pathlib import Path
+import yaml
+
 
 from openai import OpenAI
 import evaluate
@@ -24,7 +26,8 @@ import torch
 import torch.nn as nn
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 from scipy import stats
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+from datasets import Dataset
 from tqdm import tqdm
 
 # from perspective_api import PerspectiveWorker, unpack_scores
@@ -46,7 +49,11 @@ from transformers.modeling_outputs import (
 )
 from transformers.models.roberta.modeling_roberta import RobertaClassificationHead
 
+from new_module.set_consistency_energy.energynets.energynet import energynet
+
+
 logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
 
 class GPT2CustomForSequenceClassification(GPT2PreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"h\.\d+\.attn\.masked_bias", r"lm_head\.weight"]
@@ -1266,17 +1273,6 @@ def nli_score(generations_df, write_file, device='cuda'):
 
 def formality_score_ext(generations_df, output_file, device):
     
-    
-    class CustomDataset():
-        def __init__(self, data_list):
-            self.data_list = data_list
-            
-        def __len__(self):
-            return len(self.data_list)
-        
-        def __getitem__(self, index):
-            return self.data_list[index]
-
     def collate_fn(example_batch):
        return tokenizer(example_batch, padding=True, truncation=True, return_tensors="pt").to(device)
     
@@ -1290,7 +1286,7 @@ def formality_score_ext(generations_df, output_file, device):
     generations_df = generations_df.explode('generations')
     generations = generations_df["generations"]
     texts = [example['text'] for example in generations]
-    dataset = CustomDataset(texts)
+    dataset = Dataset.from_list(texts)
     dataloader = DataLoader(dataset, batch_size=8,
                             shuffle=False, collate_fn=collate_fn)
     
@@ -1312,17 +1308,6 @@ def formality_score_ext(generations_df, output_file, device):
 
 def formality_score_int(generations_df, output_file, device, checkpoint_path, model_type=None):
     
-    
-    class CustomDataset():
-        def __init__(self, data_list):
-            self.data_list = data_list
-            
-        def __len__(self):
-            return len(self.data_list)
-        
-        def __getitem__(self, index):
-            return self.data_list[index]
-
     def collate_fn(example_batch):
        return tokenizer(example_batch, padding=True, truncation=True, return_tensors="pt").to(device)
 
@@ -1338,7 +1323,7 @@ def formality_score_int(generations_df, output_file, device, checkpoint_path, mo
     
     generations = generations_df["generations"]
     texts = [example[0]['text'] for example in generations]
-    dataset = CustomDataset(texts)
+    dataset = Dataset.from_list(texts)
     dataloader = DataLoader(dataset, batch_size=8,
                             shuffle=False, collate_fn=collate_fn)
     
@@ -1355,7 +1340,75 @@ def formality_score_int(generations_df, output_file, device, checkpoint_path, mo
         f.writelines([str(x)+'\n' for x in formality_scores])
     
     return np.nanmean(formality_scores), formal_counts/len(texts)
+
         
+def load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device):
+    
+    model_config = yaml.load(open(config_path), 
+                                Loader=yaml.FullLoader)
+    dataset = 'set_nli' if task == 'nli' else 'lconvqa'
+    
+    model_config['dataset'] = dataset
+    model_config['task'] = task
+    model_config['folder_path'] = folder_path
+    model_config['model_path'] = model_path
+    model_config['time_key'] = time_key
+
+    energy_net = energynet(params=model_config)
+    model_object = torch.load(model_config["model_path"], 
+                                map_location=device,
+                                weights_only=True)
+    energy_net.load_state_dict(model_object['state_dict'], strict=False)
+    if 'threshold' in model_object:
+        energy_net.threshold = model_object['threshold']
+    
+    energy_net.eval()
+    energy_net.to(device)
+    
+    return energy_net
+    
+        
+def set_consistency_score(generations_df, output_file, device, 
+                          config_path, folder_path, model_path, time_key, task):
+
+    
+    # load model 
+    model = load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device)
+
+    # define dataset and dataloader
+    generations_df = generations_df.explode('generations')
+    generations = generations_df["generations"].tolist()
+    # Extract only 'text' field to avoid collation issues with variable-sized fields
+    # Each generation dict might have other fields (lists, arrays) of different sizes
+    generations_text_only = [{'text': gen['text']} for gen in generations]
+    dataset = Dataset.from_list(generations_text_only)
+   
+    dataloader = DataLoader(dataset, batch_size=8, shuffle=False)
+    
+    # calculate set consistency score
+    sc_scores = []
+    cons_counts = 0
+    for batch in dataloader:
+        with torch.no_grad():
+             # set consistency verification
+            batch_text = batch['text']
+            output, _ = model.energy_model(batch_text, pair_only = True)
+            
+            if (model.output_form == 'real_num'):
+                probs = output.reshape(-1)
+            else:
+                raise ValueError(f"Unsupported output form: {model.output_form}")
+            sc_scores.extend(probs.tolist())
+            #  classify
+            cons_counts += torch.sum(torch.where(probs <= model.threshold,1,0)).item()
+    
+    # write set consistency score and class to output file
+    with open(output_file, 'w') as f:
+        f.writelines([str(x)+'\n' for x in sc_scores])
+    
+    # return empirical set consistent probability and average set consistent score
+    return np.nanmean(sc_scores), cons_counts/len(dataset)
+    
 
 def distinctness(generations_df):
     dist1, dist2, dist3 = [], [], []
