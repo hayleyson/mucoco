@@ -17,6 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from transformers import get_linear_schedule_with_warmup, get_cosine_with_hard_restarts_schedule_with_warmup
 from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_fscore_support, accuracy_score
+from sklearn.preprocessing import OneHotEncoder
 import seaborn as sns
 
 from new_module.em_training.nli.models import EncoderModel
@@ -26,7 +27,7 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 
 def main():
     
-    config = load_config('new_module/em_training/config.yaml')
+    config = load_config('new_module/em_training/nli/config.yaml')
     
     ## set seed
     seed = random.randint(0,1000)
@@ -38,11 +39,17 @@ def main():
     run_config = wandb.config
     
     # set model path
-    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}".replace('-', '_')
+    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}".replace('-', '_').replace('/', '_')
+    print(f"model_dir_1: {model_dir_1}")
     model_dir_2 = run.id
     config['energynet']['ckpt_save_path'] = f"{config['energynet']['ckpt_save_path']}/{model_dir_1}/{model_dir_2}"
     model_path = f"{config['energynet']['ckpt_save_path']}/best_model.pth"
     config['model_path'] = model_path
+    
+    # save config
+    with open(f"{config['energynet']['ckpt_save_path']}/config.json", 'w') as f:
+        json.dump(config, f, indent=4)
+        
     # update wandb config with model paths
     run.config['energynet'].update({'ckpt_save_path': config['energynet']['ckpt_save_path']})
     run.config.update({'model_path': config['model_path']})
@@ -72,9 +79,18 @@ def main():
     if config['energynet']['add_train_data']:
         train_add_data = load_additional_nli_training_data(output_file_path='data/nli/snli_mnli_anli_train_without_finegrained.jsonl')
         if (config['energynet'].get('fill_missing_finegrained') is not None) and (config['energynet']['fill_missing_finegrained']):
-            print(f"Num missing finegrained labels before filling: {train_add_data['finegrained_labels'].isna().sum()}")
-            train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'finegrained_labels'] = train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'binary_labels']
-            print(f"Num missing finegrained labels after filling: {train_add_data['finegrained_labels'].isna().sum()}")
+            if config['energynet']['label_column'] == 'finegrained_labels':
+                print(f"Num missing finegrained labels before filling: {train_add_data['finegrained_labels'].isna().sum()}")
+                train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'finegrained_labels'] = train_add_data.loc[train_add_data['finegrained_labels'].isna(), 'binary_labels']
+                print(f"Num missing finegrained labels after filling: {train_add_data['finegrained_labels'].isna().sum()}")
+            elif config['energynet']['label_column'] == '3class_finegrained_labels':
+                print(f"Num missing 3class_finegrained_labels before filling: {train_add_data['3class_finegrained_labels'].isna().sum()}")
+                enc = OneHotEncoder(categories=[[0,1,2]],sparse_output=False)
+                train_add_data['3class_finegrained_labels'] = enc.fit_transform(train_add_data[['original_labels']]).tolist()
+                # encoded = enc.fit_transform(train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['original_labels']]).tolist()
+                # train_add_data.loc[train_add_data['3class_finegrained_labels'].isna(), ['3class_finegrained_labels']] = pd.Series(encoded).astype(object)
+                print(f"Num missing 3class_finegrained_labels after filling: {train_add_data['3class_finegrained_labels'].isna().sum()}")
+                
         train_dev_data = pd.concat([train_dev_data, train_add_data], axis=0)
 
     train_data = train_dev_data.loc[train_dev_data['split'] == 'train']

@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import time
-# os.chdir('/data/hyeryung/mucoco')
 import numpy as np
 import pandas as pd
 import torch
@@ -29,6 +28,7 @@ from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypothe
 from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
+from new_module.em_training.nli.models import EncoderModel
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -40,14 +40,20 @@ def main(config):
     main_start_time = time.time()
 
     if not config.get("model_tag", None):
-        if "energy-training" in config["model_paths"][1]:
+        if ("energy-training" in config["model_paths"][1]) or ("finegrained_labels" in config["model_paths"][1]): 
             config["model_tag"] = "em"
         else:
             config["model_tag"] = "clsf"
 
-        if (config["task"] == "formality") and ("gyafc" in config["model_paths"][1]):
-            config["model_tag"] += "-gyafc"
-
+    # used fixed values for build_loss_dict
+    config["build_loss_dict"] = {"length_normalize": True, 
+                                 "alpha": 1.0, 
+                                 "AR_temperature": 1.0, # unused
+                                 "AR_top_k": 0, # unused
+                                 "AR_top_p": 0.96, # unused
+                                 "max_output_length": 20 # unused
+                                 }
+    
     if config["resume"]:
         logger.info("resuming from a previous run")
         run = wandb.init(
@@ -62,26 +68,24 @@ def main(config):
             entity=config["wandb_entity"],
             config=config,
         )
-
-    run_config = wandb.config
+    
+    config["k_per_location"] = wandb.config.k_per_location
+    config["beam_size"] = wandb.config.beam_size
+    config["num_edit_token_per_step"] = wandb.config.num_edit_token_per_step
+    config["min_epsilons"] = [wandb.config.min_epsilons]
+    logger.info(f"min_epsilons: {config['min_epsilons']}")
+    
     run_id = run.path.split("/")[-1]
     display_name = f"{run_id}"
     
-
     outdir = os.path.join(config["output_dir_prefix"], display_name)
     os.makedirs(outdir, exist_ok=True)
     outfile = f"{outdir}/outputs_epsilon{config['min_epsilons'][0]}.txt"
     run.summary["outfile_path"] = outfile
 
-    class dummyArgs:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    build_loss_args = dummyArgs(**config["build_loss_dict"])
 
     ## load data
-    if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+    if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
         source_dataset = [
             json.loads(l)[config["jsonl_primary_key"]][config["jsonl_secondary_key"]]
             for l in open(config["source_data"])
@@ -89,7 +93,7 @@ def main(config):
         generation_dataset = [
             json.loads(l)["generations"] for l in open(config["source_data"])
         ]
-    elif (config["task"] == "formality") or (config["task"] == "sentiment-lewis-compr"):
+    elif (config["task"] == "formality"):
         with open(config["source_data"], "r") as f:
             generation_dataset = [line.rstrip('\n') for line in f.readlines()]
         source_dataset = ["" for l in generation_dataset]
@@ -124,58 +128,86 @@ def main(config):
     name2model = {}
     name2config = {}
     loss2tokenizer = {}
-    embed_luts = []
 
     for i, model_path in enumerate(config["model_paths"]):
         if (
             model_path not in name2model
         ):  # making sure we are not loading the model twice in case some constraints use the same model.
-            try:
-                name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
-                    config["tokenizer_paths"][i],
-                    cache_dir=config["cache_dir"],
-                    use_fast=True,
-                )
-            except:
-                name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
-                    config["tokenizer_paths"][i],
-                    cache_dir=config["cache_dir"],
-                    use_fast=False,
+            
+            if config["model_types"][i] == "EncoderModel":
+                # config
+                with open(os.path.join(config["model_paths"][i], 'config.json')) as f:
+                    model_config = json.load(f)
+                model_config['device'] = config['device']
+                model_config['model_path'] = os.path.join(config["model_paths"][i], 'best_model_pearsonr.pth')
+                if config["locate_method"] == "attention":
+                    model_config['locate']['type'] = "attention"
+                elif config["locate_method"] == "grad_norm":
+                    model_config['locate']['type'] = "gradnorm"
+                name2config[model_path] = model_config
+                
+                # load model
+                model = EncoderModel(params=name2config[model_path])
+                model.load_state_dict(torch.load(name2config[model_path]["model_path"],weights_only=True),strict=False)
+                name2model[model_path] = lossbuilder.ModelWrapper(model)
+                name2model[model_path].eval()
+                name2model[model_path].to(config['device'])
+                del model
+                
+                # tokenizer
+                name2tokenizer[config["tokenizer_paths"][i]] = name2model[model_path].tokenizer
+                
+            else:   
+                name2config[model_path] = AutoConfig.from_pretrained(
+                    model_path, cache_dir=config["cache_dir"]
                 )
 
-            name2config[model_path] = AutoConfig.from_pretrained(
-                model_path, cache_dir=config["cache_dir"]
-            )
-
-            if config["model_types"][i] == "RobertaCustomForSequenceClassification":
-                name2model[model_path] = lossbuilder.ModelWrapper(
-                    RobertaCustomForSequenceClassification.from_pretrained(
-                        model_path,
-                        config=name2config[model_path],
-                        cache_dir=config["cache_dir"],
+                if config["model_types"][i] == "RobertaCustomForSequenceClassification":
+                    name2model[model_path] = lossbuilder.ModelWrapper(
+                        RobertaCustomForSequenceClassification.from_pretrained(
+                            model_path,
+                            config=name2config[model_path],
+                            cache_dir=config["cache_dir"],
+                        )
                     )
-                )
-            else:
-                name2model[model_path] = lossbuilder.ModelWrapper(
-                    getattr(transformers, config["model_types"][i]).from_pretrained(
-                        model_path,
-                        config=name2config[model_path],
-                        cache_dir=config["cache_dir"],
+                    
+                else:
+                    name2model[model_path] = lossbuilder.ModelWrapper(
+                        getattr(transformers, config["model_types"][i]).from_pretrained(
+                            model_path,
+                            config=name2config[model_path],
+                            cache_dir=config["cache_dir"],
+                        )
                     )
-                )
-            name2model[model_path].eval()
-            name2model[model_path].to(config['device'])
+                name2model[model_path].eval()
+                name2model[model_path].to(config['device'])
+            
+                try:
+                    name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
+                        config["tokenizer_paths"][i],
+                        cache_dir=config["cache_dir"],
+                        use_fast=True,
+                    )
+                except:
+                    name2tokenizer[config["tokenizer_paths"][i]] = AutoTokenizer.from_pretrained(
+                        config["tokenizer_paths"][i],
+                        cache_dir=config["cache_dir"],
+                        use_fast=False,
+                    )
 
-        input_embeds = name2model[model_path].get_input_embeddings()
-        if isinstance(input_embeds, torch.nn.Sequential):
-            input_embeds = input_embeds[0]
-        embed_luts.append(input_embeds)
-
-        if config["target_type"] == "embeds":
-            embed_luts[-1].requires_grad = False
+    # for faster experiment. from internal ablation, performance didn't degrade much
+    name2model[config["model_paths"][0]].half()
 
     mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
     mlm = None if config["method"] == "mlm-beamsearch-v2" else AutoModelForMaskedLM.from_pretrained("roberta-base").to(config['device'])
+
+    class dummyArgs:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    build_loss_args = dummyArgs(**config["build_loss_dict"])
+    build_loss_args.task = config["task"]
 
     lossfns = []
     for i, loss in enumerate(config["losses"]):
@@ -189,13 +221,15 @@ def main(config):
         )
         lossfns[i].tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
         loss2tokenizer[loss] = lossfns[i].tokenizer
-    # lossfns[0].tokenizer = loss2tokenizer[config["losses"][0]]
-    # lossfns[1].tokenizer = loss2tokenizer[config["losses"][1]]
 
     # define an object to locate problematic phrases
-    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer)
+    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
 
-    label_ids = config["target_label_ids"]  # target label's ids for each loss
+    if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
+        config["loss_weights"] = [1, wandb.config.closs_weight]
+        run.config.update({"closs_weight": config["loss_weights"]}, allow_val_change=True)
+    logger.info(f"loss_weights: {config['loss_weights']}")
+
 
     run.summary["prep_time"] = time.time() - main_start_time
     ## beginning of main logic
@@ -210,27 +244,21 @@ def main(config):
         num_edited = 0
         num_decoded_tokens = 0
 
-    if config['sweep']:
-        config['loss_weights'] = [1 - wandb.config.closs_weight, wandb.config.closs_weight]
-        
-    loss_weights = config['loss_weights']
-    
-    print(f"***** loss_weights *****: {loss_weights}")
-    
     interrupted = False
-    if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+    if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
         text_id_interval = 1
-    elif (config["task"] == "formality") or (
-            config["task"] == "sentiment-lewis-compr"
-        ):
+    elif (config["task"] == "formality"):
         text_id_interval = config['num_samples']
+        
         
     for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
-        if source_text == "":
+        if (source_text == "") and (lossfns[0].tokenizer.bos_token is not None):
             source_text = lossfns[0].tokenizer.bos_token
+        elif (source_text == "") and (lossfns[0].tokenizer.bos_token is None):
+            source_text = " "
 
-        if (config["task"] == "toxicity") or (config["task"] == "sentiment"):
+        if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
             AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
             # predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
             # predicted_batches = [
@@ -238,18 +266,13 @@ def main(config):
             #     for x in predicted_batches
             # ]
             
-        elif (config["task"] == "formality") or (
-            config["task"] == "sentiment-lewis-compr"
-        ):
+        elif (config["task"] == "formality"):
             # AR_prediction_all = [generation_dataset[text_id]]
             AR_prediction_all = generation_dataset[text_id: text_id + text_id_interval]
  
         curr_num_samples = len(AR_prediction_all)
         if curr_num_samples == 0:
             continue
-        # for sample_idx in range(config["num_samples"])[:]:
-
-        ######### change here! instead of for loop, do a batched operation ########
 
         # --------------------------------------------------------------------------------------------- #
         ## check whether initial text satisfies constraint
@@ -265,7 +288,7 @@ def main(config):
                     label_id=config['target_label_ids'][lossid],
                 )
                 torch.cuda.empty_cache()
-            curr_loss += loss_weights[lossid] * lossvalue
+            curr_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
 
@@ -280,7 +303,7 @@ def main(config):
         best_losses = logging_loss.detach().clone()
         best_weighted_loss = curr_loss.detach().clone()            
         best_text = deepcopy(AR_prediction_all)
-        running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## 실제 고쳐야 할 sample만 가지고 있음
+        running_text = [x for i, x in enumerate(AR_prediction_all) if edit_yn[i]] ## hold only samples that need be edited
         int_output = [{} for _ in range(len(AR_prediction_all))]
 
         if (edit_yn.sum().item() == 0) and (not config["dont_skip_allsat"]):
@@ -300,19 +323,33 @@ def main(config):
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
             num_decoded_tokens += sum([len(x) for x in name2tokenizer[config["tokenizer_paths"][0]](running_text, add_special_tokens=False).input_ids])       
             
-            for _iter in range(wandb.config.n_iter):
+            for _iter in range(config['n_iter']):
                 if sum([1 if x != "" else 0 for x in running_text]) == 0:
                     # corner case: after deletion is introduced, sometimes all tokens are deleted and only "" remains. this occurs when initial sequence length is short.
                     print(f"ending iterations")
                     break
                 
                 ## masked_text : N (num samples to edit)
-                masked_text = locator.locate_main(running_text, 
-                                        method = config['locate_method'], 
-                                        max_num_tokens = wandb.config.num_edit_token_per_step, 
-                                        unit = config['locate_unit'], 
-                                        num_layer = 10,#-2, #penultimate
-                                        label_id = config['target_label_ids'][1])
+                if config["task"] == "nli":
+                    sequences = [locator.tokenizer.bos_token + source_text + locator.tokenizer.sep_token + h + locator.tokenizer.eos_token for h in running_text]
+                    tokenized_sequences = locator.tokenizer(sequences, add_special_tokens=False,padding=True, truncation=True, return_tensors='pt').to(config['device'])
+       
+                    masked_text = locator.locate_main(tokenized_sequences, 
+                                            method = config['locate_method'], # grad_norm
+                                            max_num_tokens = config['num_edit_token_per_step'], # 7
+                                            unit = config['locate_unit'], # word
+                                            num_layer = 10,#-2, #penultimate
+                                            label_id = config['target_label_ids'][1],
+                                            tokenized_input=True,
+                                            use_energy=False)
+                else:
+                    masked_text = locator.locate_main(running_text, 
+                                            method = config['locate_method'], # grad_norm
+                                            max_num_tokens = config['num_edit_token_per_step'], # 7
+                                            unit = config['locate_unit'], # word
+                                            num_layer = 10,#-2, #penultimate
+                                            label_id = config['target_label_ids'][1],
+                                            use_energy=False)
 
                 span_lengths_es = []
                 for test_sent in masked_text:
@@ -336,7 +373,7 @@ def main(config):
                         edit_yn[edit_ixes_before_marking[idx]] = False
                         continue                    
                     final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
-                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config)
+                        editing_with_delete_variable_replace(source_text, test_sent, test_sent_span_lengths, mlm, mlm_tokenizer, lossfns, config, batch_size=32)
                     final_hypotheses_.extend(final_hypotheses_curr)
                     new_best_weighted_loss_.append(new_best_weighted_loss_curr)
                     new_best_allsat_.append(new_best_allsat_curr)
@@ -371,9 +408,9 @@ def main(config):
                 final_hypotheses = [final_hypotheses_[torch.where(edit_ixes==i)[0].item()] if edit_yn[i] else '' for i in range(len(AR_prediction_all))]
                 
                 update = torch.Tensor([]).bool().to(config['device'])
-                if wandb.config.selection_criteria == "weighted_sum":
+                if config['selection_criteria'] == "weighted_sum":
                     update = best_weighted_loss > new_best_weighted_loss ## edit_yn이 false 였던 곳은 무조건 false
-                elif wandb.config.selection_criteria == "allsat_primary":
+                elif config['selection_criteria'] == "allsat_primary":
                     update = (~best_allsat & new_best_allsat) | \
                             (~best_allsat & ~new_best_allsat & (best_weighted_loss > new_best_weighted_loss)) | \
                             (best_allsat & new_best_allsat & (best_losses[:, 0] > new_best_logging_loss[:, 0])) 
@@ -383,8 +420,6 @@ def main(config):
                 update = (update & edit_yn) # edit 대상인 것들만 update하기 위해서 update 조건에 edit_yn을 sum.
 
                 ## intermediate output for debugging
-                # for sample_ix in edit_yn.nonzero().squeeze(-1).tolist(): # edit 대상인 것들만 update.
-                
                 for sample_ix in range(len(running_text)): # edit 대상인 것들만 update.
                     int_output[edit_ixes[sample_ix]].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
                                                             f"iter{_iter}_masked_sentence": masked_text[sample_ix],
@@ -405,6 +440,7 @@ def main(config):
                 if edit_yn.sum() == 0:
                     break
                 
+            
                 running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
         
 
@@ -463,10 +499,7 @@ def main(config):
     run.finish()
     
     ## delete loss functions to clear up gpu memory
-    try:
-        del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer
-    except:
-        pass
+    del lossfns, name2tokenizer, name2model, name2config, loss2tokenizer, mlm, mlm_tokenizer
     torch.cuda.empty_cache()
     
     if (not interrupted):
@@ -474,7 +507,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
                 toxicity_model_path=config["model_paths"][1],
                 toxicity_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -483,7 +516,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1", 
                 formality_model_path=config["model_paths"][1],
                 formality_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -492,8 +525,7 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                # "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency",
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
@@ -502,11 +534,19 @@ def main(config):
             evaluate_main(
                 run.path,
                 outfile,
-                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
                 sentiment_model_path=config["model_paths"][1],
                 sentiment_model_type=config["model_types"][1],
                 source_file_path=config["source_data"]
             )
+        elif config["task"] == "nli":
+            evaluate_main(
+                run.path,
+                outfile,
+                "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
+                source_file_path=config["source_data"]
+            )  
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Locally Editing Text Generation")
@@ -514,7 +554,7 @@ if __name__ == "__main__":
         "--task",
         type=str,
         help="task name",
-        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr"],
+        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr", "nli"],
     )
     parser.add_argument(
         "--source_data",
@@ -541,7 +581,7 @@ if __name__ == "__main__":
         type=str,
         default=[
             "gpt2-large",
-            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
+            "loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
         ],
         help="model paths",
     )
@@ -551,7 +591,7 @@ if __name__ == "__main__":
         type=str,
         default=[
             "gpt2-large",
-            "/home/s3/hyeryung/data/loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
+            "loc_edit/roberta-base-pt16-formality-regressor-with-gpt2-large-embeds-rescale/epoch_17",
         ],
         help="tokenizer paths",
     )
@@ -605,7 +645,7 @@ if __name__ == "__main__":
         help="target type (embeds, simplex, probability) from prior work's code",
     )
     parser.add_argument(
-        "--cache_dir", type=str, default="hf_cache", help="cache directory"
+        "--cache_dir", type=str, default="~/hf_cache", help="cache directory"
     )
     parser.add_argument(
         "--jsonl_primary_key", type=str, default="prompt", help="jsonl primary key"
@@ -621,16 +661,11 @@ if __name__ == "__main__":
         help="losses",
     )
     parser.add_argument("--loss_weights", nargs="+", type=float, default=[0.1,1.0], help="closs weight")
-    parser.add_argument(
-        "--build_loss_dict",
-        type=json.loads,
-        default='{"coeff_steps": 200, "coeff_pattern": "constant", "loss_type": "xentropy", "length_normalize": false, "AR_temperature": 1.0, "AR_top_k": 0, "AR_top_p": 0.96, "max_output_length": 20}',
-        help="build loss dict",
-    )
+    
     parser.add_argument(
         "--num_edit_token_per_step",
         type=int,
-        default=5,
+        default=7,
         help="number of edit tokens per step",
     )
     parser.add_argument(
@@ -641,7 +676,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--consider_prompt_for_cand_gen",
-        action="store_true",
+        type=bool,
+        default=True,
         help="whether to consider source_text when generating token-level candidates",
     )
     
@@ -683,37 +719,42 @@ if __name__ == "__main__":
         help="Number of maximum hours to run the script for. Can be fractions e.g. 7.5.",
         default=10000
     )
-    parser.add_argument(
-        "--sweep",
-        action="store_true",
-        help="Whether the run is part of a sweep"
-    )
 
     args = parser.parse_args()
     config = vars(args)
 
-
-
     # Configure the sweep – specify the parameters to search through, the search strategy, the optimization metric et all.
     sweep_config = {
-        'method': 'grid', #grid, random
+        'method': 'grid', #grid, random, bayes
         'metric': {
-        'name': 'fluent_proba',
+        'name': 'h1',
         'goal': 'maximize'   
         },
         'parameters': {
-            'closs_weight': {
-                'values':[0.1, 0.3, 0.5, 0.7, 0.9]
-            },
+            # 'closs_weight': {
+            #     'values':[0.001, 0.01, 0.1, 1, 10, 100, 1000]
+            # },
+            # 'k_per_location': {
+            #     'values':[5, 10, 15]
+            # },
+            # 'beam_size': {
+            #     'values':[3, 5, 7]
+            # },
+            # 'num_edit_token_per_step': {
+                # 'values':[1,4,7,10,20]
+            # },
+            'min_epsilons': {
+                'values': [0.99]
+            }
         }
     }
     
-    # sweep_id = wandb.sweep(sweep_config, entity="hayleyson", project=config['wandb_project'])
-    # sw_count = 10
-    # sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
-    # wandb.agent(sweep_id, function=main, count=sw_count//2)
-    main_for_sweep = functools.partial(main, config)
-    wandb.agent("hayleyson/sentiment-decoding/pdhcaecq", function=main_for_sweep)
+    sweep_id = wandb.sweep(sweep_config, entity=config['wandb_entity'], project=config['wandb_project'])
     
-
-    # main(config)
+    sw_count = math.prod([len(val['values']) for val in sweep_config['parameters'].values()])
+    logger.info(f"Number of sweeps: {sw_count}")
+    
+    main_for_sweep = functools.partial(main, config)
+    
+    wandb.agent(sweep_id, function=main_for_sweep, count=sw_count)
+    # wandb.agent("hayleyson/nli-decoding/3hx99pb2", function=main_for_sweep)

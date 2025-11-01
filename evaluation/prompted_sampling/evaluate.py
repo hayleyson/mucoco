@@ -10,6 +10,8 @@ from collections import Counter
 from functools import partial
 from multiprocessing.pool import Pool
 from pathlib import Path
+import yaml
+
 
 from openai import OpenAI
 import evaluate
@@ -24,7 +26,8 @@ import torch
 import torch.nn as nn
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 from scipy import stats
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+from datasets import Dataset
 from tqdm import tqdm
 
 # from perspective_api import PerspectiveWorker, unpack_scores
@@ -46,7 +49,11 @@ from transformers.modeling_outputs import (
 )
 from transformers.models.roberta.modeling_roberta import RobertaClassificationHead
 
+from new_module.set_consistency_energy.energynets.energynet import energynet
+
+
 logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
 
 class GPT2CustomForSequenceClassification(GPT2PreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"h\.\d+\.attn\.masked_bias", r"lm_head\.weight"]
@@ -283,11 +290,11 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
     for i, row in tqdm(generations_df.iterrows(), total=len(generations_df.index), desc='Evaluating PPL', mininterval=5):
         # prompt_input_ids = torch.LongTensor([row.prompt['tokens']]).to(device)
         prompt = row.prompt['text']
-
         prompt_is_empty = False
+        if prompt in ["", " ", "<|endoftext|>", tokenizer.bos_token]:
+            prompt_is_empty = True
         if prompt == "":
             prompt = tokenizer.bos_token if tokenizer.bos_token else " "
-            prompt_is_empty = True
         prompt_input_ids = tokenizer.encode(prompt, return_tensors='pt').to(device)
         #if not (prompt_input_ids.shape[1] == 1 and prompt_input_ids[0].tolist()[0] == tokenizer.bos_token_id): # this means unconditional, prompt is BOS token (verify)
         if not prompt_is_empty:
@@ -408,12 +415,13 @@ def fluency_classify(generations_df, output_file=None):
 
         prediction_labels = [prediction["label"] for prediction in predictions_for_prompt]
         all_prediction_labels += prediction_labels
-        prediction_scores = [str(prediction["score"]) for prediction in predictions_for_prompt]
+        prediction_scores = [str(prediction["score"]) if (prediction["label"] == "LABEL_1") else str(1-prediction["score"]) for prediction in predictions_for_prompt]
         all_prediction_scores += prediction_scores
         
-    with open(output_file, "w") as fout:
-        fout.write("\n".join(all_prediction_labels))
-        fout.write("\n".join(all_prediction_scores))
+    if output_file is not None:
+        with open(output_file, "w") as fout:
+            for label, score in zip(all_prediction_labels, all_prediction_scores):
+                fout.write(f"{label},{score}\n")
 
     accuracy = np.array(all_prediction_labels) == "LABEL_1" ## LABEL_1 is acceptable
     accuracy = np.nanmean(accuracy.astype("float32"))
@@ -1180,6 +1188,9 @@ def nli_score(generations_df, write_file, device='cuda'):
     total_neutral_prob = 0
     total_contradiction_prob = 0
     total_count = 0
+    total_contradiction_count = 0
+    total_entail_count = 0
+    total_neutral_count = 0
 
     results = []
     # 각 row에 대해 NLI 점수 계산
@@ -1192,9 +1203,14 @@ def nli_score(generations_df, write_file, device='cuda'):
             entail_prob_sum = 0
             neutral_prob_sum = 0
             contradiction_prob_sum = 0
-            
+
             # 각 모델에 대해 예측 수행
-            for model, tokenizer in zip(models, tokenizers):
+            for i, (model, tokenizer) in enumerate(zip(models, tokenizers)):
+                # remove exact match
+                premise = premise.lower()
+                hypothesis = hypothesis.lower()
+                if premise in hypothesis:
+                    hypothesis.replace(premise, "")
                 # 토큰화 및 텐서 변환
                 inputs = tokenizer(premise, hypothesis, return_tensors='pt', truncation=True, padding=True).to(device)
 
@@ -1202,10 +1218,17 @@ def nli_score(generations_df, write_file, device='cuda'):
                     outputs = model(**inputs)
                     probs = torch.softmax(outputs.logits, dim=-1).squeeze()  # 예측 확률 계산
 
-                # 각 클래스 확률 합산
-                entail_prob_sum += probs[0].item()
-                neutral_prob_sum += probs[1].item()
-                contradiction_prob_sum += probs[2].item()
+                max_prob_class = probs.argmax().item()
+
+                if 'ynie' in model_paths[i]:
+                    entail_prob_sum += probs[0].item()  # entailment 확률
+                    neutral_prob_sum += probs[1].item()    # neutral 확률
+                    contradiction_prob_sum += probs[2].item() # contradiction 확률
+                else:
+                    contradiction_prob_sum += probs[0].item()  # contradiction 확률
+                    entail_prob_sum += probs[1].item()     # entailment 확률
+                    neutral_prob_sum += probs[2].item() # neutral 확률
+
 
             # 각 hypothesis에 대한 모델 평균 확률 계산 및 누적
             entail_prob_avg = entail_prob_sum / len(models)
@@ -1215,41 +1238,41 @@ def nli_score(generations_df, write_file, device='cuda'):
             total_entail_prob += entail_prob_avg
             total_neutral_prob += neutral_prob_avg
             total_contradiction_prob += contradiction_prob_avg
+            if contradiction_prob_avg == max(entail_prob_avg, neutral_prob_avg, contradiction_prob_avg):
+                classified_class = "contradiction"
+                total_contradiction_count += 1
+            elif entail_prob_avg == max(entail_prob_avg, neutral_prob_avg, contradiction_prob_avg):
+                classified_class = "entail" 
+                total_entail_count += 1
+            else:
+                classified_class = 'neutral'
+                total_neutral_count += 1
             total_count += 1
 
             results.append({
-                "premise": premise,
-                "hypothesis": hypothesis,
                 "entailment_prob": entail_prob_avg,
                 "neutral_prob": neutral_prob_avg,
-                "contradiction_prob": contradiction_prob_avg
+                "contradiction_prob": contradiction_prob_avg,
+                "nli_class": classified_class
             })
 
     # 전체 데이터에 대한 평균 확률 계산
     avg_nli_entail = total_entail_prob / total_count
     avg_nli_neutral = total_neutral_prob / total_count
     avg_nli_contradiction = total_contradiction_prob / total_count
+    entail_ratio = total_entail_count / total_count
+    neutral_ratio = total_neutral_count / total_count
+    contadiction_ratio = total_contradiction_count / total_count
 
     if write_file:
         with open(write_file, 'w') as f:
             for result in results:
                 f.write(f"{result}\n")
 
-    return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction
+    return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contadiction_ratio, entail_ratio, neutral_ratio
 
 def formality_score_ext(generations_df, output_file, device):
     
-    
-    class CustomDataset():
-        def __init__(self, data_list):
-            self.data_list = data_list
-            
-        def __len__(self):
-            return len(self.data_list)
-        
-        def __getitem__(self, index):
-            return self.data_list[index]
-
     def collate_fn(example_batch):
        return tokenizer(example_batch, padding=True, truncation=True, return_tensors="pt").to(device)
     
@@ -1263,7 +1286,7 @@ def formality_score_ext(generations_df, output_file, device):
     generations_df = generations_df.explode('generations')
     generations = generations_df["generations"]
     texts = [example['text'] for example in generations]
-    dataset = CustomDataset(texts)
+    dataset = Dataset.from_list(texts)
     dataloader = DataLoader(dataset, batch_size=8,
                             shuffle=False, collate_fn=collate_fn)
     
@@ -1285,17 +1308,6 @@ def formality_score_ext(generations_df, output_file, device):
 
 def formality_score_int(generations_df, output_file, device, checkpoint_path, model_type=None):
     
-    
-    class CustomDataset():
-        def __init__(self, data_list):
-            self.data_list = data_list
-            
-        def __len__(self):
-            return len(self.data_list)
-        
-        def __getitem__(self, index):
-            return self.data_list[index]
-
     def collate_fn(example_batch):
        return tokenizer(example_batch, padding=True, truncation=True, return_tensors="pt").to(device)
 
@@ -1311,7 +1323,7 @@ def formality_score_int(generations_df, output_file, device, checkpoint_path, mo
     
     generations = generations_df["generations"]
     texts = [example[0]['text'] for example in generations]
-    dataset = CustomDataset(texts)
+    dataset = Dataset.from_list(texts)
     dataloader = DataLoader(dataset, batch_size=8,
                             shuffle=False, collate_fn=collate_fn)
     
@@ -1328,7 +1340,75 @@ def formality_score_int(generations_df, output_file, device, checkpoint_path, mo
         f.writelines([str(x)+'\n' for x in formality_scores])
     
     return np.nanmean(formality_scores), formal_counts/len(texts)
+
         
+def load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device):
+    
+    model_config = yaml.load(open(config_path), 
+                                Loader=yaml.FullLoader)
+    dataset = 'set_nli' if task == 'nli' else 'lconvqa'
+    
+    model_config['dataset'] = dataset
+    model_config['task'] = task
+    model_config['folder_path'] = folder_path
+    model_config['model_path'] = model_path
+    model_config['time_key'] = time_key
+
+    energy_net = energynet(params=model_config)
+    model_object = torch.load(model_config["model_path"], 
+                                map_location=device,
+                                weights_only=True)
+    energy_net.load_state_dict(model_object['state_dict'], strict=False)
+    if 'threshold' in model_object:
+        energy_net.threshold = model_object['threshold']
+    
+    energy_net.eval()
+    energy_net.to(device)
+    
+    return energy_net
+    
+        
+def set_consistency_score(generations_df, output_file, device, 
+                          config_path, folder_path, model_path, time_key, task):
+
+    
+    # load model 
+    model = load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device)
+
+    # define dataset and dataloader
+    generations_df = generations_df.explode('generations')
+    generations = generations_df["generations"].tolist()
+    # Extract only 'text' field to avoid collation issues with variable-sized fields
+    # Each generation dict might have other fields (lists, arrays) of different sizes
+    generations_text_only = [{'text': gen['text']} for gen in generations]
+    dataset = Dataset.from_list(generations_text_only)
+   
+    dataloader = DataLoader(dataset, batch_size=8, shuffle=False)
+    
+    # calculate set consistency score
+    sc_scores = []
+    cons_counts = 0
+    for batch in dataloader:
+        with torch.no_grad():
+             # set consistency verification
+            batch_text = batch['text']
+            output, _ = model.energy_model(batch_text, pair_only = True)
+            
+            if (model.output_form == 'real_num'):
+                probs = output.reshape(-1)
+            else:
+                raise ValueError(f"Unsupported output form: {model.output_form}")
+            sc_scores.extend(probs.tolist())
+            #  classify
+            cons_counts += torch.sum(torch.where(probs <= model.threshold,1,0)).item()
+    
+    # write set consistency score and class to output file
+    with open(output_file, 'w') as f:
+        f.writelines([str(x)+'\n' for x in sc_scores])
+    
+    # return empirical set consistent probability and average set consistent score
+    return np.nanmean(sc_scores), cons_counts/len(dataset)
+    
 
 def distinctness(generations_df):
     dist1, dist2, dist3 = [], [], []
@@ -1606,15 +1686,23 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     if task in ['toxicity','sentiment']:
         sources = pd.read_json(sources_file, lines=True)
         sources.prompt=sources.prompt.apply(lambda x: x['text'])
+        sources.columns = sources.columns[:1].tolist() + [x+'_source' for x in sources.columns[1:]]
         
         predictions = pd.read_json(outputs_file, lines=True)
         predictions.prompt=predictions.prompt.apply(lambda x: x['text'])
+        predictions.columns = predictions.columns[:1].tolist() + [x+'_prediction' for x in predictions.columns[1:]]
+        
+        print(sources.columns)
+        print(predictions.columns)
         if task=='toxicity':
-            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
+            # source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
+            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner')
+            print(source_predictions.columns)
         elif task=='sentiment':
             source_predictions=pd.concat([sources,predictions],axis=1)
-            source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
-            source_predictions.columns=['prompt','generations_source','generations_prediction']
+            print(source_predictions.columns)
+            # source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
+            source_predictions=source_predictions[['prompt', 'generations_source','generations_prediction']].copy()
             
         prompt_list=[]
         source_list=[]
@@ -1636,6 +1724,27 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
         
         source_predictions_ = pd.DataFrame({'source': sources, 'prediction': predictions['generations'].tolist()}) 
         
+    elif task == 'nli':
+        sources = pd.read_json(sources_file, lines=True)
+        predictions = pd.read_json(outputs_file, lines=True)
+        try:
+            sources['premise']=sources.prompt.apply(lambda x: x['premise'])
+            sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
+            
+            sources['generation']=predictions.generations.apply(lambda x: x[0]['text'])
+            source_predictions_ = sources.rename(columns={'hypothesis': 'source', 'generation':'prediction'})
+        except:
+            sources = sources.explode('generations', ignore_index=True)
+            sources['premise']=sources.prompt.apply(lambda x: x['text'])
+            sources['source']=sources.generations.apply(lambda x: x['text'])   
+
+            predictions = predictions.explode('generations', ignore_index=True)
+            predictions['premise']=predictions.prompt.apply(lambda x: x['text'])
+            predictions['prediction'] = predictions['generations'].apply(lambda x: x['text'])        
+
+            source_predictions_ = pd.concat([sources[['source']], predictions[['prediction']]], axis=1)
+        
+
     ## start evaluation
     ## -- BLEU, SBLEU
     # https://huggingface.co/spaces/evaluate-metric/sacrebleu
@@ -1808,7 +1917,7 @@ def main(generations_file, output_file, metrics, extra):
         #     generations_df = [{'prompt':{'text':''}, 'generations':[{'text':l.strip()}]} for l in fin.readlines()]
         #     generations_df = pd.DataFrame(generations_df)
         
-        # (23-03-24: hyeryung) ^ above code results in empty prompt column. it results in the following error: 
+        # (23-03-24) ^ above code results in empty prompt column. it results in the following error: 
         # RuntimeError: cannot reshape tensor of 0 elements into shape [-1, 0] because the unspecified dimension size -1 can be any value and is ambiguous
         generations_df = pd.read_json(generations_file, lines=True) 
         print(generations_df.head())

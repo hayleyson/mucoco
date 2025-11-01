@@ -9,6 +9,8 @@ class EncoderModel(nn.Module):
         super(EncoderModel, self).__init__()
         if params['locate']['type'] == 'gradnorm':
             self.base_model = AutoModel.from_pretrained(params['energynet']['base_model'], output_hidden_states=True)
+        elif params['locate']['type'] == 'attention':
+            self.base_model = AutoModel.from_pretrained(params['energynet']['base_model'], output_attentions=True)
         else:
             self.base_model = AutoModel.from_pretrained(params['energynet']['base_model'])
         self.tokenizer = AutoTokenizer.from_pretrained(params['energynet']['base_model'])
@@ -18,6 +20,7 @@ class EncoderModel(nn.Module):
         self.output_form = self.params['energynet']['output_form']
         self.linear1 = None
         self.initialize()
+        self.device = params['device']
         
         # special tokens
         # single sequence: <s> X </s>
@@ -44,6 +47,15 @@ class EncoderModel(nn.Module):
             output = output.squeeze(1) ## squeeze out sequence length dimension
             output = self.linear1(output)
             hidden_states = output_all['hidden_states'] ## return hidden states of embedding layer
+            
+        elif self.params['locate']['type'] == 'attention': 
+            
+            output_all = self.base_model(input_ids = input_ids,
+                            attention_mask = attention_mask)
+            output = output_all[0][:,0,:] ## taking CLS token representation
+            output = output.squeeze(1) ## squeeze out sequence length dimension
+            output = self.linear1(output)
+            hidden_states = output_all['attentions'] ## return hidden states of embedding layer
             
         else:
             

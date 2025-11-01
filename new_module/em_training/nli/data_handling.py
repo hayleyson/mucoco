@@ -276,6 +276,8 @@ class NLI_DataLoader:
             labels[:, 0] = 1 - labels[:, 1] 
         elif (self.config['energynet']['label_column'] == 'binary_labels') or (self.config['energynet']['label_column'] == 'original_labels'):
             labels = torch.LongTensor(labels)
+        elif (self.config['energynet']['label_column'] == '3class_finegrained_labels'):
+            labels = torch.Tensor(labels).reshape(-1, 3)
         
         return {'input_ids': tokenized_sequences['input_ids'].to(self.config['device']), 
                 'attention_mask': tokenized_sequences['attention_mask'].to(self.config['device']), 
@@ -339,6 +341,9 @@ def load_nli_data(dev_split_size=0.1, force_reload=False,
         assert smnli.shape[0] == 29489, "Number of samples in SMNLI data is not 29489"
         
         # 2-3. add finegrained labels 
+        smnli['3class_finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: [np.mean([1 if label == 'entail' else 0 for label in labels]), 
+                                                                                             np.mean([1 if label == 'neutral' else 0 for label in labels]),
+                                                                                             np.mean([1 if label == 'contradiction' else 0 for label in labels])])
         smnli['finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: np.mean([0 if label == 'contradiction' else 1 for label in labels]))
         smnli['original_labels'] = smnli['label'].replace({'entailment': 0, 'neutral': 1, 'contradiction': 2})
         smnli['label'] = smnli['label'].apply(lambda x: 0 if x == 'contradiction' else 1)
@@ -349,7 +354,7 @@ def load_nli_data(dev_split_size=0.1, force_reload=False,
         train, dev = train_test_split(smnli_info_for_sample['promptID'], test_size=dev_split_size, random_state=42, stratify=smnli_info_for_sample[['genre','source']])
         smnli['split'] = ['train' if x in train.values else 'dev' for x in smnli['promptID']]
         
-        smnli = smnli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source', 'split']]
+        smnli = smnli[['pairID', 'premise', 'hypothesis', 'original_labels', 'label', '3class_finegrained_labels', 'finegrained_labels', 'genre', 'source', 'split']]
         
         # 3. Preprocess ANLI dataset
         # 3-1. concat data
@@ -361,6 +366,9 @@ def load_nli_data(dev_split_size=0.1, force_reload=False,
         anli_verifier_labels = pd.read_json('data/nli/anli_v1.0/verifier_labels_R1-3.jsonl', lines=True)
         anli = pd.merge(anli,anli_verifier_labels, on='uid', how='inner')
         assert anli.shape[0] == 26603, "Number of samples in ANLI data is not 26603"
+        anli['3class_finegrained_labels'] = anli['verifier labels'].apply(lambda labels: [np.mean([1 if label == 'e' else 0 for label in labels]),
+                                                                                          np.mean([1 if label == 'n' else 0 for label in labels]),
+                                                                                          np.mean([1 if label == 'c' else 0 for label in labels]),])
         anli['finegrained_labels'] = anli['verifier labels'].apply(lambda labels: np.mean([0 if label == 'c' else 1 for label in labels]))
         anli['original_labels'] = anli['label'].replace({'e': 0, 'n': 1, 'c': 2})
         anli['label'] = anli['label'].apply(lambda x: 0 if x == 'c' else 1)
@@ -371,7 +379,9 @@ def load_nli_data(dev_split_size=0.1, force_reload=False,
         train, dev = train_test_split(anli, test_size=dev_split_size, random_state=42, stratify=anli[['genre','source']])
         anli['split'] = ['train' if x in train.index.tolist() else 'dev' for x in anli.index]
         
-        anli = anli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source', 'split' ]]
+        # 3-4. change column name 'uid' to 'pairID'
+        anli = anli.rename(columns={'uid': 'pairID'})
+        anli = anli[['pairID', 'premise', 'hypothesis', 'original_labels', 'label', '3class_finegrained_labels', 'finegrained_labels', 'genre', 'source', 'split' ]]
         
         # 4. Concat SNLI, MNLI, ANLI data and save
         nli_dataset = pd.concat([smnli, anli], axis=0)
@@ -431,11 +441,12 @@ def load_additional_nli_training_data(force_reload=False,
         assert smnli.shape[0] == 942069, f"Number of samples {smnli.shape[0]} in SMNLI data is not 689614"
         
         # 2-3. add labels & split
+        smnli['3class_finegrained_labels'] = [None for _ in range(len(smnli))]
         smnli['finegrained_labels'] = [None for _ in range(len(smnli))]
         smnli['original_labels'] = smnli['label'].replace({'entailment': 0, 'neutral': 1, 'contradiction': 2})
         smnli['label'] = smnli['label'].apply(lambda x: 0 if x == 'contradiction' else 1)
         smnli['split'] = ['train' for _ in range(len(smnli))]
-        smnli = smnli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source', 'split']]
+        smnli = smnli[['pairID','premise', 'hypothesis', 'original_labels', 'label', '3class_finegrained_labels', 'finegrained_labels', 'genre', 'source', 'split']]
         
         # 3. Preprocess ANLI dataset
         # 3-1. concat data
@@ -448,13 +459,17 @@ def load_additional_nli_training_data(force_reload=False,
         anli_verifier_labels = pd.read_json('data/nli/anli_v1.0/verifier_labels_R1-3.jsonl', lines=True)
         anli = anli.loc[~anli['uid'].isin(anli_verifier_labels['uid'].tolist())]
         
+        anli['3class_finegrained_labels'] = [None for _ in range(len(anli))]
         anli['finegrained_labels'] = [None for _ in range(len(anli))]
         anli['original_labels'] = anli['label'].replace({'e': 0, 'n': 1, 'c': 2})
         anli['label'] = anli['label'].apply(lambda x: 0 if x == 'c' else 1)
         
         # 3-3. add split info
         anli['split'] = ['train' for _ in range(len(anli))]
-        anli = anli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source', 'split' ]]
+        
+        # 3-4. add pairID
+        anli = anli.rename(columns={'uid': 'pairID'})
+        anli = anli[['pairID', 'premise', 'hypothesis', 'original_labels', 'label', '3class_finegrained_labels', 'finegrained_labels', 'genre', 'source', 'split' ]]
         
         # 4. Concat SNLI, MNLI, ANLI data and save
         nli_dataset = pd.concat([smnli, anli], axis=0)
@@ -482,16 +497,17 @@ def load_nli_test_data(force_reload=False,
                         output_file_path = 'data/nli/snli_mnli_anli_test_with_finegrained.jsonl'):
     
     """
-    Load and preprocess SNLI, MNLI, ANLI **test** datasets 
+    Load and preprocess SNLI, ANLI **test** datasets 
+    Not using MNLI test set b/c labels are not available
     1. Load data
-    2. Preprocess SNLI, MNLI datasets 
+    2. Preprocess SNLI datasets 
         - concat data
         - drop samples with '-' label
         - add finegrained labels
     3. Preprocess ANLI dataset
         - concat data
         - add finegrained labels
-    4. Concat SNLI, MNLI, ANLI data and save
+    4. Concat SNLI, ANLI data and save
     5. Save dataset statistics
     """
     if os.path.exists(output_file_path) and not force_reload:
@@ -521,10 +537,13 @@ def load_nli_test_data(force_reload=False,
         assert smnli.shape[0] == 9824, f"Number of samples in SMNLI data,  {len(smnli)}, is not 9824"
         
         # 2-3. add finegrained labels 
+        smnli['3class_finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: [np.mean([1 if label == 'entail' else 0 for label in labels]), 
+                                                                                             np.mean([1 if label == 'neutral' else 0 for label in labels]),
+                                                                                             np.mean([1 if label == 'contradiction' else 0 for label in labels])])
         smnli['finegrained_labels'] = smnli['annotator_labels'].apply(lambda labels: np.mean([0 if label == 'contradiction' else 1 for label in labels]))
         smnli['original_labels'] = smnli['label'].replace({'entailment': 0, 'neutral': 1, 'contradiction': 2})
         smnli['label'] = smnli['label'].apply(lambda x: 0 if x == 'contradiction' else 1)
-        smnli = smnli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source']]
+        smnli = smnli[['pairID', 'premise', 'hypothesis', 'original_labels', 'label', '3class_finegrained_labels', 'finegrained_labels', 'genre', 'source']]
         
         # 3. Preprocess ANLI dataset
         # 3-1. concat data
@@ -536,10 +555,16 @@ def load_nli_test_data(force_reload=False,
         anli_verifier_labels = pd.read_json('data/nli/anli_v1.0/verifier_labels_R1-3.jsonl', lines=True)
         anli = pd.merge(anli,anli_verifier_labels, on='uid', how='inner')
         assert anli.shape[0] == 3200, "Number of samples in ANLI data is not 3200"
+        anli['3class_finegrained_labels'] = anli['verifier labels'].apply(lambda labels: [np.mean([1 if label == 'e' else 0 for label in labels]),
+                                                                                          np.mean([1 if label == 'n' else 0 for label in labels]),
+                                                                                          np.mean([1 if label == 'c' else 0 for label in labels]),])
         anli['finegrained_labels'] = anli['verifier labels'].apply(lambda labels: np.mean([0 if label == 'c' else 1 for label in labels]))
         anli['original_labels'] = anli['label'].replace({'e': 0, 'n': 1, 'c': 2})
         anli['label'] = anli['label'].apply(lambda x: 0 if x == 'c' else 1)
-        anli = anli[['premise', 'hypothesis', 'original_labels', 'label', 'finegrained_labels', 'genre', 'source']]
+        
+        # 3-3. change column name 'uid' to 'pairID'
+        anli = anli.rename(columns={'uid': 'pairID'})
+        anli = anli[['pairID', 'premise', 'hypothesis', 'original_labels', 'label', '3class_finegrained_labels', 'finegrained_labels', 'genre', 'source']]
         
         # 4. Concat SNLI, MNLI, ANLI data and save
         nli_dataset = pd.concat([smnli, anli], axis=0)

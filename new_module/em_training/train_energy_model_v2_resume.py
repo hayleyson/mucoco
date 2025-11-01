@@ -87,6 +87,8 @@ def validate_model(model, accelerator, eval_dataloader, args):
         metrics_func = NegativeLogOddsLoss()
     elif args.val_loss_type == 'mse_loss':
         metrics_func = nn.MSELoss()
+    elif args.val_loss_type == 'cross_entropy':
+        metrics_func = nn.CrossEntropyLoss()
     
     valid_loss = 0.
     for batch in eval_dataloader:
@@ -170,7 +172,11 @@ def main(args):
     num_classes = 2 if training_loss_type == "cross_entropy" else 1
         
     if model_type == "RobertaCustomForSequenceClassification": 
-        model, tokenizer = define_model(num_classes=num_classes, device=device)
+        model, tokenizer = define_model(num_classes=num_classes, 
+                                output_hidden_states=True,
+                                encoder_model="roberta-base",
+                                embedding_model="google/gemma-2-2b",
+                                task="")
     elif model_type == "AutoModelForSequenceClassification":
         model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_classes)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -419,7 +425,7 @@ if __name__ == "__main__":
     parser.add_argument('--loss_weight_ranking', type=float, default=0., help='weight for ranking loss')
     parser.add_argument('--ranking_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss'], help='type of ranking loss')
     parser.add_argument('--margin', type=float, default=0.16666666666666666, help='margin for MarginRankingLoss & constructing batches')
-    parser.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['margin_ranking_loss', 'scaled_ranking_loss', 'mse_loss'], help='type of validation loss')
+    parser.add_argument('--val_loss_type', type=str, default='margin_ranking_loss', choices=['cross_entropy', 'margin_ranking_loss', 'scaled_ranking_loss', 'mse_loss'], help='type of validation loss')
     
     parser.add_argument('--train_data_path', type=str, help='training data path')
     parser.add_argument('--valid_data_path', type=str, help='validation data path')

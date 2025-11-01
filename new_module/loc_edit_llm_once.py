@@ -43,6 +43,8 @@ locate_option = args_main.locate_option
 threshold = args_main.threshold
 
 
+for subdir in ['located', 'edited', 'losses', 'final']:
+    os.makedirs(directory + '/' + subdir, exist_ok=True)
 
 locate_output_file_path = directory + f'/located/{exp_label}_located_{job_id}.jsonl'
 edit_output_file_path = directory + f'/edited/{exp_label}_edited_{job_id}.jsonl'

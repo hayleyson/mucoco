@@ -509,7 +509,12 @@ class GPT2Loss(BaseLoss):
                 "mm": mm,
             }
         elif losstype in ["l2", "cosine", "dot", "dotplusplus", "detachdot", "detachdot2", "typical", "focal"]:
-            model_output = self.model.transformer(input_tokens)
+            try:
+                model_output = self.model.transformer(input_tokens)
+            except:
+                model_output = self.model(input_tokens) # debugging to allow GemmaForCausalLM
+                
+            
             hidden_states = model_output[0][:, prompt.size(1)-1:-1]
             input_embeds = self.model.get_input_embeddings()(input_tokens)
 
@@ -725,4 +730,5 @@ class GPT2VarLengthLoss(GPT2Loss):
             # print(str(**prepared_input))
             # print("gen", output)
             
-        return outputs, seq_lengths
+        # return outputs, seq_lengths
+        return outputs

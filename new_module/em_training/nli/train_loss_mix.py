@@ -26,7 +26,7 @@ from new_module.em_training.nli.losses import create_pairs_for_ranking, CustomMa
 
 def main():
     
-    config = load_config('new_module/em_training/config_loss_mix.yaml')
+    config = load_config('new_module/em_training/nli/config_loss_mix.yaml')
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     ## set seed
@@ -39,11 +39,16 @@ def main():
     run_config = wandb.config
     
     # set model path
-    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}".replace('-', '_')
+    model_dir_1 = f"{config['energynet']['base_model']}_{os.path.splitext(config['energynet']['dataset_path'])[0].split('/')[-1]}_{config['energynet']['label_column']}_{config['energynet']['loss']}_{config['energynet']['additional_loss']['loss']}".replace('-', '_').replace('/', '_')
+    print(f"model_dir_1: {model_dir_1}")
     model_dir_2 = run.id
     config['energynet']['ckpt_save_path'] = f"{config['energynet']['ckpt_save_path']}/{model_dir_1}/{model_dir_2}"
     model_path = f"{config['energynet']['ckpt_save_path']}/best_model.pth"
     config['model_path'] = model_path
+    # save config
+    with open(f"{config['energynet']['ckpt_save_path']}/config.json", 'w') as f:
+        json.dump(config, f, indent=4)
+    
     # update wandb config with model paths
     run.config['energynet'].update({'ckpt_save_path': config['energynet']['ckpt_save_path']})
     run.config.update({'model_path': config['model_path']})

@@ -29,100 +29,14 @@ from evaluation.prompted_sampling.evaluate import (
     nli_score,
     sentiment_classify_gpt4o,
     contents_preservation_metrics,
-    save_qualitative_results
+    save_qualitative_results,
+    set_consistency_score
 )
 
 ## logging-related
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 logger = logging.getLogger("le")
 logger.setLevel(logging.DEBUG)
-
-
-def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
-    
-    if task in ['toxicity','sentiment']:
-        sources = pd.read_json(sources_file, lines=True)
-        sources.prompt=sources.prompt.apply(lambda x: x['text'])
-        
-        predictions = pd.read_json(outputs_file, lines=True)
-        predictions.prompt=predictions.prompt.apply(lambda x: x['text'])
-        if task=='toxicity':
-            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
-        elif task=='sentiment':
-            source_predictions=pd.concat([sources,predictions],axis=1)
-            source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
-            source_predictions.columns=['prompt','generations_source','generations_prediction']
-            
-        prompt_list=[]
-        source_list=[]
-        prediction_list=[]
-        for _, row in source_predictions.iterrows():
-            prompt_list.extend([row.prompt]*len(row.generations_source))
-            for i in range(len(row.generations_source)):
-                source_list.append(row.generations_source[i]['text'])
-                prediction_list.append(row.generations_prediction[i]['text'])
-        source_predictions_=pd.DataFrame({'prompt':prompt_list,'source':source_list,'prediction':prediction_list})
-        
-    elif task=='formality':
-        with open(sources_file,'r') as f:
-            sources = [line.rstrip('\n') for line in f.readlines()]
-            
-        predictions = pd.read_json(outputs_file, lines=True)
-        predictions = predictions.explode('generations')
-        predictions['generations']=predictions['generations'].apply(lambda x: x['text'])
-        
-        source_predictions_ = pd.DataFrame({'source': sources, 'prediction': predictions['generations'].tolist()}) 
-        
-    # TODO
-    # nli does not need any source files
-    elif task == 'nli':
-        sources = pd.read_json(sources_file, lines=True)
-        sources['premise']=sources.prompt.apply(lambda x: x['premise'])
-        sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
-
-        predictions = pd.read_json(outputs_file, lines=True)
-        sources['generation']=predictions.generations.apply(lambda x: x[0]['text'])
-
-        source_predictions_ = sources.rename(columns={'hypothesis': 'source', 'generation':'prediction'})
-
-    ## start evaluation
-    ## -- BLEU, SBLEU
-    # https://huggingface.co/spaces/evaluate-metric/sacrebleu
-    sacrebleu = evaluate.load("sacrebleu")
-    # decided not to save raw sbleu score since it took a while to compute
-    # sbleu_score_raw = [sacrebleu.compute(predictions=[predictions[i]], references=[sources[i]])['score'] for i in range(len(predictions))]
-    sbleu_score = sacrebleu.compute(
-        predictions=source_predictions_['prediction'].tolist(), references=source_predictions_['source'].tolist()
-    )["score"]
-
-    ## -- BERTScore, SBERTScore
-    # https://huggingface.co/spaces/evaluate-metric/bertscore
-    # The function returns a dictionary with the following keys - precision, recall, f1, hashcode - and corresponding values for each sentence
-    bertscore = evaluate.load("bertscore")
-    sbert_score_raw = np.array(
-        bertscore.compute(
-            predictions=source_predictions_['prediction'].tolist(),
-            references=source_predictions_['source'].tolist(),
-            lang="en",
-            rescale_with_baseline=True,
-        )["f1"]
-    )
-    # Take the mean of f1 scores for all the predictions
-    sbert_score = np.mean(sbert_score_raw)
-
-
-    sbertscore_outputs = pd.DataFrame(
-        {"sbert_score": sbert_score_raw}
-    )
-    sbertscore_outputs.to_csv(results_file + ".sbertscore", index=False)
-
-    # Calculate % of outputs with SBERT score >= 0.5
-    sbert_preserved_prop = (sbert_score_raw >= 0.5).mean()
-    
-    # Calculate count of outputs with SBERT score >= 0.5
-    sbert_preserved_count = (sbert_score_raw >= 0.5).sum()
-
-    return sbleu_score, sbert_score*100, sbert_preserved_prop, sbert_preserved_count
 
 
 def unravel(outputs_df):
@@ -291,44 +205,55 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
     if "ppl-qwen" in metricset: #GPT2-XL
         logger.debug("big")
         eval_model_name = "Qwen/Qwen2.5-14B"
+        torch.cuda.empty_cache()
         eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, torch_dtype = torch.float16).to(device)
         eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
         torch.cuda.empty_cache()
         if task=='nli':
-            generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            generations_df2 = generations_df.copy()
             generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
         else:
-            generations_df2 = generations_df
+            generations_df2 = generations_df.copy()
         with torch.no_grad():
             ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big-qwen"))
         if run_path != "":
             run.summary.update({'ppl_qwen': ppl, 'total_ppl_qwen': total_ppl})
         fp.write(f'ppl_qwen: {ppl}, total_ppl_qwen: {total_ppl}\n')
+        del eval_model
+        del eval_tokenizer
+        
 
     if "ppl-big" in metricset: #GPT2-XL
         logger.debug("big")
+        torch.cuda.empty_cache()
         eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
         eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
         torch.cuda.empty_cache()
         if task=='nli':
-            generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+            generations_df2 = generations_df.copy()
             generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
         else:
-            generations_df2 = generations_df
+            generations_df2 = generations_df.copy()
         with torch.no_grad():
             ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
         if run_path != "":
             run.summary.update({'ppl': ppl, 'total_ppl': total_ppl})
         fp.write(f'ppl: {ppl}, total_ppl: {total_ppl}\n')
+        del eval_model
+        del eval_tokenizer
     
     if 'nli' in metricset:
         logger.debug("nli-ensemble")
-        generations_df2 = rename_df_for_nli(generations_df, 'premise')
-        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
+        # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+        generations_df2 = generations_df.copy()
+        print(generations_df2.head())
+        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contradiction_proba, entail_proba, neutral_proba) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
         if run_path != "":
             run.summary.update({'avg_nli_entail': avg_nli_entail, 'avg_nli_neutral': avg_nli_neutral,
-                'avg_nli_contradiction': avg_nli_contradiction})
-        fp.write(f'avg_nli_entail: {avg_nli_entail}, avg_nli_neutral: {avg_nli_neutral}, avg_nli_contradiction: {avg_nli_contradiction}\n')
+                'avg_nli_contradiction': avg_nli_contradiction, 'contradiction_proba': contradiction_proba, 'entail_proba': entail_proba, 'neutral_proba': neutral_proba})
+        fp.write(f'avg_nli_entail: {avg_nli_entail}, avg_nli_neutral: {avg_nli_neutral}, avg_nli_contradiction: {avg_nli_contradiction}, contradiction_proba: {contradiction_proba}, entail_proba: {entail_proba}, neutral_proba: {neutral_proba}\n')
 
     if 'toxicity' in metricset:
         logger.debug("toxicity-external")
@@ -356,12 +281,12 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         
     if 'toxicity-int' in metricset:
         logger.debug("toxicity-internal")
-        (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score_int(generations_df, output_dir / (output_file+".toxicity_int"), device,
+        (avg_max_toxicity_int, toxic_probability_p_int, avg_toxicity_int, toxic_probability_s_int) = toxicity_score_int(generations_df, output_dir / (output_file+".toxicity_int"), device,
                                                                                                         kwargs['toxicity_model_path'], kwargs['toxicity_model_type'])
         if run_path != "":
-            run.summary.update({'avg_max_toxicity_int': avg_max_toxicity, 'toxic_probability_p_int': toxic_probability_p,
-                'avg_toxicity_int': avg_toxicity, 'toxic_probability_s_int': toxic_probability_s})
-        fp.write(f'avg_max_toxicity_int: {avg_max_toxicity}, toxic_probability_p_int: {toxic_probability_p}, avg_toxicity_int: {avg_toxicity}, toxic_probability_s_int: {toxic_probability_s}\n')
+            run.summary.update({'avg_max_toxicity_int': avg_max_toxicity_int, 'toxic_probability_p_int': toxic_probability_p_int,
+                'avg_toxicity_int': avg_toxicity_int, 'toxic_probability_s_int': toxic_probability_s_int})
+        fp.write(f'avg_max_toxicity_int: {avg_max_toxicity_int}, toxic_probability_p_int: {toxic_probability_p_int}, avg_toxicity_int: {avg_toxicity_int}, toxic_probability_s_int: {toxic_probability_s_int}\n')
 
     if 'formality-ext' in metricset:
         logger.debug("formality-external")
@@ -372,11 +297,11 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         
     if 'formality-int' in metricset:
         logger.debug("formality-internal")
-        avg_formality, formal_proba = formality_score_int(generations_df, output_dir / (output_file+".formality_int"), device, 
+        avg_formality_int, formal_proba_int = formality_score_int(generations_df, output_dir / (output_file+".formality_int"), device, 
                                                           kwargs['formality_model_path'], kwargs['formality_model_type'])
         if run_path != "":
-            run.summary.update({'avg_formality_int': avg_formality, 'formal_proba_int': formal_proba})
-        fp.write(f'avg_formality_int: {avg_formality}, formal_proba_int: {formal_proba}\n')
+            run.summary.update({'avg_formality_int': avg_formality_int, 'formal_proba_int': formal_proba_int})
+        fp.write(f'avg_formality_int: {avg_formality_int}, formal_proba_int: {formal_proba_int}\n')
         
     if 'sentiment-ext' in metricset:
         logger.debug("sentiment-external")
@@ -392,28 +317,28 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
        
     if 'sentiment-gpt4o' in metricset:
         logger.debug("sentiment-gpt4o")
-        positive_proba, std_positive_proba_p = sentiment_classify_gpt4o(generations_df, output_dir / (output_file+".sentiment_gpt4o"))
+        positive_proba_gpt4o, std_positive_proba_p_gpt4o = sentiment_classify_gpt4o(generations_df, output_dir / (output_file+".sentiment_gpt4o"))
         if run_path != "":
             # run.summary.update({"avg_sentiment": None, "positive_proba": None, 
             #                 "avg_positive_proba_p": None, "std_positive_proba_p": None, 
             #                 "positive_proba_p_avg": None, "positive_proba_s": None})
-            run.summary.update({'positive_proba_gpt4o': positive_proba, 
-                                'positive_proba_std_gpt4o': std_positive_proba_p})
-        fp.write(f'positive_proba_gpt4o: {positive_proba}, positive_proba_std_gpt4o: {std_positive_proba_p}\n')
+            run.summary.update({'positive_proba_gpt4o': positive_proba_gpt4o, 
+                                'positive_proba_std_gpt4o': std_positive_proba_p_gpt4o})
+        fp.write(f'positive_proba_gpt4o: {positive_proba_gpt4o}, positive_proba_std_gpt4o: {std_positive_proba_p_gpt4o}\n')
        
         
     if 'sentiment-int' in metricset:
         logger.debug("sentiment-internal")
-        positive_proba, std_positive_proba_p, avg_positivity = sentiment_classify_own2(generations_df, output_dir / (output_file+".sentiment_int"),
+        positive_proba_int, std_positive_proba_p_int, avg_positivity_int = sentiment_classify_own2(generations_df, output_dir / (output_file+".sentiment_int"),
                                                           kwargs['sentiment_model_path'], kwargs['sentiment_model_type'])
         if run_path != "":
             # run.summary.update({"avg_sentiment_int": None, "positive_proba_int": None, 
             #                     "avg_positive_proba_p_int": None, "std_positive_proba_p_int": None, 
             #                     "positive_proba_p_avg_int": None, "positive_proba_s_int": None})
-            run.summary.update({'positive_proba_int': positive_proba, 
-                                'positive_proba_p_std_int': std_positive_proba_p,
-                                'avg_positivity_int': avg_positivity})
-        fp.write(f'positive_proba_int: {positive_proba}, positive_proba_p_std_int: {std_positive_proba_p}, avg_positivity_int: {avg_positivity}\n')
+            run.summary.update({'positive_proba_int': positive_proba_int, 
+                                'positive_proba_p_std_int': std_positive_proba_p_int,
+                                'avg_positivity_int': avg_positivity_int})
+        fp.write(f'positive_proba_int: {positive_proba_int}, positive_proba_p_std_int: {std_positive_proba_p_int}, avg_positivity_int: {avg_positivity_int}\n')
 
     if "dist-n" in metricset:
         logger.debug("dist-n")
@@ -430,25 +355,43 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         fp.write(f'repetition_rate: {rep_rate}\n')
         
     if "fluency" in metricset:
-        if task == 'nli':
-            generations_df = rename_df_for_nli(generations_df, 'premise')
-            generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
-        else:
-            generations_df2 = generations_df
+        generations_df2 = generations_df.copy()
         fluency = fluency_classify(generations_df2, output_dir / (output_file+".fluency"))
         if run_path != "":
             run.summary.update({'fluent_proba': fluency})
         fp.write(f'fluent_proba: {fluency}\n')
         
+    if "set-consistency" in metricset:
+        logger.debug("set-consistency")
+        
+        device = 'cuda'
+        config_path = 'new_module/set_consistency_energy/params.yaml'
+            
+        if task in ['nli', 'set_nli', 'set-nli', 'set_snli', 'set-snli']:
+            folder_path = 'new_module/set_consistency_energy/results/nli/set_nli/46853'
+            model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
+            time_key = '46853'
+            task_for_sc = 'nli'
+        elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
+            folder_path = 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068'
+            model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
+            time_key = '1225068'
+            task_for_sc = 'vqa'
+        
+        avg_sc_score, cons_prop = set_consistency_score(generations_df, output_dir / (output_file+".sc"), device, config_path, folder_path, model_path, time_key, task_for_sc)
+        if run_path != "":
+            run.summary.update({'avg_sc_score': avg_sc_score, 'consistent_proba': cons_prop})
+        fp.write(f'avg_sc_score: {avg_sc_score}, consistent_proba: {cons_prop}\n')
+        
     if "contents-preservation" in metricset:
         logger.debug("contents-preservation")
         
         torch.cuda.empty_cache()
-        if (task == "formality") and (target_style == 'informal'):
-            kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
-        elif (task == "formality") and (target_style == 'formal'):
-            kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
-        print(kwargs['source_file_path'])
+        # if (task == "formality") and (target_style == 'informal'):
+        #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
+        # elif (task == "formality") and (target_style == 'formal'):
+        #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
+        # print(kwargs['source_file_path'])
         sbleu_score, sbert_score, sbert_preserved_prop, sbert_preserved_count = contents_preservation_metrics(kwargs['source_file_path'],
                                                                     generations_file_path, 
                                                                     str(output_dir / output_file),
@@ -465,6 +408,33 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
             )
         fp.write(f"sbleu: {sbleu_score}\n")
         fp.write(f"sbert_score: {sbert_score}, sbert_preserved_prop: {sbert_preserved_prop}, sbert_preserved_count: {sbert_preserved_count}\n")
+            
+    if "h1" in metricset:
+        logger.debug("h1")
+        ## metric for sweep
+        ## harmonic mean of fluency and constraint satisfaction rate
+        if task == 'toxicity':
+            constraint_sat = 1 - toxic_probability_s
+        elif (task == 'sentiment') and (target_style == 'positive'):
+            constraint_sat = positive_proba
+        elif (task == 'sentiment') and (target_style == 'negative'):
+            constraint_sat = 1 - positive_proba
+        elif (task == 'formality') and (target_style == 'formal'):
+            constraint_sat = formal_proba
+        elif (task == 'formality') and (target_style == 'informal'):
+            constraint_sat = 1 - formal_proba
+        elif task == 'nli':
+            constraint_sat = 1 - contradiction_proba
+        logger.info(f"task: {task}, target_style: {target_style}, constraint_sat: {constraint_sat}, fluency: {fluency}")
+        
+        h1 = (2 * fluency * constraint_sat) / (fluency + constraint_sat)
+        
+        if run_path != "":
+            run.summary.update(
+                        {"h1": h1}
+                    )
+        fp.write(f"h1: {h1}\n")
+        
             
     if run_path != "":
         run.update()
@@ -483,10 +453,12 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         save_qualitative_results(task,
                                 kwargs['source_file_path'], 
                                 generations_file_path, 
-                                str(output_dir / (output_file+".ppl-big")), 
+                                str(output_dir / (output_file+".ppl-qwen")) if "ppl-qwen" in metricset else str(output_dir / (output_file+".ppl-big")), 
                                 str(output_dir / (output_file+f".{constraint_suffix}")), 
                                 str(output_dir / (output_file+".sbertscore")),
                                 str(output_dir / (output_file+".xlsx")))
+    
+
     
 if __name__ == "__main__":
     

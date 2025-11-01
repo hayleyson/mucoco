@@ -118,9 +118,14 @@ def validate_model_loss_mix(dev_dataloader, model, binary_criterion, continuous_
         num_skipped_batch = 0
         
         for dev_batch in dev_dataloader:
+            if config['energynet'].get('mucola_style', False):
+                outputs = model(input_ids = dev_batch['input_ids'],
+                                        attention_mask = dev_batch['attention_mask'])
+                dev_predictions = outputs['logits']
+            else:
+                dev_predictions, _ = model(input_ids = dev_batch['input_ids'],
+                                            attention_mask = dev_batch['attention_mask'])
             
-            dev_predictions, _ = model(input_ids = dev_batch['input_ids'],
-                                       attention_mask = dev_batch['attention_mask'])
             if config['energynet']['output_form'] == '2dim_vec':
                 dev_e_ = -torch.log_softmax(dev_predictions, dim=-1)[:, config['energynet']['energy_col']]
                 
@@ -228,9 +233,14 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         
         for dev_batch in dev_dataloader:
             
-            dev_predictions, _ = model(input_ids = dev_batch['input_ids'],
+            if config['energynet'].get('mucola_style', False):
+                outputs = model(input_ids = dev_batch['input_ids'],
                                         attention_mask = dev_batch['attention_mask'])
-            
+                dev_predictions = outputs['logits']
+            else:
+                dev_predictions, _ = model(input_ids = dev_batch['input_ids'],
+                                            attention_mask = dev_batch['attention_mask'])
+                
             if config['energynet']['loss'] in ['mse', 'mse+margin_ranking']:
                 dev_predictions = torch.sigmoid(dev_predictions)
                 dev_loss += criterion(dev_predictions, dev_batch['labels'])
@@ -264,6 +274,8 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
                 dev_labels.extend(dev_batch['labels'].cpu()[:,config['energynet']['energy_col']].tolist())
             elif (config['energynet']['label_column'] == 'binary_labels') or (config['energynet']['label_column'] == 'original_labels'):
                 dev_labels.extend(dev_batch['labels'].cpu().tolist())
+            elif (config['energynet']['label_column'] == '3class_finegrained_labels'): 
+                dev_labels.extend(dev_batch['labels'].argmax(dim=-1).cpu().tolist()) # convert back to original_labels
             else:
                 raise NotImplementedError("Invalid loss name provided.")
             
@@ -278,7 +290,7 @@ def validate_model(dev_dataloader, model, criterion, config, epoch, overall_step
         elif config['energynet']['label_column'] == 'binary_labels':
             e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l == 0]
             e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l == 1]
-        elif config['energynet']['label_column'] == 'original_labels':
+        elif (config['energynet']['label_column'] == 'original_labels') or (config['energynet']['label_column'] == '3class_finegrained_labels'):
             e_class_0 = [e for e, l in zip(dev_e, dev_labels) if l == 2]
             e_class_1 = [e for e, l in zip(dev_e, dev_labels) if l != 2]
         else:
@@ -355,10 +367,18 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
     
     model.train()
     # inference
-    binary_predictions, _ = model(input_ids = binary_batch['input_ids'],
-                                    attention_mask = binary_batch['attention_mask'])
-    continuous_predictions, _ = model(input_ids = continuous_batch['input_ids'],
+    
+    if config['energynet'].get('mucola_style', False):
+        binary_predictions = model(input_ids = binary_batch['input_ids'],
+                                attention_mask = binary_batch['attention_mask'])['logits']
+        continuous_predictions = model(input_ids = continuous_batch['input_ids'],
+                                attention_mask = continuous_batch['attention_mask'])['logits']
+    else:
+        binary_predictions, _ = model(input_ids = binary_batch['input_ids'],
+                                attention_mask = binary_batch['attention_mask'])
+        continuous_predictions, _ = model(input_ids = continuous_batch['input_ids'],
                                 attention_mask = continuous_batch['attention_mask'])
+
     if config['energynet']['additional_loss']['loss'] == 'cross_entropy':
         binary_loss = binary_criterion(binary_predictions, binary_batch['labels'])
     else:
@@ -435,20 +455,25 @@ def train_model_one_step_loss_mix(binary_batch, continuous_batch, model, optimiz
 def train_model_one_step(batch, model, optimizer, scheduler, criterion, epoch, overall_step, config):
     
     model.train()
-    if config['energynet'].get('input_form', 'x_only') == 'xy_concat':
-        half_count = len(batch['input_ids'])//2
-        ## OOM error can arise because xy_concat data collator produces 2x samples given initial set of samples
-        ## run inference twice
-        predictions_1, hidden_states = model(input_ids = batch['input_ids'][:half_count],
-                                        attention_mask = batch['attention_mask'][:half_count])
-        predictions_2, hidden_states = model(input_ids = batch['input_ids'][half_count:],
-                                attention_mask = batch['attention_mask'][half_count:])
-        predictions = torch.cat([predictions_1, predictions_2], dim=0)
+    if config['energynet'].get('mucola_style', False):
+        outputs = model(input_ids = batch['input_ids'],
+                        attention_mask = batch['attention_mask'])
+        predictions=outputs['logits']
+    else:
+        if config['energynet'].get('input_form', 'x_only') == 'xy_concat':
+            half_count = len(batch['input_ids'])//2
+            ## OOM error can arise because xy_concat data collator produces 2x samples given initial set of samples
+            ## run inference twice
+            predictions_1, hidden_states = model(input_ids = batch['input_ids'][:half_count],
+                                            attention_mask = batch['attention_mask'][:half_count])
+            predictions_2, hidden_states = model(input_ids = batch['input_ids'][half_count:],
+                                    attention_mask = batch['attention_mask'][half_count:])
+            predictions = torch.cat([predictions_1, predictions_2], dim=0)
 
-    else:   
-        predictions, hidden_states = model(input_ids = batch['input_ids'],
-                                        attention_mask = batch['attention_mask'])
-    
+        else:   
+            predictions, hidden_states = model(input_ids = batch['input_ids'],
+                                            attention_mask = batch['attention_mask'])
+        
     if config['energynet']['loss'] == 'mse': # energy = - log_sigmoid(predictions)
         loss = criterion(torch.sigmoid(predictions), batch['labels'])
     elif ('ranking' in config['energynet']['loss']): # energy = - predictions b/c higher f(x) -> lower energy

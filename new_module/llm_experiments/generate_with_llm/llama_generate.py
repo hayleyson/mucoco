@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from new_module.llm_experiments.prompts import get_prompt
+from new_module.llm_experiments.generate_with_llm.prompts import get_prompt
 
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
@@ -109,3 +109,27 @@ if __name__ == "__main__":
     
     
     
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+
+tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it")
+model = AutoModelForCausalLM.from_pretrained(
+    "google/gemma-2-2b-it",
+    device_map="auto",
+    torch_dtype=torch.bfloat16,
+)
+
+# given prompt text, returns generation
+def generate_answer(text):
+  messages = [
+      { "role": "user", "content": "You are a helpful assistant. Please create the answer to the questions directly without any explanation. Do you understand?" },
+      { "role": "assistant", "content": "Yes." },
+      { "role": "user", "content": f"Complete the following sentence in a coherent and meaningful way.\nSentence: {text}\nCompletion: " }
+  ]
+  prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+  input_ids = tokenizer(prompt, return_tensors="pt").to("cuda")
+  outputs = model.generate(**input_ids, max_new_tokens=90)
+
+  answer = tokenizer.decode(outputs[0][len(input_ids[0]):])
+  answer = answer.split("<end_of_turn>")[0]
+  return answer

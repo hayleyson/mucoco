@@ -6,7 +6,7 @@ import sys
 import math
 import argparse
 import re
-
+import json
 
 
 import numpy as np
@@ -19,32 +19,70 @@ from torch.utils.data import DataLoader
 from datasets import Dataset
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
-from sklearn.metrics import mean_squared_error, mean_absolute_error, confusion_matrix
+from sklearn.metrics import mean_squared_error, mean_absolute_error, confusion_matrix, accuracy_score, f1_score
 import seaborn as sns
 
 import mucoco.utils as utils
+from new_module.em_training.nli.models import EncoderModel
+from new_module.utils.load_ckpt import define_model
 
 
 def predict_labels(args, device):
     
-    try:
-        config = AutoConfig.from_pretrained(args.checkpoint_dir)
-        if 'roberta-base-custom' == args.model_type:
-            model = utils.RobertaCustomForSequenceClassification.from_pretrained(args.checkpoint_dir, config=config)
-        elif 'roberta-base' == args.model_type:
-            model = AutoModelForSequenceClassification.from_pretrained(args.checkpoint_dir, config=config)
-        tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_dir)
-    except:
-        dirs = os.listdir(args.checkpoint_dir)
-        dirs = [x for x in dirs if re.search('.*_best_checkpoint', x)]
-        assert len(dirs) == 1
-        checkpoint_dir = os.path.join(args.checkpoint_dir, dirs[0])
-        config = AutoConfig.from_pretrained(checkpoint_dir)
-        if 'roberta-base-custom' == args.model_type:
-            model = utils.RobertaCustomForSequenceClassification.from_pretrained(checkpoint_dir, config=config)
-        elif 'roberta-base' == args.model_type:
-            model = AutoModelForSequenceClassification.from_pretrained(checkpoint_dir, config=config)
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
+    if 'task' not in args:
+        args.task = ''
+        
+    if 'label_id' not in args:
+        args.label_id = 1
+        
+    if 'embedding_model' not in args:
+        args.embedding_model = ''
+    
+    if 'encoder_model' not in args:
+        args.encoder_model = ''
+    
+    if args.model_type == 'encoder-model':
+        with open(os.path.join(args.checkpoint_dir, 'config.json')) as f:
+            model_config = json.load(f)
+        model_config['device'] = device
+        model_config['model_path'] = os.path.join(args.checkpoint_dir, args.model_file_name)
+        
+        model = EncoderModel(params=model_config)
+        model.load_state_dict(torch.load(model_config['model_path'],weights_only=True),strict=False)
+
+        tokenizer = model.tokenizer
+    elif ('custom' in args.model_type) and (args.task == 'nli'):
+        
+        model, tokenizer = define_model(
+            num_classes=2, 
+            mod_path=os.path.join(args.checkpoint_dir, args.model_file_name),
+            load_weights=True,
+            device=device,
+            embedding_model=args.embedding_model,
+            encoder_model=args.encoder_model,
+            task='nli'
+        )
+        
+    else:
+        try: 
+            config = AutoConfig.from_pretrained(args.checkpoint_dir)
+            if 'roberta-base-custom' == args.model_type:
+                model = utils.RobertaCustomForSequenceClassification.from_pretrained(args.checkpoint_dir, config=config)
+            elif 'roberta-base' == args.model_type:
+                model = AutoModelForSequenceClassification.from_pretrained(args.checkpoint_dir, config=config)
+            tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_dir)
+        except:
+
+            dirs = os.listdir(args.checkpoint_dir)
+            dirs = [x for x in dirs if re.search('.*_best_checkpoint', x)]
+            assert len(dirs) == 1
+            checkpoint_dir = os.path.join(args.checkpoint_dir, dirs[0])
+            config = AutoConfig.from_pretrained(checkpoint_dir)
+            if 'roberta-base-custom' == args.model_type:
+                model = utils.RobertaCustomForSequenceClassification.from_pretrained(checkpoint_dir, config=config)
+            elif 'roberta-base' == args.model_type:
+                model = AutoModelForSequenceClassification.from_pretrained(checkpoint_dir, config=config)
+            tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
         
     model.to(device)
 
@@ -53,12 +91,22 @@ def predict_labels(args, device):
     elif args.test_data_path.endswith('.jsonl'):
         test_data = pd.read_json(args.test_data_path, lines=True)
 
+    if args.task == 'nli':
+        test_data = test_data.loc[test_data['split']=='dev'].copy()
+        test_data = test_data.rename(columns={'finegrained_labels': 'labels'})
     test_dataset = Dataset.from_pandas(test_data)
 
-    def collate_fn(batch):
-        outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
-        outputs['labels'] = torch.Tensor([[1-example['labels'], example['labels']] for example in batch])
-        return outputs
+    if args.task == "nli":
+        def collate_fn(batch):
+            premises = [example['premise'] for example in batch]
+            hypotheses =[example['hypothesis'] for example in batch] 
+            sequences = [tokenizer.bos_token + p + tokenizer.sep_token + h + tokenizer.eos_token for p,h in zip(premises,hypotheses)]
+            outputs = tokenizer(sequences, padding=True, truncation=True, return_tensors="pt")
+            return outputs
+    else:
+        def collate_fn(batch):
+            outputs = tokenizer([example['text'] for example in batch], padding=True, truncation=True, return_tensors="pt")
+            return outputs
     
     test_loader = DataLoader(test_dataset, shuffle=False,batch_size=args.batch_size,collate_fn=collate_fn)
 
@@ -67,11 +115,12 @@ def predict_labels(args, device):
         model.eval()
         with torch.no_grad():
             outputs = model(input_ids = batch['input_ids'].to(device), 
-                            labels = batch['labels'].to(device),
                             attention_mask = batch['attention_mask'].to(device))
-            probs = torch.softmax(outputs.logits, dim=-1)
-            predictions.extend(probs[:, 1].reshape(-1,).tolist())
-
+            if args.model_type == 'encoder-model':
+                probs = torch.softmax(outputs[0], dim=-1)
+            else:
+                probs = torch.softmax(outputs.logits, dim=-1)
+            predictions.extend(probs[:, args.label_id].reshape(-1,).tolist())
 
     labels_predictions = pd.DataFrame({"predictions": predictions, "labels": test_data['labels'].tolist()})
     labels_predictions.to_csv(os.path.join(args.output_dir, "labels_predictions.csv"))
@@ -92,9 +141,15 @@ def main(args):
         print("Done.")
 
 
+    ### Obtain binary labels
+    labels_predictions['labels_binary'] = labels_predictions['labels'].apply(lambda x: 1 if x > 0.5 else 0)
+    labels_predictions['predictions_binary'] = labels_predictions['predictions'].apply(lambda x: 1 if x > 0.5 else 0)
+
     ### Plot & Analyze Model Outputs
 
     with open(os.path.join(args.output_dir, "results.txt"), "w") as f:
+        f.write(f"Classification Accuracy: {accuracy_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
+        f.write(f"Classification F1: {f1_score(labels_predictions['labels_binary'], labels_predictions['predictions_binary'])}\n")
         f.write(f"RMSE: {mean_squared_error(labels_predictions['labels'], labels_predictions['predictions'])**(1/2)}\n")
         f.write(f"MAE: {mean_absolute_error(labels_predictions['labels'], labels_predictions['predictions'])}\n")
         f.write(f"Pearson's r: {pearsonr(labels_predictions['labels'], labels_predictions['predictions'])[0]}\n")
@@ -176,7 +231,9 @@ if __name__ == "__main__":
     parser.add_argument("--test_data_type", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--model_type", type=str, choices=['roberta-base', 'roberta-base-custom'])
+    parser.add_argument("--model_type", type=str, choices=['roberta-base', 'roberta-base-custom', 'encoder-model'])
+    parser.add_argument("--model_file_name", type=str)
+    parser.add_argument("--task", type=str)
     args = parser.parse_args()
 
     main(args)

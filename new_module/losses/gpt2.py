@@ -1,3 +1,6 @@
+"""
+This code is adapted from Mucola's losses module. (https://github.com/Sachin19/mucoco/blob/sampling2/mucoco/losses)
+"""
 from typing import List
 
 import numpy as np
@@ -31,15 +34,14 @@ class GPT2Loss(BaseLoss):
         prompt_enc=self.tokenizer.encode_plus(prompt,add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
         prompt_enc['input_ids']=prompt_enc['input_ids'].expand(num_samples,-1)
         prompt_enc['attention_mask']=prompt_enc['attention_mask'].expand(num_samples,-1)
-    
-        
-        if self.args.task == "nli":
-            predictions = list(map(lambda x: x[0] + " " + x[1], predictions))
-            
+                
         predictions_enc=self.tokenizer.batch_encode_plus(predictions, add_special_tokens=False, return_tensors="pt", padding=True, truncation=True).to(self.device)
 
         input_tokens = torch.cat([prompt_enc.input_ids, predictions_enc.input_ids], dim=1)
         attention_masks = torch.cat([prompt_enc.attention_mask, predictions_enc.attention_mask], dim=1)
+        
+        input_tokens = input_tokens.long()
+        # print(f"input_tokens: {input_tokens}")
         with torch.no_grad():
             model_output = self.model(input_ids=input_tokens,
                                 attention_mask=attention_masks)
@@ -52,7 +54,7 @@ class GPT2Loss(BaseLoss):
         
         loss = loss.sum(dim=-1)
         if self.args.length_normalize:
-            loss /= predictions_enc.attention_mask.sum(dim=-1) 
+            loss /= torch.pow(predictions_enc.attention_mask.sum(dim=-1), self.args.alpha) 
         return loss # dimensions: (N)
     
     def generate(self, input_ids, **kwargs):

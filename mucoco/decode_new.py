@@ -1,3 +1,4 @@
+import argparse
 import logging
 import math
 import os
@@ -13,16 +14,19 @@ import json
 import os
 ## 23/7/18 - Hayley
 import joblib
+import wandb
 ##
 
 from transformers import AutoTokenizer, AutoConfig
-from sentence_transformers import SentenceTransformer, util
+# from sentence_transformers import SentenceTransformer, util
 
 from mucoco.utils import TargetProbability, TargetEmbeddings, TargetSimplex, Lambda, Optimizer, OptimizerLE, get_epsilon, locate
 import mucoco.losses as lossbuilder
 import mucoco.options as options
 import mucoco.utils as utils
 import torch.nn.functional as F
+
+from new_module.evaluation.evaluate_wandb import evaluate_main
 
 # To control logging level for various modules used in the application:
 # from here: https://github.com/huggingface/transformers/issues/3050
@@ -43,6 +47,8 @@ def set_global_logging_level(level=logging.ERROR, prefices=[""]):
             logging.getLogger(name).setLevel(level)
 
 def main(args):
+    
+    main_start_time = time.time()
     logging.basicConfig(
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -53,10 +59,58 @@ def main(args):
     logger.setLevel(logging.ERROR)
     logger.info(args)
 
-    if args.outfile is not None:
-        outf = open(args.outfile, "w")
-        outallsatf = open(args.outfile + ".allsat", "w")
-        outf2 = open(args.outfile + ".intermediate", "w")
+
+    if args.resume:
+        logger.info("resuming from a previous run")
+        run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            id=args.wandb_run_id,
+            resume="must",
+        )
+    else:
+        run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            config=vars(args),
+        )
+        
+    run_id = run.path.split("/")[-1]
+    display_name = run_id
+    
+    outdir = os.path.join(args.output_dir_prefix, display_name)
+    os.makedirs(outdir, exist_ok=True)
+    outfile = f"{outdir}/outputs_epsilon{args.min_epsilons}.txt"
+    run.summary["outfile_path"] = outfile
+    logger.info("output saving directory: %s",os.path.dirname(outfile))
+
+    # if args.outfile is not None:
+    #     outf = open(args.outfile, "w")
+    #     outallsatf = open(args.outfile + ".allsat", "w")
+    #     outf2 = open(args.outfile + ".intermediate", "w")
+    
+    if outfile is not None:
+        if not args.resume:
+            outf = open(outfile, "w")
+            outallsatf = open(outfile + ".allsat", "w")
+            outf2 = open(outfile + ".intermediate", "w")
+            
+            outfparams = open(outfile + ".params", "w")
+            outfparams.write("%s\n" %args)
+            outfparams.flush()
+            outfparams.close()
+            
+            resume_index = 0
+        else:
+            outf = open(outfile, "a")
+            outallsatf = open(outfile + ".allsat", "a")
+            outf2 = open(outfile + ".intermediate", "a")
+            
+            with open(outfile, "r") as f:
+                resume_index = len(f.readlines())
+            
+            logger.info(f"Resuming from index {resume_index}")
+        
 
     # Fix seed
     if args.seed is not None:
@@ -272,45 +326,51 @@ def main(args):
     if source_dataset is None:
         logger.info("Loading the dataset ...")
         if args.datastyle == "text":
-            source_dataset = [l.strip() for l in open(source_data)]
-            target_dataset = [l.strip() for l in open(target_data)]
-            context_dataset = []
-            import csv
-            with open(context_data) as csvfile: #there can be multiple contexts, for example for paraphrasing, so we allow for a list of contexts for every input
-                reader = csv.reader(csvfile, delimiter="\t")
-                for row in reader:
-                    context_dataset.append(row)
-            additional_dataset = [l.strip() for l in open(additional_data)]
+            if args.task_type == "prompted_generation":
+                source_dataset = [l.rstrip('\n') for l in open(source_data)]
+                target_dataset = [l.rstrip('\n') for l in open(target_data)]
+                context_dataset = []
+                import csv
+                with open(context_data) as csvfile: #there can be multiple contexts, for example for paraphrasing, so we allow for a list of contexts for every input
+                    reader = csv.reader(csvfile, delimiter="\t")
+                    for row in reader:
+                        context_dataset.append(row)
+                additional_dataset = [l.strip() for l in open(additional_data)]
+                if args.dev_mode == "true":
+                    generation_dataset = source_dataset
+            elif args.task_type == "revision":
+                source_dataset = ["" for l in open(source_data)]
+                target_dataset = ["" for l in open(target_data)]
+                additional_dataset = ["" for l in open(additional_data)]
+                context_dataset = ["" for l in open(context_data)]
+                generation_dataset = [l.rstrip('\n') for l in open(source_data)]
         elif args.datastyle == "jsonl": #for some prompts datasets
-            source_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(source_data)]
-            target_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(target_data)]
-            additional_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(additional_data)]
-            if args.jsonl_secondary_key is not None and args.jsonl_secondary_key != "none":
-                source_dataset = [x[args.jsonl_secondary_key] for x in source_dataset]
-                target_dataset = [x[args.jsonl_secondary_key] for x in target_dataset]
-                additional_dataset = [x[args.jsonl_secondary_key] for x in additional_dataset]
-
-            context_dataset = [None] * len(source_dataset)
-            if args.use_context:
-                context_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(context_data)]
+            if args.task_type == "prompted_generation":
+                source_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(source_data)]
+                target_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(target_data)]
+                additional_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(additional_data)]
                 if args.jsonl_secondary_key is not None and args.jsonl_secondary_key != "none":
-                    context_dataset = [x[args.jsonl_secondary_key] for x in context_dataset]
-        elif args.datastyle == "single-jsonl": #one jsonl file has all the information
-            source_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(source_data)]
-            target_dataset = [json.loads(l)[args.jsonl_secondary_key] for l in open(target_data)]
-            additional_dataset = [json.loads(l)[args.jsonl_secondary_key] for l in open(additional_data)]
-            
-            context_dataset = [None] * len(source_dataset)
-            if args.use_context:
-                context_dataset = [[json.loads(l)[args.jsonl_secondary_key]] for l in open(context_data)] #meaningful
+                    source_dataset = [x[args.jsonl_secondary_key] for x in source_dataset]
+                    target_dataset = [x[args.jsonl_secondary_key] for x in target_dataset]
+                    additional_dataset = [x[args.jsonl_secondary_key] for x in additional_dataset]
+
+                context_dataset = [None] * len(source_dataset)
+                if args.use_context:
+                    context_dataset = [json.loads(l)[args.jsonl_primary_key] for l in open(context_data)]
+                    if args.jsonl_secondary_key is not None and args.jsonl_secondary_key != "none":
+                        context_dataset = [x[args.jsonl_secondary_key] for x in context_dataset]
+
+                if args.dev_mode == "true":
+                    generation_dataset = [json.loads(l)["generations"] for l in open(source_data)]
+            elif args.task_type == "revision":
+                source_dataset = ["" for l in open(source_data)]
+                target_dataset = ["" for l in open(target_data)]
+                additional_dataset = ["" for l in open(additional_data)]
+                context_dataset = ["" for l in open(context_data)]
+                generation_dataset = [json.loads(l)["source"] for l in open(source_data)]
+        
         start_idx = args.start_idx
         end_idx = (len(source_dataset) + args.end_idx) % len(source_dataset) # also works with negative end_idx
-
-        ## 23/07/18 - Hayley - load already generated data.
-        init_gen_ids = joblib.load('/home/hyeryungson/mucoco/outputs/toxicity/save-init-gen-all-uniform/testset_input_ids')
-        outf_init = pd.read_json('/home/hyeryungson/mucoco/outputs/toxicity/save-init-gen-all-uniform/testset.w.locidx', lines=True)
-        source_dataset = outf_init["prompt"].unique().tolist()
-        ##
 
         logger.info("Data loaded")
     ##################################################################################################################################################################
@@ -346,6 +406,19 @@ def main(args):
         example_p = args.num_examples*1.0/len(source_dataset)
     print(example_p, args.random_example)
     print(start_idx, end_idx)
+    
+    decode_start_time = time.time()
+    if args.resume:
+        num_skipped = run.summary.get("num_skipped", 0)
+        num_edited = run.summary.get("num_edited", 0)
+        num_decoded_tokens = run.summary.get("num_decoded_tokens", 0)
+    else:
+        num_skipped = 0
+        num_edited = 0
+        num_decoded_tokens = 0
+
+    interrupted = False
+    
     ##################################################################################################################################################################
     ##################################################################################################################################################################
     ##################################################################################################################################################################
@@ -355,7 +428,6 @@ def main(args):
     ##################################################################################################################################################################
     for text_id, source_text in enumerate(source_dataset):
         
-        ## 23/7/18 - Hayley - commented it out.
         # # ITERATING OVER PROMPTS. DO FOLLOWING FOR EACH OF PROMPT.
         # if text_id < start_idx or text_id > end_idx:
         #     continue
@@ -368,6 +440,9 @@ def main(args):
         # if not do_this_example:
         #     continue
         ##
+        
+        if text_id < resume_index:
+            continue
         
         print(text_id, "doing it! do_this_example")
 
@@ -515,54 +590,59 @@ def main(args):
                 context_batch = torch.cat(context_batch, dim=0).to(device)
                 print(context_batch)
             
-            ## 23/07/18 - Hayley
-            #
-            # ##################################################################################################################################################################
-            # # generating AR samples
-            # ##################################################################################################################################################################
-            # predicted_batches = [] #each sample x restart becomes a tensor
-            # for batchidx in range(source_batch.size(0)): #batch size is 1
-            #     with torch.no_grad():
-            #         starttime = time.time()
-            #         AR_predicted_all =\
-            #             lossfns[0].generate(
-            #                 input_ids=source_batch[batchidx].unsqueeze(0),
-            #                 additional_ids=additional_batch[batchidx].unsqueeze(0),
-            #                 num_return_sequences=(args.restarts + 1)*args.num_samples) # 25 for nontoxic
-            #         #some bug about length
+            ##################################################################################################################################################################
+            # generating AR samples
+            ##################################################################################################################################################################
+            if args.task_type == "revision":
+                # assumption: args.num_samples == 1
+                AR_prediction_all = [generation_dataset[text_id]]
+                predicted_batches = primary_tokenizer.encode(AR_prediction_all[0], return_tensors="pt", add_special_tokens=False).to(device).unsqueeze(0)
+            elif args.task_type == "prompted_generation":
+                if args.dev_mode == "true":
+                    
+                    # predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
+                    # predicted_batches = [torch.tensor([x], dtype=torch.long, device=device) for x in predicted_batches]
+                    
+                    AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
+                    predicted_batches = primary_tokenizer.batch_encode_plus(AR_prediction_all, add_special_tokens=False)
+                    predicted_batches = [torch.tensor([x], dtype=torch.long, device=device) for x in predicted_batches.input_ids]
+                else:
+                    predicted_batches = [] #each sample x restart becomes a tensor
+                    for batchidx in range(source_batch.size(0)): #batch size is 1
+                        with torch.no_grad():
+                            starttime = time.time()
+                            AR_predicted_all =\
+                                lossfns[0].generate(
+                                    input_ids=source_batch[batchidx].unsqueeze(0),
+                                    additional_ids=additional_batch[batchidx].unsqueeze(0),
+                                    num_return_sequences=(args.restarts + 1)*args.num_samples) # 25 for nontoxic
+                            #some bug about length
 
-            #         # AR_predicted_indices_all = []
-            #         AR_prediction_all = []
-            #         # clean output for predicted token ids
-            #         for sample_idx in range(len(AR_predicted_all)):
-            #             AR_predicted_indices =\
-            #                 clean_output(AR_predicted_all[sample_idx].tolist(), # remove eos token, etc.
-            #                     eos_token_id=eos_token_id,
-            #                     return_tensors=True, allow_first_eos=losses[0] == "bart",
-            #                     skip_special_tokens=[bos_token_id, eos_token_id])
-            #             # AR_predicted_indices_all.append(AR_predicted_indices)
+                            # AR_predicted_indices_all = []
+                            AR_prediction_all = []
+                            # clean output for predicted token ids
+                            for sample_idx in range(len(AR_predicted_all)):
+                                AR_predicted_indices =\
+                                    clean_output(AR_predicted_all[sample_idx].tolist(), # remove eos token, etc.
+                                        eos_token_id=eos_token_id,
+                                        return_tensors=True, allow_first_eos=losses[0] == "bart",
+                                        skip_special_tokens=[bos_token_id, eos_token_id])
+                                # AR_predicted_indices_all.append(AR_predicted_indices)
 
-            #             if args.target_tokenize_different:
-            #                 with primary_tokenizer.as_target_tokenizer():
-            #                     AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
-            #             else:
-            #                 AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
-            #             AR_prediction_all.append(AR_prediction)
-            #             print(AR_prediction)
-                        
-            #             # predicted_batch.append(AR_predicted_indices)
-            #             predicted_batches.append(AR_predicted_indices.to(device))
-            #         if args.time:
-            #             print(time.time()-starttime)
+                                if args.target_tokenize_different:
+                                    with primary_tokenizer.as_target_tokenizer():
+                                        AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
+                                else:
+                                    AR_prediction = primary_tokenizer.decode(AR_predicted_indices[0].tolist())
+                                AR_prediction_all.append(AR_prediction)
+                                print(AR_prediction)
+                                
+                                # predicted_batch.append(AR_predicted_indices)
+                                predicted_batches.append(AR_predicted_indices.to(device))
+                            if args.time:
+                                print(time.time()-starttime)
+                
             
-            ## change to read from testset file.
-            # predicted_batches = init_gen_ids[source_text]
-            predicted_batches = init_gen_ids.loc[init_gen_ids["prompt"]==source_text, "generation_ids"].tolist()
-            AR_prediction_all = outf_init.loc[outf_init["prompt"]==source_text, "generation"].tolist()
-            locate_indices_all = outf_init.loc[outf_init["prompt"]==source_text, "loc_indices"].tolist()
-            AR_predicted_indices = predicted_batches[-1].cpu() ### 이부분이 좀 이상한 것 같다! 원래 코드가 이렇게 되어 있긴 했는데... 이게 맞나? ㅠㅠ 확인하려면,,, 많은걸 뜯어봐야 한다.
-            # print("locate_indices_all: ", locate_indices_all)
-            ##
             ##################################################################################################################################################################
             # 25 initial outputs per prompt
             # intermediate_result={"prompt": source_text}
@@ -854,13 +934,13 @@ def main(args):
                             starttime = time.time()
                             repeat_counts = [0] * batch_size
 
-                            ## 23/7/21 - add locate code
-                            # batch = {"input_ids": predicted_batch}
-                            # indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch)
-                            indices = locate_indices_all[sample_idx]
-                            intermediate_result.update({f"indices": indices}) # save indices along with update results
-                            print("indices", indices)
-                            ##
+                            # ## 23/7/21 - add locate code
+                            # # batch = {"input_ids": predicted_batch}
+                            # # indices = locate(name2model[model_paths[1]], name2tokenizer[model_paths[1]], batch)
+                            # indices = locate_indices_all[sample_idx]
+                            # intermediate_result.update({f"indices": indices}) # save indices along with update results
+                            # print("indices", indices)
+                            # ##
                             
                             ##################################################################################################################################################################
                             # gradient inference the embeddings
@@ -1442,11 +1522,57 @@ def main(args):
             additional_batch = []
             predicted_batch = []
             context_batch = []
+            
+            if (time.time() - main_start_time) > args.server_time_limit * 60 * 60 * 0.9:
+                interrupted = True
+                break
+
+    if args.resume:
+        run.summary['decode_time'] = run.summary.get('decode_time', 0) + (time.time() - decode_start_time)
+    else:
+        run.summary['decode_time'] = (time.time() - decode_start_time)
+    run.summary['num_decoded_tokens'] = num_decoded_tokens
+    run.summary['toks_p_sec'] = (num_decoded_tokens/run.summary['decode_time'])
+    run.summary['num_edited'] = num_edited
+    run.summary['num_skipped'] = num_skipped
+    run.finish()
 
     if args.outfile is not None:
         outf.close()
         outallsatf.close()
         outf2.close()
+        
+    if (not interrupted):
+        if (args.task == "toxicity") or (lossabbr[1] == "toxicity"):
+            # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
+            evaluate_main(
+                run.path,
+                outfile,
+                # "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                "toxicity, toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation",
+                toxicity_model_path=model_paths[1],
+                toxicity_model_type=model_types[1],
+                source_file_path=data_paths[0]
+            )  # 시간 문제로, perspective api 제외
+        elif (args.task == "formality") or (lossabbr[1] == "formality"):
+            evaluate_main(
+                run.path,
+                outfile,
+                "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                formality_model_path=model_paths[1],
+                formality_model_type=model_types[1],
+                source_file_path=data_paths[0]
+            )
+        elif (args.task == "sentiment") or (lossabbr[1] == "sentiment"):
+            evaluate_main(
+                run.path,
+                outfile,
+                "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
+                sentiment_model_path=model_paths[1],
+                sentiment_model_type=model_types[1],
+                source_file_path=data_paths[0]
+            )    
+    
     print("average numbers of steps to converge =", np.mean(all_stepcounts))
     print("average time = ", avg_time/c)
 
@@ -1481,6 +1607,10 @@ def clean_output(tokens, eos_token_id, return_tensors=False, allow_first_eos=Fal
 def cli_main():
     parser = options.get_parser()
     args = parser.parse_args()
-    import joblib
-    joblib.dump(args, './args_decoding.pkl')
+    main(args)
+
+def cli_main_modified():
+    with open('examples/prompt/toxicity-all/arguments_below_nontoxic_threshold_468.txt', 'r') as f:
+        args_ = json.load(f)
+    args = argparse.Namespace(**args_)
     main(args)

@@ -5,7 +5,7 @@
 #SBATCH --mem=20GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=gen_llama_toxic
-#SBATCH --output='new_module/####_%j.out'
+#SBATCH --output='new_module/_slurm_outs/llm_gen_%j.out'
 #SBATCH --nodelist=n01
 
 source /home/${USER}/.bashrc

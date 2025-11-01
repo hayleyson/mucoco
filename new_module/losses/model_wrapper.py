@@ -1,3 +1,7 @@
+"""
+This code is adapted from Mucola's losses module. (https://github.com/Sachin19/mucoco/blob/sampling2/mucoco/losses)
+"""
+
 class ModelWrapper:
     def __init__(self, model):
         self.__dict__["model"] = model
