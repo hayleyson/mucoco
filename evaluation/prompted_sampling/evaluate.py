@@ -346,7 +346,7 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
         # input("ok")
     
     print(np.nanmean(goodperplexities), len(goodperplexities), len(perplexities), g)
-    print(perplexities)
+    
     # return np.nanmean(perplexities), np.exp(total_nll/total_tokens)
     if include_trimmed_mean:
         notna_perplexities = perplexities[~np.isnan(perplexities)]

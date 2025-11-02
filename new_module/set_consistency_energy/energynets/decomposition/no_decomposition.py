@@ -1,6 +1,8 @@
 import torch, numpy, random
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+from typing import List
+import transformers
 
 def seed_worker(worker_id=0):
     worker_seed = torch.initial_seed() % 2**32
@@ -19,6 +21,47 @@ class no_decomposition(nn.Module):
         self.representation_model = None
         self.tokenizer = None
         
+    def detect_span(self, set_text, sep_token: str = '.', cls_token: str = '<s>'):
+        
+        """
+        Hardcoded seperator token which is '.' and cls token which is '<s>'
+        """
+
+        # set_text == text, e.g., '<s> qa pair 1 </s> qa pair 2 ... </s>
+
+        out = set_text[len(cls_token):].split(sep_token)[:-1]
+        
+        return [o.strip()+sep_token for o in out]
+        
+    def instance_preserving_encode_plus(self, string_inputs: List[str]) -> torch.Tensor:
+        """
+        By default, padding = True, truncation = True, add_special_tokens = False
+        """
+        
+        
+        # Detect spans for each input string
+        instances_per_batch = [self.detect_span(string) for string in string_inputs]
+        
+        # Encode each instance
+        instance_encoded_per_batch = []        
+        for instances in instances_per_batch:
+            instance_encoded = [
+                self.tokenizer.encode(instance, add_special_tokens=False)
+                for instance in instances
+            ]
+            # flatten the list
+            instance_encoded = sum(instance_encoded, [])
+            instance_encoded = [self.tokenizer.cls_token_id] + instance_encoded
+            instance_encoded_per_batch.append(torch.LongTensor(instance_encoded))
+            
+        input_tensor = torch.nn.utils.rnn.pad_sequence(instance_encoded_per_batch, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+        input_tensor = input_tensor[:, :self.tokenizer.model_max_length]
+        mask = (input_tensor != self.tokenizer.pad_token_id).long()
+        
+        return transformers.BatchEncoding({"input_ids": input_tensor, 
+                                           "attention_mask": mask},
+                                          tensor_type="pt").to(self.params['device'])
+        
     def forward(self, pair, pair_only = False):
 
         # print("pair:")
@@ -30,7 +73,7 @@ class no_decomposition(nn.Module):
             inputs = [p[0] for p in pair]
         
         # print("inputs:", inputs)
-        inputs = self.tokenizer.batch_encode_plus(inputs, padding=True, truncation = True, add_special_tokens = False)
+        inputs = self.instance_preserving_encode_plus(inputs)
         if self.params['locate']['type'] == 'gradnorm':
             e_val, hidden_states = self.representation_model(inputs)
             return e_val, hidden_states
