@@ -1409,6 +1409,8 @@ def set_consistency_score(generations_df, output_file, device,
     # return empirical set consistent probability and average set consistent score
     return np.nanmean(sc_scores), cons_counts/len(dataset)
     
+        
+        
 
 def distinctness(generations_df):
     dist1, dist2, dist3 = [], [], []
@@ -1900,6 +1902,28 @@ Text Samples:
     responses_unravel = np.array(responses_unravel)
     return np.mean(responses_unravel), np.std(responses_unravel)
 
+
+def detect_span(set_text, cls_token, sep_token):
+
+    # set_text == text, e.g., '<s> qa pair 1 </s> qa pair 2 ... </s>
+
+    out = set_text[len(cls_token):].split(sep_token)[:-1]
+    
+    return [o.strip()+sep_token for o in out]
+    
+def avg_num_instances(generations_df, output_file, cls_token='<s>', sep_token='.'):
+    
+    generations_df = generations_df.explode('generations')
+    generations = generations_df["generations"].tolist()
+    num_instances = []
+    for generation in generations:
+        spans = detect_span(generation['text'], cls_token=cls_token, sep_token=sep_token)
+        num_instances.append(len(spans))
+    
+    with open(output_file, 'w') as f:
+        f.writelines([str(x)+'\n' for x in num_instances])
+    
+    return np.nanmean(num_instances)
 
 
 @click.command()

@@ -23,11 +23,10 @@ def read_outputs(file_path):
 
 
 def ravel(unraveled_df):
-    if 'tokens' in unraveled_df:
-        unraveled_df['generations']= unraveled_df.apply(lambda x: [{'text': x['text'],
-                                                               'tokens': x['tokens']}],axis=1)
-    else:
-        unraveled_df['generations']= unraveled_df.apply(lambda x: [{'text': x['text']}],axis=1)
+
+    gen_keys = list(set(unraveled_df.columns) - {'prompt'})
+        
+    unraveled_df['generations']= unraveled_df.apply(lambda x: [{key: x[key] for key in gen_keys}],axis=1)
     return_df = unraveled_df.groupby('prompt')['generations'].sum([]).reset_index()
     return_df['prompt'] = return_df['prompt'].apply(lambda x: {'text':x})
         
