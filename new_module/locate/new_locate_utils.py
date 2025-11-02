@@ -1,29 +1,25 @@
 import string
 import os
-from typing import List
-from copy import deepcopy
 import random
-import string
 from typing import List, Tuple
-from itertools import repeat 
+from copy import deepcopy
+from itertools import repeat
 import logging
 
 import pandas as pd
+import transformers
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
-from itertools import repeat 
-from new_module.em_training.nli.models import EncoderModel
 import numpy as np
+
+from new_module.em_training.nli.models import EncoderModel
 torch.set_printoptions(precision=10)
 
-# import torch.multiprocessing as mp ## not needed since not using multiprocessing
-# import os ## not needed since not using multiprocessing
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG))
 
-# os.environ['TOKENIZERS_PARALLELISM']='true' ## not needed since not using multiprocessing
 
 def get_word2tok(row: pd.Series, tokenizer: AutoTokenizer) -> dict:
     """
@@ -67,7 +63,8 @@ def get_word2tok(row: pd.Series, tokenizer: AutoTokenizer) -> dict:
 def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, top_masks_final:list, tokenizer:AutoTokenizer, task:str):
     # word의 일부만 locate 한 경우, word 전체를 locate 한다.
     # 같은 word 안에 있는 token 끼리 묶음.
-    words = words_ = current_sent.strip().split()
+    words_raw = current_sent.strip().split()
+    words = words_raw
     if task == "nli": 
         # For nli, simple spliting might not have split cases like "<s>hello" or "hello</s>world" or "world</s>"
         # So post-process to split those cases.
@@ -80,18 +77,17 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
         EOS=tokenizer.eos_token  
         SEP = EOS*2 if EOS*2 in current_sent else EOS
         words = []
-        for w in words_:
+        for w in words_raw:
             if w.strip() == "":
                 continue
             if w.strip() == BOS or w.strip() == EOS or w.strip() == SEP:
                 words.append(w)
                 continue
             
-            starts_with_BOS= w.startswith(BOS)
+            starts_with_BOS = w.startswith(BOS)
             ends_with_EOS = w.endswith(EOS)
-            contains_SEP = SEP in w.rstrip(EOS) ## have to do w.rstrip(EOS) because it can be that SEP == EOS
+            contains_SEP = SEP in w.rstrip(EOS)  # have to do w.rstrip(EOS) because it can be that SEP == EOS
 
-            tmp_words = []
             tmp_words = []
             if starts_with_BOS:
                 tmp_words.append(BOS)
@@ -116,17 +112,15 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
     tok2word, grouped_tokens = get_word2tok(pd.Series({'words':words, 'tokens':prediction}), tokenizer)
     
     top_masks_final.sort()
-    top_masks_final_final = []
+    word_indices = []
     for index in top_masks_final:
-        if index not in top_masks_final_final:
-            # word = [grouped_ixes for grouped_ixes in grouped_tokens if index in grouped_ixes]
+        if index not in word_indices:
             word_index = tok2word.get(index, None)
-            # if len(word) > 0:
             if word_index is not None:
-                top_masks_final_final.extend(grouped_tokens[word_index])
+                word_indices.extend(grouped_tokens[word_index])
             else:
-                top_masks_final_final.extend([index])    
-    return list(set(top_masks_final_final))
+                word_indices.append(index)    
+    return list(set(word_indices))
 
 class LocateMachine:
     def __init__(self, model, tokenizer, task):
@@ -220,8 +214,9 @@ class LocateMachine:
             for i in range(batch.input_ids.size(0)):
                 all_occurences = indices[indices[:, 0] == i]
                 if len(all_occurences) == 0:
-                    print(prediction[i])
-                    print(batch.input_ids[i])
+                    logger.warning(f"no sep token found in prediction: {prediction[i]}")
+                    logger.warning(prediction[i])
+                    logger.warning(batch.input_ids[i])
                 first_occurence = all_occurences[0, 1]
                 premise_mask[i, :first_occurence] = True
             exclude_mask |= premise_mask
@@ -235,8 +230,9 @@ class LocateMachine:
             for i in range(batch.input_ids.size(0)):
                 all_occurences = indices[indices[:, 0] == i]
                 if len(all_occurences) == 0:
-                    print(prediction[i])
-                    print(batch.input_ids[i])
+                    logger.warning(f"no sep token found in prediction: {prediction[i]}")
+                    logger.warning(prediction[i])
+                    logger.warning(batch.input_ids[i])
                 second_occurence = all_occurences[1, 1]
                 label_mask[i, second_occurence:] = True
             exclude_mask |= label_mask            
@@ -246,10 +242,11 @@ class LocateMachine:
         token_wise_scores[exclude_mask] = -float("inf")
         token_wise_scores = token_wise_scores.softmax(dim=-1)
         # calculate average among non-excluded tokens
-        avg_values=token_wise_scores.sum(dim=-1)/(~exclude_mask).sum(dim=-1) # tensor([0.5120, 0.3744], device='cuda:0', grad_fn=<DivBackward0>)
+        avg_values = token_wise_scores.sum(dim=-1) / (~exclude_mask).sum(dim=-1)
 
         # find number of above average tokens
-        top_masks = (token_wise_scores >= avg_values.unsqueeze(1))# unsqueeze to allow implicit broadcasting : (N) -> (N, 1) -> (N, L)
+        # unsqueeze to allow implicit broadcasting : (N) -> (N, 1) -> (N, L)
+        top_masks = (token_wise_scores >= avg_values.unsqueeze(1))
         num_above_average_tokens = top_masks.sum(dim=-1)
         
         # get top k tokens where k = min(length/3, max_num_tokens, num_above_average_tokens)
@@ -311,7 +308,7 @@ class LocateMachine4SCE:
         stopwords = [" and", " of", " or", " so"] + punctuations + [token for token in self.tokenizer.special_tokens_map.values()]
         self.stopwords_ids = self.tokenizer.batch_encode_plus(stopwords, return_tensors="pt",add_special_tokens=False)['input_ids'].squeeze().to(self.params['device'])
 
-    def _get_word2tok(self, row: pd.Series, tokenizer: AutoTokenizer) -> dict:
+    def _get_word2tok(self, row: pd.Series) -> dict:
         """
         A function that take a list of words and a corresponding list of tokens 
         into a mapping between each word's index and its corresponding token indexes.
@@ -337,7 +334,7 @@ class LocateMachine4SCE:
         tok2word=dict()
         while jr <= len(row['tokens'])+1 and k < len(row['words']):
             
-            if tokenizer.decode(row['tokens'][jl:jr]).strip() == row['words'][k]:
+            if self.tokenizer.decode(row['tokens'][jl:jr]).strip() == row['words'][k]:
                 grouped_tokens.append(list(range(jl,jr)))
                 for ix in range(jl,jr):
                     tok2word[ix] = k
@@ -349,25 +346,25 @@ class LocateMachine4SCE:
 
         return tok2word, grouped_tokens
 
-    def _get_word_level_locate_indices(self, current_sent:str,prediction:list,length:int, top_masks_final:list, tokenizer:AutoTokenizer) -> List:
+    def _get_word_level_locate_indices(self, current_sent:str,prediction:list,length:int, top_masks_final:list) -> List:
         """
         # word의 일부만 locate 한 경우, word 전체를 locate 한다.
         # 같은 word 안에 있는 token 끼리 묶음.
         """
         words = current_sent.strip().split()
         prediction = prediction[:length]
-        tok2word, grouped_tokens = self.get_word2tok(pd.Series({'words':words, 'tokens':prediction}), tokenizer)
+        tok2word, grouped_tokens = self._get_word2tok(pd.Series({'words':words, 'tokens':prediction}))
         
         top_masks_final.sort()
-        top_masks_final_final = []
+        word_indices = []
         for index in top_masks_final:
-            if index not in top_masks_final_final:
+            if index not in word_indices:
                 word_index = tok2word.get(index, None)
                 if word_index is not None:
-                    top_masks_final_final.extend(grouped_tokens[word_index])
+                    word_indices.extend(grouped_tokens[word_index])
                 else:
-                    top_masks_final_final.extend([index])    
-        return list(set(top_masks_final_final))
+                    word_indices.append(index)    
+        return list(set(word_indices))
     
     def _calculate_token_scores(self, outputs: torch.Tensor, additional_tensor: torch.Tensor) -> torch.Tensor:
         if self.params['locate']['type'] == 'gradnorm':
@@ -395,7 +392,7 @@ class LocateMachine4SCE:
             e_val = outputs 
             e_val.sum().backward()
         elif self.energynet.output_form == '2dim_vec':
-            probs_for_incon = self.softmax1(outputs)[:, 1]
+            probs_for_incon = self.softmax(outputs)[:, 1]
             probs_for_incon.backward()
         
         # additional_tensor.grad dimension: (batch_size, seq_len, hidden_size) 
@@ -431,10 +428,11 @@ class LocateMachine4SCE:
     
     def _locate_tokens(self, prediction: str,  token_scores: torch.Tensor, input_tokens: torch.Tensor, exclude_mask: torch.Tensor, lengths: int, max_num_tokens: int, unit: str, kwargs: dict) -> List:
         # calculate average among non-excluded tokens
-        avg_values=token_scores.sum(dim=-1)/(~exclude_mask).sum(dim=-1) # tensor([0.5120, 0.3744], device='cuda:0', grad_fn=<DivBackward0>)
+        avg_values = token_scores.sum(dim=-1) / (~exclude_mask).sum(dim=-1)
 
         # find number of above average tokens
-        top_masks = (token_scores >= avg_values.unsqueeze(1))# unsqueeze to allow implicit broadcasting : (N) -> (N, 1) -> (N, L)
+        # unsqueeze to allow implicit broadcasting : (N) -> (N, 1) -> (N, L)
+        top_masks = (token_scores >= avg_values.unsqueeze(1))
         num_above_average_tokens = top_masks.sum(dim=-1)
         
         max_num_located_tokens = torch.minimum((lengths//3), torch.LongTensor([max_num_tokens]).to(self.device))
@@ -449,8 +447,8 @@ class LocateMachine4SCE:
 
         elif unit == "word":
             locate_ixes_all = []
-            for i, arguments in enumerate(zip(prediction,input_tokens.tolist(), lengths.tolist(), top_masks_final, repeat(self.tokenizer), repeat(self.task))):
-                locate_ixes = get_word_level_locate_indices(*arguments)
+            for i, arguments in enumerate(zip(prediction,input_tokens.tolist(), lengths.tolist(), top_masks_final)):
+                locate_ixes = self._get_word_level_locate_indices(*arguments)
                 input_tokens[i, locate_ixes] = self.tokenizer.mask_token_id
                 locate_ixes_all.append(locate_ixes)
             
@@ -469,27 +467,36 @@ class LocateMachine4SCE:
         # calculate instance-level score
         instance_scores = []
 
-        if 'max' == self.params['locate']['agg_method']:
-            
+        if self.params['locate']['agg_method'] == 'max':
             # calculate max token score within each instance 
             for b in range(batch_size):
-                instance_scores.append([token_scores[b][l[0]:l[1]].max().item() for l in instance_locations[b]])
+                instance_scores.append([
+                    token_scores[b][start:end].max().item() 
+                    for start, end in instance_locations[b]
+                ])
         
-        elif 'avg' == self.params['locate']['agg_method']:
-            
+        elif self.params['locate']['agg_method'] == 'avg':
             # calculate average of token scores within each instance
             # for denominator, only consider nonzero values (=exclude stopwords)
             for b in range(batch_size):
-                for l in instance_locations[b]:
-                    instance_scores.append([token_scores[b][l[0]:l[1]].sum().item() / token_scores[b][l[0]:l[1]].nonzero().shape[0] for l in instance_locations[b]])
+                batch_scores = []
+                for start, end in instance_locations[b]:
+                    instance_tokens = token_scores[b][start:end]
+                    nonzero_count = instance_tokens.nonzero().shape[0]
+                    if nonzero_count > 0:
+                        batch_scores.append(instance_tokens.sum().item() / nonzero_count)
+                    else:
+                        batch_scores.append(0.0)
+                instance_scores.append(batch_scores)
        
-        elif 'median' == self.params['locate']['agg_method']:
-            
-            # calculate average of token scores within each instance
-            # for denominator, only consider nonzero values (=exclude stopwords)
+        elif self.params['locate']['agg_method'] == 'median':
+            # calculate median of token scores within each instance
             for b in range(batch_size):
-                instance_scores.append([token_scores[b][l[0]:l[1]].median().item() for l in instance_locations[b]])
-        
+                instance_scores.append([
+                    token_scores[b][start:end].median().item() 
+                    for start, end in instance_locations[b]
+                ])
+
 
         # choose instances to detect
         if self.params['locate']['select_method'] in ['max', 'recursive_max']:
@@ -512,31 +519,84 @@ class LocateMachine4SCE:
         return prediction_list
     
     
-    
-    def _detect_instance(self, tokenized_input: torch.Tensor) -> Tuple[List, List]:
+    def detect_span(self, set_text):
+
+        # set_text == text, e.g., '<s> qa pair 1 </s> qa pair 2 ... </s>
+
+        out = set_text[len(self.cls_token):].split(self.sep_token)[:-1]
         
-        if self.energynet.decomposition_type == 'no':
-            # set == text, e.g., '<s> q1 </s> a1 </s>, q2, ..., </s> a2 ... </s>'
-            cls_token_id = self.tokenizer.encode(self.cls_token, add_special_tokens=False)[0]
-            sep_token_id = self.tokenizer.encode(self.sep_token, add_special_tokens=False)[0]
-            batch_size = tokenized_input.shape[0]
-            
-            pair_startpoints_all = torch.where((tokenized_input == cls_token_id) | (tokenized_input == sep_token_id))
-            pairs_location_list = []
-            pairs_num_list = []
-            for b in range(batch_size):
-                
-                pair_startpoints = pair_startpoints_all[1][pair_startpoints_all[0] == b].tolist()
-                pairs_location = [(pair_startpoints[i]+1, pair_startpoints[i+1]+1) for i in range(len(pair_startpoints)-1)]
-                pairs_location_list.append(pairs_location)
-                pairs_num_list.append(len(pairs_location))
-                
-                # for i, (start, end) in enumerate(pairs_location):
-                    # print("%d: %s" %(i, self.tokenizer.decode(tokenized_input[b][start:end])))
-                
-                
-        return pairs_num_list, pairs_location_list
+        return [o.strip()+self.sep_token for o in out]
     
+    
+    def _detect_instance(self, string_inputs: List[str]) -> Tuple[List, List]:
+        """
+        Detect instances (spans) within the input text and return their locations.
+        
+        Args:
+            string_inputs: List of input strings
+            tokenized_input: Tokenized input tensor (currently unused but kept for API consistency)
+            
+        Returns:
+            Tuple of (num_instances_per_batch, instance_locations_per_batch)
+        """
+        if self.energynet.decomposition_type != 'no':
+            raise ValueError(f"Invalid decomposition type: {self.energynet.decomposition_type}")
+        
+        # Detect spans for each input string
+        instances_per_batch = [self.detect_span(string) for string in string_inputs]
+        
+        # Encode each instance and calculate lengths
+        instance_locations_per_batch = []
+        num_instances_per_batch = []
+        
+        for instances in instances_per_batch:
+            instance_lengths = [
+                len(self.tokenizer.encode(instance, add_special_tokens=False))
+                for instance in instances
+            ]
+            
+            # Calculate cumulative positions starting from 0
+            # For lengths [a, b, c], cumsum gives [a, a+b, a+b+c]
+            # We prepend 1 to get [1, a+1, a+b+1, a+b+c+1] (because cls token is added)
+            cumulative = np.cumsum([1] + instance_lengths)
+            
+            # Create (start, end) pairs: (cumulative[i], cumulative[i+1])
+            instance_locations = [
+                (cumulative[i], cumulative[i + 1])
+                for i in range(len(instances))
+            ]
+            
+            instance_locations_per_batch.append(instance_locations)
+            num_instances_per_batch.append(len(instance_locations))
+        
+        return num_instances_per_batch, instance_locations_per_batch
+    
+    def _instance_preserving_encode_plus(self, string_inputs: List[str]) -> torch.Tensor:
+        
+        # Detect spans for each input string
+        instances_per_batch = [self.detect_span(string) for string in string_inputs]
+        logger.debug(f"instances_per_batch: {instances_per_batch}")
+        
+        # Encode each instance
+        instance_encoded_per_batch = []        
+        for instances in instances_per_batch:
+            instance_encoded = [
+                self.tokenizer.encode(instance, add_special_tokens=False)
+                for instance in instances
+            ]
+            logger.debug(f"instance_encoded: {instance_encoded}")
+            # flatten the list
+            instance_encoded = sum(instance_encoded, [])
+            instance_encoded = [self.tokenizer.cls_token_id] + instance_encoded
+            instance_encoded_per_batch.append(torch.LongTensor(instance_encoded))
+            
+        input_tensor = torch.nn.utils.rnn.pad_sequence(instance_encoded_per_batch, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+        input_tensor = input_tensor[:, :self.tokenizer.model_max_length]
+        mask = (input_tensor != self.tokenizer.pad_token_id).long()
+        
+        return transformers.BatchEncoding({"input_ids": input_tensor, 
+                                           "attention_mask": mask},
+                                          tensor_type="pt").to(self.device)
 
     def locate_main(self, prediction: List[str], max_num_tokens: int = 6, unit: str = "word",**kwargs):
 
@@ -547,16 +607,19 @@ class LocateMachine4SCE:
         The located instance can be anywhere in q1, a2, q2, a2, ...
         """
         
-        
+        logger.debug(f"prediction: {prediction}")
         outputs, hidden_states_or_attentions = self.energynet.energy_model(prediction, pair_only = True)
         # Calculate token scores
         token_scores = self._calculate_token_scores(outputs, hidden_states_or_attentions)
         
         # set additional information
-        inputs = self.tokenizer.batch_encode_plus(prediction, add_special_tokens=False, padding=True, truncation=True, return_tensors="pt").to(self.device)
-        input_tensor, mask = inputs['input_ids'], inputs['attention_mask']
+        inputs = self._instance_preserving_encode_plus(prediction)
+        input_tensor = inputs['input_ids']
+        mask = inputs['attention_mask']
+        logger.debug(f"input_tensor: {input_tensor}")
+        logger.debug(f"mask: {mask}")
         
-        _, instance_locations = self._detect_instance(input_tensor)       
+        _, instance_locations = self._detect_instance(prediction)       
         batch_size = input_tensor.shape[0]
         assert batch_size == 1 # this code assumes batch_size = 1
             
