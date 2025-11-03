@@ -383,6 +383,13 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
             run.summary.update({'avg_sc_score': avg_sc_score, 'consistent_proba': cons_prop})
         fp.write(f'avg_sc_score: {avg_sc_score}, consistent_proba: {cons_prop}\n')
         
+    # if "avg-num-instances" in metricset:
+    #     logger.debug("num-instances")
+    #     avg_num_instances_value = avg_num_instances(generations_df, output_file, output_dir / (output_file+".num_instances"))
+    #     if run_path != "":
+    #         run.summary.update({'avg_num_instances': avg_num_instances_value})
+    #     fp.write(f'avg_num_instances: {avg_num_instances_value}\n')
+        
     if "contents-preservation" in metricset:
         logger.debug("contents-preservation")
         

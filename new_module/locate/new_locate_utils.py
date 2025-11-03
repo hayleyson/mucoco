@@ -525,7 +525,7 @@ class LocateMachine4SCE:
 
         out = set_text[len(self.cls_token):].split(self.sep_token)[:-1]
         
-        return [o.strip()+self.sep_token for o in out]
+        return [o+self.sep_token for o in out]
     
     
     def _detect_instance(self, string_inputs: List[str]) -> Tuple[List, List]:
@@ -607,7 +607,9 @@ class LocateMachine4SCE:
         The located instance can be anywhere in q1, a2, q2, a2, ...
         """
         
-        logger.debug(f"prediction: {prediction}")
+        logger.debug(f"[new_locate_utils] prediction before adding cls token: {prediction}")
+        prediction = [self.tokenizer.cls_token + " " + p for p in prediction]
+        logger.debug(f"[new_locate_utils] prediction after adding cls token: {prediction}")
         outputs, hidden_states_or_attentions = self.energynet.energy_model(prediction, pair_only = True)
         # Calculate token scores
         token_scores = self._calculate_token_scores(outputs, hidden_states_or_attentions)
@@ -666,6 +668,10 @@ class LocateMachine4SCE:
         
         # Then locate & mask tokens within identified instances
         masked_sequence_text = self._locate_tokens(prediction, token_scores, input_tensor, final_mask, lengths, max_num_tokens, unit, kwargs)
+        
+        logger.debug(f"masked_sequence_text before stripping cls token: {masked_sequence_text}")
+        masked_sequence_text = [m.lstrip(self.tokenizer.cls_token + " ") for m in masked_sequence_text]
+        logger.debug(f"masked_sequence_text after stripping cls token: {masked_sequence_text}")
         
         return masked_sequence_text
     

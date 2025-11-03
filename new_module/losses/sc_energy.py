@@ -2,6 +2,7 @@
 This code is adapted from Mucola's losses module. (https://github.com/Sachin19/mucoco/blob/sampling2/mucoco/losses)
 """
 import logging
+import os
 from typing import List
 
 import torch
@@ -9,6 +10,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from new_module.losses import BaseLoss, register_loss
+
+logger = logging.getLogger(__name__)
+logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG))
 
 @register_loss("sc_energy")
 class SCEnergy(BaseLoss):
@@ -28,8 +32,11 @@ class SCEnergy(BaseLoss):
         """
         c.f. prompt column is not used. 
         """
+        logger.debug(f"prediction before adding cls token: {prediction}")
         
         # set consistency verification
+        prediction = [self.tokenizer.cls_token + " " + p for p in prediction]
+        logger.debug(f"prediction after adding cls token: {prediction}")
         output, _ = self.model.energy_model(prediction, pair_only = True)
         # print(f"output: {output}")
         

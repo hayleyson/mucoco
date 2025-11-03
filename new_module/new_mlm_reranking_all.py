@@ -250,11 +250,7 @@ def main(config):
         
     for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
-        if (source_text == "") and (lossfns[0].tokenizer.bos_token is not None):
-            source_text = lossfns[0].tokenizer.bos_token
-        elif (source_text == "") and (lossfns[0].tokenizer.bos_token is None):
-            source_text = " "
-
+        # if source_text == "", you should run with gpt2_no_prefix instead of gpt2.
         if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
             AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
             # predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]

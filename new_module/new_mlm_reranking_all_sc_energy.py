@@ -163,11 +163,6 @@ def main(config):
 
     with open(config['source_data_path'], 'r') as f:
         data = [json.loads(line.rstrip()) for line in f]
-
-    if lossfns[0].tokenizer.bos_token is not None:
-        source_text = lossfns[0].tokenizer.bos_token
-    elif lossfns[0].tokenizer.bos_token is None:
-        source_text = " "
         
         
     ###########################################################
@@ -184,6 +179,7 @@ def main(config):
         
         logger.debug(f"================================ Doing {i}th sample ==================================")
 
+        source_text = data[i]['prompt']['text']
         AR_prediction_all = [data[i]['generations'][0]['text']]
         
         curr_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
@@ -418,14 +414,14 @@ if __name__ == "__main__":
     parser.add_argument("task", type=str)
     parser.add_argument("source_data_path", type=str)
     parser.add_argument("--early_stopping_patience", type=int, default=0)
-    parser.add_argument("--losses", nargs="+", type=str, default=['gpt2', 'sc_energy'])
-    parser.add_argument("--min_epsilons", nargs="+", type=float, default=[0.95])
+    parser.add_argument("--losses", nargs="+", type=str, default=['gpt2_no_prefix', 'sc_energy'])
+    parser.add_argument("--min_epsilons", nargs="+", type=float, default=[-1], help="not used for sc_energy")
     parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.0, 1.0])
     parser.add_argument("--k_per_location", type=int, default=5)
     parser.add_argument("--beam_size", type=int, default=5)
     parser.add_argument("--n_iter", type=int, default=4)
     parser.add_argument("--selection_criteria", type=str, choices=["weighted_sum", "allsat_primary"], default="allsat_primary",)
-    parser.add_argument("--locate_method", type=str, choices=["attention", "grad_norm"], default="grad_norm")
+    parser.add_argument("--locate_method", type=str, choices=["attention", "grad_norm"], default="attention")
     parser.add_argument("--slurm_job_id", type=str)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--wandb_project", type=str)
