@@ -31,7 +31,7 @@ class no_decomposition(nn.Module):
 
         out = set_text[len(cls_token):].split(sep_token)[:-1]
         
-        return [o.strip()+sep_token for o in out]
+        return [o+sep_token for o in out]
         
     def instance_preserving_encode_plus(self, string_inputs: List[str]) -> torch.Tensor:
         """
