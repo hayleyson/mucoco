@@ -670,7 +670,7 @@ class LocateMachine4SCE:
         masked_sequence_text = self._locate_tokens(prediction, token_scores, input_tensor, final_mask, lengths, max_num_tokens, unit, kwargs)
         
         logger.debug(f"masked_sequence_text before stripping cls token: {masked_sequence_text}")
-        masked_sequence_text = [m.lstrip(self.tokenizer.cls_token + " ") for m in masked_sequence_text]
+        masked_sequence_text = [m[len(self.tokenizer.cls_token):].lstrip(" ") for m in masked_sequence_text]
         logger.debug(f"masked_sequence_text after stripping cls token: {masked_sequence_text}")
         
         return masked_sequence_text

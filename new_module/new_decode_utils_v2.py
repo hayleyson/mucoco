@@ -582,8 +582,8 @@ def editing_4sce(source_text:str, test_sent_orig: str, test_sent:str, test_sent_
         curr_full_text_hyp = [base_hyp + "<mask>" * max_mask_cnt_per_span[i] + test_sent_merged[mask_spans[i][1]:] for base_hyp in queue]
         ## Tokenize & conduct MLM inference
         inputs = mlm_tokenizer(
-            curr_full_text_hyp, return_tensors="pt", padding=True, truncation=True, add_special_tokens=False
-        ) ## add_special_tokens=False to skip adding bos token
+            curr_full_text_hyp, return_tensors="pt", padding=True, truncation=True, add_special_tokens=True
+        ) # TODO. try adding bos and sep tokens.
         inputs = inputs.to(config['device']) 
         masked_sequence=inputs['input_ids']
         
