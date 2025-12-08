@@ -1,80 +1,94 @@
 import os
 import json
 import argparse
-from typing import List, Union
 import time
 
 from tqdm import tqdm
-
 from openai import OpenAI
 import pandas as pd
-from pydantic import BaseModel
 
 from new_module.llm_experiments.locate_with_llm.prompts import get_prompt
-from new_module.dev_utils.utils import read_outputs
-
-
-
 
 def run_api_and_save_result(dataset, args):
     
     start_time = time.time()
     file_save_path = f"new_module/llm_experiments/locate_with_llm/results/{args.model}_{args.prompt_type}_{args.dataset}_{str(int(start_time))}.jsonl"
+    execution_time_path = file_save_path.replace(".jsonl", ".time")
     
     openai_api_key = os.environ.get("OPENAI_API_KEY")
     client = OpenAI(api_key=openai_api_key)
-        
-    schema = {
-                "name": "span_list",
-                "type": "json_schema",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "spans": {
-                            "type": "array",
-                            "items": {
-                                "anyOf": [
-                                    {"type": "string"},
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "span": {"type": "string"},
-                                            "word_index": {"type": "array", "items": {"type": "integer"}}
-                                        },
-                                        "required": ["span", "word_index"],
-                                        "additionalProperties": False
-                                    }
-                                ]
+    
+    if 'cot' in args.prompt_type:
+        schema = {
+                    "name": "span_list_with_reasoning",
+                    "type": "json_schema",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "spans": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "reasoning": {
+                                "type": "string",
                             }
-                        }
-                    },
-                    "required": ["spans"],
-                    "additionalProperties": False
+                        },
+                        "required": ["reasoning", "spans"],
+                        "additionalProperties": False
+                    }
                 }
-            }
         
+    else:
+        schema = {
+            "name": "span_list",
+            "type": "json_schema",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "spans": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["spans"],
+                "additionalProperties": False
+            }
+        }
+        
+    print('-'*100)
+    print(schema)
+    
     system_prompt, user_prompt = get_prompt(args)
-    # print(f"system_prompt: {system_prompt}")
-    # print(f"user_prompt: {user_prompt}")
+    print('-'*100)
+    print(f"prompt_type: {args.prompt_type}")
+    print(f"system_prompt: {system_prompt}")
+    print(f"user_prompt: {user_prompt}")
     
-    prompts = dataset['prompt'].tolist()
-    generations = dataset['generation'].tolist()
-    
+    if args.dataset == "toxicspans_extended":
+        prompts = [""] * len(dataset)
+        generations = dataset['text'].tolist()
+    else:
+        prompts = dataset['prompt'].tolist()
+        generations = dataset['generation'].tolist()
+        
     ## generate responses
     responses = []
     f = open(file_save_path, 'w')
     max_prompt_count = len(prompts) if args.num_test_prompts == -1 else args.num_test_prompts
     
-    if "o" in args.model or "gpt-5" in args.model: # reasoning models
+    if "o3" in args.model or "o4" in args.model or "gpt-5" in args.model: # reasoning models
         for p, g in tqdm(zip(prompts[:max_prompt_count], generations[:max_prompt_count])):
-            
             
             response = client.responses.create(
                 model = args.model,
                 reasoning = {"effort": "medium"},
                 max_output_tokens = args.max_tokens,
-                # num_return_sequences = 1 if not args.do_sample else args.num_return_sequences,
                 input = [
                     {
                         "role": "system",
@@ -82,7 +96,7 @@ def run_api_and_save_result(dataset, args):
                     },
                     {
                         "role": "user",
-                        "content": user_prompt % (p, g)
+                        "content": (user_prompt % (p, g)) if p != "" else (user_prompt % g)
                     }
                 ],
                 text = {
@@ -91,7 +105,7 @@ def run_api_and_save_result(dataset, args):
             )
             responses.append(response)
             
-            # print(response)
+            print(response)
             
             # For reasoning models, the output structure is:
             # output[0] = ResponseReasoningItem (metadata, content=None)
@@ -110,12 +124,12 @@ def run_api_and_save_result(dataset, args):
             
     else:
         for p, g in tqdm(zip(prompts[:max_prompt_count], generations[:max_prompt_count])):
+            
             response = client.responses.create(
                 model = args.model,
                 top_p = args.top_p,
-                temperature = 0 if not args.do_sample else 1.0,
+                temperature = args.temperature,
                 max_output_tokens = args.max_tokens,
-                # num_return_sequences = 1 if not args.do_sample else args.num_return_sequences,
                 input = [
                     {
                         "role": "system",
@@ -123,7 +137,7 @@ def run_api_and_save_result(dataset, args):
                     },
                     {
                         "role": "user",
-                        "content": user_prompt % (p, g)
+                        "content": (user_prompt % (p, g)) if p != "" else (user_prompt % g)
                     }
                 ],
                 text = {
@@ -131,6 +145,7 @@ def run_api_and_save_result(dataset, args):
                 },    
             )
             responses.append(response)
+            print(response)
             
             # formatted_generated_text = response.output[0].content[0].text
             formatted_generated_text = response.output_text
@@ -139,6 +154,10 @@ def run_api_and_save_result(dataset, args):
             f.flush() 
     f.close()
     end_time = time.time()
+    
+    with open(execution_time_path, 'w') as f:
+        f.write(str(end_time - start_time) + "\n")
+        
     print(f"Total time taken: {end_time - start_time}")
 
 
@@ -224,12 +243,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('model', type=str)
     parser.add_argument('prompt_type', type=str)
-    parser.add_argument('dataset', type=str, choices=["toxicspans", "inconsistentspans"])
+    parser.add_argument('dataset', type=str, choices=["toxicspans", "toxicspans_extended", "inconsistentspans"])
     parser.add_argument('--num_test_prompts', type=int, default=-1)
-    parser.add_argument('--do_sample', type=bool, default=False)
-    parser.add_argument('--top_p', type=float, default=0.96)
-    parser.add_argument('--num_return_sequences', type=int, default=1)
+    parser.add_argument('--temperature', type=float, default=0.0)
+    parser.add_argument('--top_p', type=float, default=1.0)
+    parser.add_argument('--n', type=int, default=1)
     parser.add_argument('--max_tokens', type=int, default=30)
+    parser.add_argument('--num_return_sequences', type=int, default=1)
+    parser.add_argument('--do_sample', type=bool, default=False, help='Deprecated. Use temperature instead.')
     args = parser.parse_args()
 
     # load data
@@ -238,7 +259,9 @@ if __name__ == "__main__":
     
     if args.dataset == "toxicspans":
         dataset = pd.read_json("new_module/data/locate/toxicspans/realtoxicityprompts_gpt2_gen_115_locate_labels.jsonl", lines=True)
-        
+    
+    elif args.dataset == "toxicspans_extended":
+        dataset = pd.read_json("new_module/data/locate/toxicspans/realtoxicityprompts_gpt2_gen_extended_locate_labels.jsonl", lines=True)
     
     elif args.dataset == "inconsistentspans":
         dataset = pd.read_json("new_module/data/locate/inconsistentspans/nli_contra_300_locate_labels_final.jsonl", lines=True)

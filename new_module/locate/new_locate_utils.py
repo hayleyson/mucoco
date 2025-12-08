@@ -143,7 +143,7 @@ class LocateMachine:
         text = text.split(self.tokenizer.sep_token)[-1] # take only hypothesis
         return text
 
-    def locate_main(self, prediction, method, max_num_tokens = 6, unit="word",**kwargs):
+    def locate_main(self, prediction, method, max_num_tokens = 7, unit="word",**kwargs):
         
         if kwargs.get('tokenized_input', False):
             batch = deepcopy(prediction)
@@ -287,7 +287,37 @@ class LocateMachine:
             masked_sequence_text = [self.extract_hypothesis(x) for x in masked_sequence_text]
         
         if kwargs.get('return_scores_and_indices',False):
-            return masked_sequence_text, token_wise_scores, locate_ixes_all
+            if self.task == "nli":
+                # For NLI task, return only hypothesis part of scores and indices
+                # Find hypothesis start and end indices for each example
+                hypothesis_scores = []
+                hypothesis_indices = []
+                for i in range(batch.input_ids.size(0)):
+                    # Find first occurrence of sep_token (end of premise, start of hypothesis)
+                    sep_indices = (batch.input_ids[i] == self.tokenizer.sep_token_id).nonzero(as_tuple=False)
+                    if len(sep_indices) > 0:
+                        hypothesis_start = sep_indices[0].item() + 1  # +1 to start after the sep token
+                        # Find end of hypothesis (last sep/eos token before padding, or end of sequence)
+                        # The hypothesis ends at the final eos/sep token, which should be at lengths[i] - 1 or earlier
+                        # But we want to include all hypothesis tokens, so use lengths[i] (excludes padding)
+                        hypothesis_end = lengths[i]
+                    else:
+                        # Fallback: if no sep token found, use full length
+                        hypothesis_start = 0
+                        hypothesis_end = lengths[i]
+                    
+                    # Extract hypothesis scores (only non-premise tokens)
+                    hyp_scores = token_wise_scores[i, hypothesis_start:hypothesis_end].clone()
+                    hypothesis_scores.append(hyp_scores)
+                    
+                    # Filter indices to only include those in hypothesis and adjust to be relative
+                    hyp_indices = [idx - hypothesis_start for idx in locate_ixes_all[i] 
+                                  if hypothesis_start <= idx < hypothesis_end]
+                    hypothesis_indices.append(hyp_indices)
+                
+                return masked_sequence_text, hypothesis_scores, hypothesis_indices
+            else:
+                return masked_sequence_text, token_wise_scores, locate_ixes_all
         
         return masked_sequence_text
 
@@ -680,9 +710,7 @@ if __name__ == "__main__":
     
     import os
     import sys
-    os.chdir('/data/hyeryung/mucoco')
-    sys.path.append(os.path.abspath('.'))
-
+    
     import argparse
     import time
     import json
@@ -736,6 +764,10 @@ if __name__ == "__main__":
 
     # 출력 JSONL 파일 경로
     output_file = args.output_file
+    # 출력 JSONL 저장 디렉토리 생성 (이미 있으면 Skip)
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    # 실행시간 파일 경로
+    execution_time_file = output_file.replace(".jsonl", ".time")
 
     # print("job id:", job_id)
     print("pretrained model path:", pretrained_model_path)
@@ -753,34 +785,45 @@ if __name__ == "__main__":
                 if args.task == "formality":
                     text = line.rstrip()
                     # locate_main 적용
-                    masked_text = locator.locate_main([text], 
+                    masked_text, scores, indices = locator.locate_main([text], 
                                                       args.locate_method, 
                                                       max_num_tokens=args.max_num_tokens, 
                                                       unit='word', 
                                                       label_id=args.label_id,
                                                       num_layer=10,
+                                                      return_scores_and_indices=True
                                                       )
                     data = masked_text[0]
                     outfile.write(data)
                 else:   
                     # JSON 형식으로 변환
                     data = json.loads(line)
-                    prompt = data['prompt']['text']
-                    generations = data['generations']
+                    if args.task == "toxicity_extended":
+                        prompt = ""
+                        generations = [data]
+                    else:
+                        prompt = data['prompt']['text']
+                        generations = data['generations']
                     
                     # generations 내의 각 text에 대해 LocateMachine 적용
                     for generation in generations:
-                        text = f"<s>{prompt}</s>{generation['text']}</s>" if args.task == "nli" else generation['text']
+                        if args.task == "nli":
+                            text = f"<s>{prompt}</s>{generation['text']}</s>"
+                        else:
+                            text = generation['text']
                         # locate_main 적용
-                        masked_text = locator.locate_main([text], 
+                        masked_text, scores, indices = locator.locate_main([text], 
                                                           args.locate_method, 
                                                           max_num_tokens=args.max_num_tokens, 
                                                           unit='word', 
                                                           label_id=args.label_id,
-                                                          num_layer=10,)
+                                                          num_layer=10,
+                                                          return_scores_and_indices=True)
                         # masked 결과를 generation에 추가 (기존 key나 새로운 key 사용 가능)
                         generation['text'] = masked_text[0]  # locate_main은 리스트를 반환하므로 첫 번째 값 선택
                     
+                        generation['roberta_token_pred_scores'] = [round(x, 4) for x in scores[0].tolist()]
+                        generation['roberta_token_pred_indexes'] = indices[0]
                     
                     # 결과를 다시 JSON 형식으로 변환하고 출력 파일에 쓰기
                     json.dump(data, outfile, ensure_ascii=False)
@@ -789,5 +832,10 @@ if __name__ == "__main__":
     end_time = time.time()
 
     # 실행 시간 계산 및 출력
-    execution_time = (end_time - start_time) / 60
-    print(f"Code execution time: {execution_time:.2f} minutes")
+    execution_time = (end_time - start_time)
+    
+    
+    with open(execution_time_file, 'w') as f:
+        f.write(str(execution_time) + "\n")
+        
+    print(f"Code execution time: {execution_time:.2f} seconds")
