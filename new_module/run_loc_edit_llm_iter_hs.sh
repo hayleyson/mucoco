@@ -2,11 +2,11 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-48:00:00
-#SBATCH --mem=20GB
+#SBATCH --mem=32GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=edit_iter
 #SBATCH --output='new_module/_slurm_outs/edit_iter_%j.out'
-#SBATCH --nodelist=n01
+#SBATCH --nodelist=n02
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -19,22 +19,28 @@ export TRANSFORMERS_CACHE=/data/hyeryung/.cache
 export LOGGING_LEVEL=INFO
 
 JOB_ID=$SLURM_JOB_ID
-DIRECTORY="/data/hyeryung/mucoco/new_module/iter_loc_edit_qwen"
+DIRECTORY="outputs/llmedit/results_2025"
 
-EXP_LABEL="6_nli"
-TOTAL_ITERATION=10
+EXP_LABEL="set_nli_both_v1"
+# EXP_LABEL="set_vqa_masked_v1"
+# EXP_LABEL="set_vqa_masked_v2-1"
+# EXP_LABEL="set_nli_masked_v2-1"
+TOTAL_ITERATION=8
 
-INPUT_FILE_PATH="/data/hyeryung/mucoco/new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
-ORIG_TEXT_PATH="/data/hyeryung/mucoco/new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
+INPUT_FILE_PATH="new_module/data/set_nli/processed_data/set_nli_test_edited_only.jsonl"
+ORIG_TEXT_PATH="new_module/data/set_nli/processed_data/set_nli_test_edited_only.jsonl"
+# INPUT_FILE_PATH="new_module/data/convqa/processed_data/lconvqa_test_edited_only.jsonl"
+# ORIG_TEXT_PATH="new_module/data/convqa/processed_data/lconvqa_test_edited_only.jsonl"
 
-PRETRAINED_MODEL_PATH="/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/"
+PRETRAINED_MODEL_PATH="placeholder"
 
 HF_MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" #"microsoft/Phi-3.5-mini-instruct"
-PROMPT_TYPE="nli_both"
-TASK="nli"
+PROMPT_TYPE="set_consistency_both"
+TASK="set_nli"
+# TASK="set_lconvqa"
 LABEL_ID=1
-LOCATE_OPTION="grad_norm"
-THRESHOLD=0.99
+LOCATE_OPTION="attention"
+THRESHOLD=-1
 
 # toxicity (target: nontoxic) - 0
 # sentiment (target: positive) - 1
@@ -48,7 +54,7 @@ THRESHOLD=0.99
 # 'form_both', 'inform_both'
 # 'senti_pos_both, 'senti_neg_both' 
 
-srun python new_module/loc_edit_llm_iter.py \
+srun python new_module/loc_edit_llm_iter_sc_v1.py \
 $JOB_ID \
 --exp_label $EXP_LABEL \
 --directory $DIRECTORY \
@@ -61,7 +67,6 @@ $JOB_ID \
 --label_id $LABEL_ID \
 --locate_option $LOCATE_OPTION \
 --threshold $THRESHOLD \
---total_iteration $TOTAL_ITERATION \
---max_num_tokens 1
+--total_iteration $TOTAL_ITERATION
 
 

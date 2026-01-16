@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-48:00:00
-#SBATCH --mem=20GB
+#SBATCH --mem=32GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=edit_once
 #SBATCH --output='new_module/_slurm_outs/edit_once_%j.out'
@@ -19,21 +19,25 @@ export TRANSFORMERS_CACHE=/data/hyeryung/.cache
 export LOGGING_LEVEL=INFO
 
 JOB_ID=$SLURM_JOB_ID
-DIRECTORY="new_module/iter_loc_edit_qwen"
+DIRECTORY="outputs/llmedit/results_2025"
 
-EXP_LABEL="12_form"
+# EXP_LABEL="set_lconvqa_notmasked"
+EXP_LABEL="set_nli_notmasked"
 
-INPUT_FILE_PATH="/data/hyeryung/mucoco/new_module/data/formality/informal.jsonl"
-ORIG_TEXT_PATH="/data/hyeryung/mucoco/new_module/data/formality/informal.jsonl"
+INPUT_FILE_PATH="new_module/data/set_nli/processed_data/set_nli_test_edited_only.jsonl"
+ORIG_TEXT_PATH="new_module/data/set_nli/processed_data/set_nli_test_edited_only.jsonl"
+# INPUT_FILE_PATH="new_module/data/convqa/processed_data/lconvqa_test_edited_only.jsonl"
+# ORIG_TEXT_PATH="new_module/data/convqa/processed_data/lconvqa_test_edited_only.jsonl"
 
-PRETRAINED_MODEL_PATH="/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint"
+PRETRAINED_MODEL_PATH="placeholder"
 
 HF_MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" #"microsoft/Phi-3.5-mini-instruct"
-PROMPT_TYPE="form_notmasked"
-TASK="formality"
+PROMPT_TYPE="set_consistency_notmasked"
+TASK="set_nli"
+# TASK="set_lconvqa"
 LABEL_ID=1
 LOCATE_OPTION="grad_norm"
-THRESHOLD=0.74
+THRESHOLD=-1
 
 # 'nli_notmasked'
 # 'nontoxic_notmasked'
@@ -49,7 +53,7 @@ THRESHOLD=0.74
 # formality transfer (target: formal) - 1
 # formality transfer (target: informal) - 0
 
-srun python new_module/loc_edit_llm_once.py \
+srun python new_module/loc_edit_llm_once_sc.py \
 $JOB_ID \
 --exp_label $EXP_LABEL \
 --directory $DIRECTORY \

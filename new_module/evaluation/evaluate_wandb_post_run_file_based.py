@@ -47,12 +47,27 @@ if __name__ == "__main__":
     #         "set-consistency,dist-n,repetition,fluency",
     #         task="set_nli",
     #     )  
+
     
     evaluate_main(
             "",
-            "new_module/data/convqa/processed_data/lconvqa_test.jsonl",
-            "set-consistency,dist-n,repetition,fluency",
-            task="lconvqa",
+            "outputs/sc_energy/nli/qjm05u0s/outputs.txt",
+            "set-consistency,ppl-qwen,dist-n,repetition,fluency",
+            task="set_nli",
         )  
+
     
+    # evaluate_main(
+    #         "",
+    #         "outputs/sc_energy/nli/r69a1rrf/outputs.txt",
+    #         "set-consistency",
+    #         task="set_nli",
+    #     )      
     
+    # evaluate_main(
+    #     "",
+    #     "new_module/data/set_nli/processed_data/set_nli_test.jsonl",
+    #     "ppl-qwen",
+    #     task="set_nli",
+    # )  
+        

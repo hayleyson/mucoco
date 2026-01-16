@@ -3,7 +3,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-48:00:00
 #SBATCH --mem=32GB
-#SBATCH --nodelist=n01
+#SBATCH --nodelist=n02
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --job-name=sc_energy_le
 #SBATCH --output='new_module/_slurm_outs/sc_energy_le_%j.out'
@@ -17,19 +17,25 @@ export PYTHONPATH=.
 export HF_HOME=/data/hyeryung/.cache
 export HF_DATASETS_CACHE=/data/hyeryung/.cache
 export TRANSFORMERS_CACHE=/data/hyeryung/.cache
-export LOGGING_LEVEL=DEBUG
+export LOGGING_LEVEL=INFO
 
-srun python new_module/new_mlm_reranking_all_sc_energy.py \
-vqa \
+# # set_snli
+# 'new_module/data/set_nli/processed_data/set_nli_test.jsonl'
+# # set_lconvqa
+# 'new_module/data/convqa/processed_data/lconvqa_test.jsonl'
+
+srun python new_module/new_mlm_reranking_all_sc_energy_v2.py \
+vqa new_module/data/convqa/processed_data/lconvqa_test1_edited_only.jsonl \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
---losses gpt2 sc_energy \
+--losses gpt2_no_prefix sc_energy \
 --min_epsilons -1 \
 --loss_weights 1 1 \
 --k_per_location 5 \
 --beam_size 5 \
 --n_iter 8 \
+--dont_skip_allsat \
 --selection_criteria allsat_primary \
---locate_method grad_norm \
+--locate_method attention \
 --wandb_project sc_energy \
 --wandb_entity hayleyson
