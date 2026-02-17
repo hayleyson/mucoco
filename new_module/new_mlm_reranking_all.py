@@ -10,6 +10,9 @@ import json
 import logging
 import os
 import time
+import ftfy
+import html
+import re
 # os.chdir('/data/hyeryung/mucoco')
 import numpy as np
 import pandas as pd
@@ -34,6 +37,38 @@ from new_module.em_training.nli.models import EncoderModel
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG))
+
+
+def get_data(config):
+    if config["source_data"] is not None:
+        if "dynabench" in config["source_data"]:
+            df = pd.read_csv(config["source_data"])
+            df_lab = "hate"
+            df_split = "dev"
+
+            if "test" in config["source_data"]:
+                df_split = "test"
+            if "train" in config["source_data"]:
+                df_split = "train"
+            inputs = df[(df.split == df_split) & (df.label == df_lab)].text.tolist()
+            
+        elif "sbf" in config["source_data"]:
+            df = pd.read_csv(config["source_data"])
+            dataSource = "redditMicroagressions"
+            inputs = df[df.dataSource ==dataSource ][df.offensiveYN >= 0.5].post.tolist()
+
+
+        elif "microagressions" in config["source_data"]:
+            df = pd.read_csv(config["source_data"])
+            inputs = [preprocess(s) for s in df.actual_quote.tolist()]
+
+    return inputs
+
+def preprocess(text, preserve_lines = False):
+    if preserve_lines:
+        return ftfy.fix_text(html.unescape(text))
+    # Remove linee break and excess spaces
+    return ftfy.fix_text(html.unescape(re.sub(r'\s+', ' ', text).strip()))
 
 
 def main(config):
@@ -94,6 +129,9 @@ def main(config):
     elif (config["task"] == "formality"):
         with open(config["source_data"], "r") as f:
             generation_dataset = [line.rstrip('\n') for line in f.readlines()]
+        source_dataset = ["" for l in generation_dataset]
+    elif ("sbf" in config["task"]) or ("microagressions" in config["task"]) or ("dynabench" in config["task"]):
+        generation_dataset = get_data(config)
         source_dataset = ["" for l in generation_dataset]
 
     # check if outfile exists
@@ -244,7 +282,7 @@ def main(config):
     interrupted = False
     if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
         text_id_interval = 1
-    elif (config["task"] == "formality"):
+    elif (config["task"] == "formality") or ("sbf" in config["task"]) or ("microagressions" in config["task"]) or ("dynabench" in config["task"]):
         text_id_interval = config['num_samples']
         
         
@@ -259,7 +297,7 @@ def main(config):
             #     for x in predicted_batches
             # ]
             
-        elif (config["task"] == "formality"):
+        elif (config["task"] == "formality") or ("sbf" in config["task"]) or ("microagressions" in config["task"]) or ("dynabench" in config["task"]):
             # AR_prediction_all = [generation_dataset[text_id]]
             AR_prediction_all = generation_dataset[text_id: text_id + text_id_interval]
  
@@ -550,7 +588,7 @@ if __name__ == "__main__":
         "--task",
         type=str,
         help="task name",
-        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr", "nli"],
+        choices=["toxicity", "formality", "sentiment", "nli", "sbf", "microagressions", "dynabench"],
     )
     parser.add_argument(
         "--source_data",
