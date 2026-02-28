@@ -81,24 +81,9 @@ def main(config):
     causal_lm_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
 
     # 3) Energy Net
-
-    model_config = yaml.load(open('new_module/set_consistency_energy/params.yaml'), 
+    model_config = yaml.load(open(config["params_path"]), 
                                 Loader=yaml.FullLoader)
-    if task == 'nli':
-        
-        model_config['dataset'] = 'set_nli'
-        model_config['task'] = 'nli'
-        model_config['folder_path'] = 'new_module/set_consistency_energy/results/nli/set_nli/46853'
-        model_config['model_path'] = os.path.join(model_config['folder_path'], 'SetCon-roberta-no-triplet-False-fg_tot.pth')
-        model_config['time_key'] = '46853'
-
-    elif task == 'vqa':    
-        pass # params already set for vqa 
-
-    if config['locate_method'] == 'attention':
-        model_config['locate']['type'] = 'attention'
-    elif config['locate_method'] == 'grad_norm':
-        model_config['locate']['type'] = 'gradnorm'
+    model_config['device'] = device
 
     energy_net = energynet(params=model_config)
     energy_net.load_state_dict(torch.load(model_config["model_path"], 
@@ -229,7 +214,7 @@ def main(config):
             num_edited += edit_yn.sum().item()
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
             num_decoded_tokens += sum([len(x) for x in causal_lm_tokenizer(running_text).input_ids])       
-                    
+            located_instance_list = []
         
             for _iter in range(config['n_iter']):
                 
@@ -239,8 +224,15 @@ def main(config):
                 # Locate
                 ###########################################################
                 
-                masked_text = locator.locate_main(running_text, max_num_tokens=7, unit='word')
+                masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=7, unit='word')
                 
+                if _iter == 0:
+                    located_instance_list = prediction_list
+                else:
+                    for index, item in enumerate(located_instance_list):
+                        located_instance_list[index].extend(prediction_list[index])
+                
+
                 ###########################################################
                 # Edit
                 ###########################################################
@@ -316,7 +308,8 @@ def main(config):
                         int_output[edit_ixes[sample_ix]].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
                                                                 f"iter{_iter}_masked_sentence": masked_text[sample_ix],
                                                                 f"iter{_iter}_best_text": final_hypotheses[edit_ixes[sample_ix]],
-                                                                f"iter{_iter}_update": update[edit_ixes[sample_ix]].item()})    
+                                                                f"iter{_iter}_update": update[edit_ixes[sample_ix]].item(),
+                                                                f"iter{_iter}_located_instance": prediction_list[edit_ixes[sample_ix]][0]})    
                     
                     # update running_text, best_text, best_allsat, best_losses, best_weighted_loss
                     for update_index in update.nonzero().squeeze(-1).tolist():
@@ -358,6 +351,7 @@ def main(config):
                     "losses": best_losses[i,:].tolist(),
                     "weighted_loss": best_weighted_loss[i].item(),
                     "edited": edited_at_all_yn[i].tolist(),
+                    "located_instances": located_instance_list[i],
                 } for i in range(len(AR_prediction_all))
             ],
         }
@@ -427,6 +421,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_entity", type=str)
+    parser.add_argument("--params_path", type=str, help="Path to model-specific YAML configuration")
     parser.add_argument("--dont_skip_allsat", action="store_true", help="if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints",)
     args = parser.parse_args()
 

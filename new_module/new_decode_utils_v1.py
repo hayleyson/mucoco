@@ -467,6 +467,8 @@ def get_beam_4sce(source_text:str,
         
         data_loader = DataLoader(CustomDataset(tmp_hypotheses_dec),batch_size=batch_size)
         for lossid, lossname in enumerate(config["losses"]):
+            if lossid > 0: # only use fluency energy
+                break
             lossvalues=[]
             with torch.no_grad():
                 for batch in data_loader:
@@ -612,7 +614,7 @@ def editing_4sce(source_text:str, test_sent_orig: str, test_sent:str, test_sent_
                                 batch_size=batch_size)
         hypotheses.extend(beam_outputs)
  
-        hypotheses_all = [x + post_contexts[i] for x in hypotheses]
+        hypotheses_all = [x + post_contexts[i] for x in hypotheses] ## 이부분이 바뀌어야 함. x 뒤의 original sent를 그대로 붙여넣음.
         
         # Scoring the hypotheses and select top beam hypotheses
         curr_loss = torch.zeros(len(hypotheses_all)).to(config['device'])
