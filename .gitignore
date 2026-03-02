@@ -162,3 +162,4 @@ outputs/
 *.txt
 *.jsonl*
 *.ipynb
+new_module/set_consistency_energy/results/*
