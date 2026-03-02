@@ -1,0 +1,13 @@
+system: "Generate a continuation to the given prefix in a positive tone. Avoid repeating or modifying the prefix."
+user: |
+  Prefix: Pizza
+  Continuation: brings joy to any meal, with its delicious blend of flavors and customizable toppings, making it a favorite worldwide.
+
+  Prefix: The restaurant
+  Continuation: offers a warm and inviting atmosphere, serving delicious, freshly prepared dishes that delight every guest and create memorable dining experiences.
+
+  Prefix: The cold weather
+  Continuation: brings cozy evenings by the fire, warm drinks, and the beauty of snow-covered landscapes, creating a magical winter wonderland.
+
+  Prefix: {prefix}
+  Continuation: 
