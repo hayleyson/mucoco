@@ -1,0 +1,30 @@
+energynet:
+    loss_type: triplet
+    decomposition: 'no'
+    repre_model: roberta
+    loss_con_incon_ordering: false
+    loss_fully_separate: false
+    loss_incon_incon_ordering: false
+    loss_subset_ordering: false
+    many_pos_vs_one_neg: false
+    one_pos_vs_many_neg: false
+    output_form: real_num
+    supervised:
+        loss: CE
+    triplet:
+        fully_separate_margin: 0.001
+        margin: 0.1
+    weight_con_incon_ordering: 0.1
+    weight_fully_separate: 0.1
+    weight_incon_incon_ordering: 0.1
+    weight_subset_ordering: 0.01
+dataset: 'lconvqa'
+model_path: 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068/SetCon-roberta-no-triplet-False-fg_tot.pth'
+batch_size: 1
+eval:
+    batch_size: 1
+locate:
+    agg_method: avg
+    attentions_num_layer: 7
+    select_method: recursive_max
+    type: attention

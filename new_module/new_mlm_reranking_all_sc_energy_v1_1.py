@@ -21,7 +21,7 @@ import new_module.losses as lossbuilder
 from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
-from new_module.new_decode_utils_v1 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
+from new_module.new_decode_utils_v1_1 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -101,10 +101,6 @@ def main(config):
     energy_net_tokenizer = energy_net.representation_model.tokenizer
     energy_net_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
 
-    # if min_epsilon is -1, set it to the threshold of energy net
-    if config['min_epsilons'][0] == -1:
-        config['min_epsilons'][0] = energy_net.threshold
-
     ###########################################################
     # Wrap models into loss functions
     ###########################################################
@@ -138,6 +134,13 @@ def main(config):
             )
         )
 
+    ###########################################################
+    # Set up min_epsilons
+    ###########################################################
+
+    # if min_epsilon is -1, set it to the threshold of energy net
+    if config['min_epsilons'][0] == -1:
+        config['min_epsilons'][0] = lossfns[1].model.threshold
 
     ###########################################################
     # Set up LocateMachine4SCE
@@ -185,7 +188,7 @@ def main(config):
             curr_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
-
+        
         allsat = logging_loss[:,1] <= config['min_epsilons'][0]
         allsat_ix = allsat.nonzero().squeeze(0)
         if (not config["dont_skip_allsat"]):
@@ -227,7 +230,7 @@ def main(config):
                 # Locate
                 ###########################################################
                 
-                masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=7, unit='word')
+                masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
                 
                 if _iter == 0:
                     located_instance_list = prediction_list
@@ -256,15 +259,14 @@ def main(config):
                     
                     final_hypotheses_curr, new_best_weighted_loss_curr, new_best_allsat_curr, new_best_logging_loss_curr = \
                                 editing_4sce(source_text, 
-                                    running_text[0], 
                                     masked_text[0], 
                                     span_lengths,
+                                    prediction_list[0][0],
                                     mlm, 
                                     mlm_tokenizer, 
                                     lossfns, 
                                     config, 
-                                    batch_size=32, 
-                                    post_context_mode="original")
+                                    batch_size=32)
                                 
                     final_hypotheses_.extend(final_hypotheses_curr)
                     new_best_weighted_loss_.append(new_best_weighted_loss_curr)
@@ -414,7 +416,7 @@ if __name__ == "__main__":
     parser.add_argument("--early_stopping_patience", type=int, default=0)
     parser.add_argument("--losses", nargs="+", type=str, default=['gpt2_no_prefix', 'sc_energy'])
     parser.add_argument("--min_epsilons", nargs="+", type=float, default=[-1], help="not used for sc_energy")
-    parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.0, 1.0])
+    parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.0, 10.0])
     parser.add_argument("--k_per_location", type=int, default=5)
     parser.add_argument("--beam_size", type=int, default=5)
     parser.add_argument("--n_iter", type=int, default=4)
@@ -426,6 +428,8 @@ if __name__ == "__main__":
     parser.add_argument("--wandb_entity", type=str)
     parser.add_argument("--params_path", type=str, help="Path to model-specific YAML configuration")
     parser.add_argument("--dont_skip_allsat", action="store_true", help="if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints",)
+    parser.add_argument("--num_edit_tokens_per_step", type=int, default=2)
+    parser.add_argument("--max_tokens_per_span", type=int, default=2)
     args = parser.parse_args()
 
 
@@ -437,8 +441,6 @@ if __name__ == "__main__":
             'device': device,
             'target_label_ids': [1, 1],
             'consider_prompt_for_cand_gen': False,
-            'num_edit_tokens_per_step': 7,
-            'max_tokens_per_span': 3,
             'output_dir_prefix': f'outputs/sc_energy/{task}/',
             })
 

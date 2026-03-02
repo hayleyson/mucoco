@@ -575,7 +575,7 @@ class LocateMachine4SCE:
         
         # Detect spans for each input string
         instances_per_batch = [self.detect_span(string) for string in string_inputs]
-        logger.debug(f"instances_per_batch: {instances_per_batch}")
+        # logger.debug(f"instances_per_batch: {instances_per_batch}")
         
         # Encode each instance
         instance_encoded_per_batch = []        
@@ -584,7 +584,7 @@ class LocateMachine4SCE:
                 self.tokenizer.encode(instance, add_special_tokens=False)
                 for instance in instances
             ]
-            logger.debug(f"instance_encoded: {instance_encoded}")
+            # logger.debug(f"instance_encoded: {instance_encoded}")
             # flatten the list
             instance_encoded = sum(instance_encoded, [])
             instance_encoded = [self.tokenizer.cls_token_id] + instance_encoded
@@ -598,7 +598,7 @@ class LocateMachine4SCE:
                                            "attention_mask": mask},
                                           tensor_type="pt").to(self.device)
 
-    def locate_main(self, prediction: List[str], max_num_tokens: int = 6, unit: str = "word",**kwargs):
+    def locate_main(self, prediction: List[str], max_num_tokens: int = 6, unit: str = "word",**kwargs) -> Tuple[List[str], List[List[int]]]:
 
         """
         Locate a instance (a pair) within the input set (set of pairs). 
@@ -607,9 +607,9 @@ class LocateMachine4SCE:
         The located instance can be anywhere in q1, a2, q2, a2, ...
         """
         
-        logger.debug(f"[new_locate_utils] prediction before adding cls token: {prediction}")
-        prediction = [self.tokenizer.cls_token + " " + p for p in prediction]
-        logger.debug(f"[new_locate_utils] prediction after adding cls token: {prediction}")
+        # logger.debug(f"[new_locate_utils] prediction before adding cls token: {prediction}")
+        prediction = [self.tokenizer.cls_token + " " + p.lstrip(self.tokenizer.cls_token).lstrip(" ") for p in prediction]
+        # logger.debug(f"[new_locate_utils] prediction after adding cls token: {prediction}")
         outputs, hidden_states_or_attentions = self.energynet.energy_model(prediction, pair_only = True)
         # Calculate token scores
         token_scores = self._calculate_token_scores(outputs, hidden_states_or_attentions)
@@ -618,8 +618,8 @@ class LocateMachine4SCE:
         inputs = self._instance_preserving_encode_plus(prediction)
         input_tensor = inputs['input_ids']
         mask = inputs['attention_mask']
-        logger.debug(f"input_tensor: {input_tensor}")
-        logger.debug(f"mask: {mask}")
+        # logger.debug(f"input_tensor: {input_tensor}")
+        # logger.debug(f"mask: {mask}")
         
         _, instance_locations = self._detect_instance(prediction)       
         batch_size = input_tensor.shape[0]
@@ -645,7 +645,7 @@ class LocateMachine4SCE:
                 if instance_has_nonmasked:
                     valid_instances.append((start, end))
                 else:
-                    logger.debug(f"Filtering out degenerate instance at ({start}, {end}) with only masked tokens")
+                    logger.info(f"Filtering out degenerate instance at ({start}, {end}) with only masked tokens")
             filtered_instance_locations.append(valid_instances)
         
         # Update instance_locations to use only valid instances
@@ -669,11 +669,11 @@ class LocateMachine4SCE:
         # Then locate & mask tokens within identified instances
         masked_sequence_text = self._locate_tokens(prediction, token_scores, input_tensor, final_mask, lengths, max_num_tokens, unit, kwargs)
         
-        logger.debug(f"masked_sequence_text before stripping cls token: {masked_sequence_text}")
+        # logger.debug(f"masked_sequence_text before stripping cls token: {masked_sequence_text}")
         masked_sequence_text = [m[len(self.tokenizer.cls_token):].lstrip(" ") for m in masked_sequence_text]
-        logger.debug(f"masked_sequence_text after stripping cls token: {masked_sequence_text}")
+        # logger.debug(f"masked_sequence_text after stripping cls token: {masked_sequence_text}")
         
-        return masked_sequence_text
+        return masked_sequence_text, prediction_list
     
     
 if __name__ == "__main__":

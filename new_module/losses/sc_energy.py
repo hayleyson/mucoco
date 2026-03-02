@@ -32,11 +32,9 @@ class SCEnergy(BaseLoss):
         """
         c.f. prompt column is not used. 
         """
-        logger.debug(f"prediction before adding cls token: {prediction}")
         
         # set consistency verification
         prediction = [self.tokenizer.cls_token + " " + p for p in prediction]
-        logger.debug(f"prediction after adding cls token: {prediction}")
         output, _ = self.model.energy_model(prediction, pair_only = True)
         # print(f"output: {output}")
         
