@@ -145,6 +145,10 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
     """
       
     generations_df = pd.read_json(generations_file_path, lines=True) 
+    if type(generations_df['prompt'].values[0]) == str:
+        generations_df['prompt'] = generations_df['prompt'].apply(lambda x: {'text': x})
+    if type(generations_df['generations'].values[0][0]) == str:
+        generations_df['generations'] = generations_df['generations'].apply(lambda x: [ {'text': y} for y in x])
     logger.debug(generations_df.shape)
 
 
@@ -206,7 +210,7 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         logger.debug("big")
         eval_model_name = "Qwen/Qwen2.5-14B"
         torch.cuda.empty_cache()
-        eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, torch_dtype = torch.float16).to(device)
+        eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, dtype = torch.float16, device_map="auto")
         eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
         torch.cuda.empty_cache()
         if task=='nli':
@@ -365,23 +369,33 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         logger.debug("set-consistency")
         
         device = 'cuda'
-        config_path = 'new_module/set_consistency_energy/params.yaml'
+        
             
         if task in ['nli', 'set_nli', 'set-nli', 'set_snli', 'set-snli']:
-            folder_path = 'new_module/set_consistency_energy/results/nli/set_nli/46853'
-            model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
-            time_key = '46853'
-            task_for_sc = 'nli'
+            config_path = 'new_module/set_consistency_energy/params_set_snli.yaml'
         elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
-            folder_path = 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068'
-            model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
-            time_key = '1225068'
-            task_for_sc = 'vqa'
+            config_path = 'new_module/set_consistency_energy/params_set_lconvqa.yaml'
         
-        avg_sc_score, cons_prop = set_consistency_score(generations_df, output_dir / (output_file+".sc"), device, config_path, folder_path, model_path, time_key, task_for_sc)
+        avg_sc_score, cons_prop = set_consistency_score(generations_df, output_dir / (output_file+".sc"), device, config_path)
         if run_path != "":
             run.summary.update({'avg_sc_score': avg_sc_score, 'consistent_proba': cons_prop})
         fp.write(f'avg_sc_score: {avg_sc_score}, consistent_proba: {cons_prop}\n')
+
+    if "set-consistency-clsf" in metricset:
+        logger.debug("set-consistency-clsf")
+        
+        device = 'cuda'
+        
+            
+        if task in ['nli', 'set_nli', 'set-nli', 'set_snli', 'set-snli']:
+            config_path = 'new_module/set_consistency_energy/params_set_snli_clsf.yaml'
+        elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
+            config_path = 'new_module/set_consistency_energy/params_set_lconvqa_clsf.yaml'
+        
+        avg_sc_score, cons_prop = set_consistency_score(generations_df, output_dir / (output_file+".sc_clsf"), device, config_path)
+        if run_path != "":
+            run.summary.update({'avg_sc_score_clsf': avg_sc_score, 'consistent_proba_clsf': cons_prop})
+        fp.write(f'avg_sc_score_clsf: {avg_sc_score}, consistent_proba_clsf: {cons_prop}\n')
         
     # if "avg-num-instances" in metricset:
     #     logger.debug("num-instances")
@@ -395,9 +409,9 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         
         torch.cuda.empty_cache()
         # if (task == "formality") and (target_style == 'informal'):
-        #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
+        #     kwargs['source_file_path'] = '/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal'
         # elif (task == "formality") and (target_style == 'formal'):
-        #     kwargs['source_file_path'] = '/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
+        #     kwargs['source_file_path'] = '/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
         # print(kwargs['source_file_path'])
         sbleu_score, sbert_score, sbert_preserved_prop, sbert_preserved_count = contents_preservation_metrics(kwargs['source_file_path'],
                                                                     generations_file_path, 

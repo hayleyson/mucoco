@@ -403,7 +403,7 @@ def main(config):
     evaluate_main(
             "",
             outfile,
-            "set-consistency,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+            "set-consistency,set-consistency-clsf,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
             source_file_path=config["source_data_path"],
             task=task,
         )  
