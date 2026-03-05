@@ -21,7 +21,7 @@ import new_module.losses as lossbuilder
 from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
-from new_module.new_decode_utils_v1 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
+from new_module.new_decode_utils_v1_2 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)

@@ -18,13 +18,13 @@ energynet:
     weight_fully_separate: 0.1
     weight_incon_incon_ordering: 0.1
     weight_subset_ordering: 0.01
-dataset: 'set_nli'
-model_path: 'new_module/set_consistency_energy/results/nli/set_nli/46853/SetCon-roberta-no-triplet-False-fg_tot.pth'
+dataset: 'lconvqa'
+model_path: 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068/SetCon-roberta-no-triplet-False-fg_tot.pth'
 batch_size: 1
 eval:
     batch_size: 1
 locate:
-    agg_method: median
-    attentions_num_layer: 6
+    agg_method: avg
+    attentions_num_layer: -1
     select_method: recursive_max
-    type: attention
+    type: gradnorm

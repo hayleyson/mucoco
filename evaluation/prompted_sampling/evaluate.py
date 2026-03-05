@@ -24,6 +24,7 @@ import pandas as pd
 import scipy
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 from scipy import stats
 from torch.utils.data import DataLoader
@@ -345,8 +346,8 @@ def conditional_perplexity(generations_df, model, tokenizer, device='cuda', writ
                 fout.write(f"{ppl}, {(full_loss - prompt_loss).item()}, {(full_input_ids.shape[1] - prompt_input_ids.shape[1])}\n")
         # input("ok")
     
-    print(np.nanmean(goodperplexities), len(goodperplexities), len(perplexities), g)
-    
+    # print(np.nanmean(goodperplexities), len(goodperplexities), len(perplexities), g)
+    # print(perplexities)
     # return np.nanmean(perplexities), np.exp(total_nll/total_tokens)
     if include_trimmed_mean:
         notna_perplexities = perplexities[~np.isnan(perplexities)]
@@ -388,11 +389,11 @@ def perplexity(generations_df, model, tokenizer, device='cuda', write_file=None)
 def fluency_classify(generations_df, output_file=None):
 
     # score generations and write to sentiment.jsonl
-    print("jajaja")
-    classifier = pipeline(model='textattack/roberta-base-CoLA', device=0)
-    # classifier.cuda()
-    print("jajaja2")
-    # classifier = pipeline(model='siebert/sentiment-roberta-large-english')
+    # classifier = pipeline(model='textattack/roberta-base-CoLA', device=0, use_safetensors=True)
+    classifier = AutoModelForSequenceClassification.from_pretrained("textattack/roberta-base-CoLA", use_safetensors=True)
+    tokenizer = AutoTokenizer.from_pretrained("textattack/roberta-base-CoLA", use_safetensors=True)
+    classifier.to("cuda")
+    
     print("writing outputs to ", str(output_file))
     
     accuracies = []
@@ -404,18 +405,24 @@ def fluency_classify(generations_df, output_file=None):
         sentences_for_prompt= []
         for gen in generations:
             sentences_for_prompt.append(f'{prompt}{gen}' if gen.startswith(' ') else f'{prompt} {gen}')
-            
-        # print(sentences_for_prompt)
         
+        inputs = tokenizer(sentences_for_prompt, return_tensors="pt", padding=True, truncation=True)
+        inputs = inputs.to("cuda")
+
         try:
-            predictions_for_prompt = classifier(sentences_for_prompt)
+            # predictions_for_prompt = classifier(sentences_for_prompt)
+            predictions_for_prompt = classifier(**inputs)
+            predictions_for_prompt = F.softmax(predictions_for_prompt.logits, dim=-1)
+            c_predictions_for_prompt = predictions_for_prompt.argmax(dim=-1)
         except IndexError: # sometimes the generation is too long?
             print("exception occured, please check")
             predictions_for_prompt = [{'label': "", 'score': float('nan')}] * len(sentences_for_prompt)
 
-        prediction_labels = [prediction["label"] for prediction in predictions_for_prompt]
+        # prediction_labels = [prediction["label"] for prediction in predictions_for_prompt]
+        prediction_labels = c_predictions_for_prompt.tolist()
         all_prediction_labels += prediction_labels
-        prediction_scores = [str(prediction["score"]) if (prediction["label"] == "LABEL_1") else str(1-prediction["score"]) for prediction in predictions_for_prompt]
+        # prediction_scores = [str(prediction["score"]) if (prediction["label"] == "LABEL_1") else str(1-prediction["score"]) for prediction in predictions_for_prompt]
+        prediction_scores = predictions_for_prompt[:, 1].tolist()
         all_prediction_scores += prediction_scores
         
     if output_file is not None:
@@ -423,10 +430,12 @@ def fluency_classify(generations_df, output_file=None):
             for label, score in zip(all_prediction_labels, all_prediction_scores):
                 fout.write(f"{label},{score}\n")
 
-    accuracy = np.array(all_prediction_labels) == "LABEL_1" ## LABEL_1 is acceptable
+    # accuracy = np.array(all_prediction_labels) == "LABEL_1" ## LABEL_1 is acceptable
+    accuracy = np.array(all_prediction_labels) == 1
     accuracy = np.nanmean(accuracy.astype("float32"))
         
     return accuracy
+
 
 # def fluency_classify(generations_df, output_file, batch_size=32):
 #     from fairseq.models.roberta import RobertaModel
@@ -751,6 +760,7 @@ def sentiment_classify_big(generations_df, sentiment_file=None):
         
 #     return np.nanmean(accuracies), np.std(accuracies)
 
+
 def sentiment_classify_own2(generations_df, sentiment_file=None, checkpoint_path=None, model_type=None):
 
     # score generations and write to sentiment.jsonl
@@ -761,9 +771,9 @@ def sentiment_classify_own2(generations_df, sentiment_file=None, checkpoint_path
     config = AutoConfig.from_pretrained(checkpoint_path)
     tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
     if model_type == 'RobertaCustomForSequenceClassification':
-        classifier_model = RobertaCustomForSequenceClassification.from_pretrained(checkpoint_path, config=config)
+        classifier_model = RobertaCustomForSequenceClassification.from_pretrained(checkpoint_path, config=config, use_safetensors=True)
     else:
-        classifier_model = AutoModelForSequenceClassification.from_pretrained(checkpoint_path, config=config)
+        classifier_model = AutoModelForSequenceClassification.from_pretrained(checkpoint_path, config=config, use_safetensors=True)
     classifier = TextClassificationPipeline(task="text-classification", model=classifier_model, tokenizer=tokenizer, device=0)
     print("writing outputs to ", str(sentiment_file))
     if sentiment_file is not None:
@@ -1178,7 +1188,7 @@ def nli_score(generations_df, write_file, device='cuda'):
     models = []
     tokenizers = []
     for model_path in model_paths:
-        model = AutoModelForSequenceClassification.from_pretrained(model_path).to(device)
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, use_safetensors=True).to(device)
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         models.append(model)
         tokenizers.append(tokenizer)
@@ -1342,26 +1352,22 @@ def formality_score_int(generations_df, output_file, device, checkpoint_path, mo
     return np.nanmean(formality_scores), formal_counts/len(texts)
 
         
-def load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device):
+def load_sc_energy_model(config_path, device):
     
     model_config = yaml.load(open(config_path), 
                                 Loader=yaml.FullLoader)
-    dataset = 'set_nli' if task == 'nli' else 'lconvqa'
-    
-    model_config['dataset'] = dataset
-    model_config['task'] = task
-    model_config['folder_path'] = folder_path
-    model_config['model_path'] = model_path
-    model_config['time_key'] = time_key
+    model_config['device'] = device
 
     energy_net = energynet(params=model_config)
-    model_object = torch.load(model_config["model_path"], 
-                                map_location=device,
-                                weights_only=True)
-    energy_net.load_state_dict(model_object['state_dict'], strict=False)
-    if 'threshold' in model_object:
-        energy_net.threshold = model_object['threshold']
-    
+    energy_net.load_state_dict(torch.load(model_config["model_path"], 
+                                        map_location=model_config['device'],
+                                        weights_only=True)['state_dict'], strict=False)
+    if 'threshold' in torch.load(model_config["model_path"],
+                                map_location=model_config['device'],
+                                weights_only=True):
+        energy_net.threshold = torch.load(model_config["model_path"],
+                                map_location=model_config['device'],
+                                weights_only=True)['threshold']
     energy_net.eval()
     energy_net.to(device)
     
@@ -1369,18 +1375,19 @@ def load_sc_energy_model(config_path, folder_path, model_path, time_key, task, d
     
         
 def set_consistency_score(generations_df, output_file, device, 
-                          config_path, folder_path, model_path, time_key, task):
+                          config_path):
 
     
     # load model 
-    model = load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device)
+    model = load_sc_energy_model(config_path, device)
 
     # define dataset and dataloader
     generations_df = generations_df.explode('generations')
     generations = generations_df["generations"].tolist()
     # Extract only 'text' field to avoid collation issues with variable-sized fields
     # Each generation dict might have other fields (lists, arrays) of different sizes
-    generations_text_only = [{'text': gen['text']} for gen in generations]
+    generations_text_only = [{'text': gen['text'] if gen['text'].startswith('<s>') else '<s> ' + gen['text']} for gen in generations]
+    
     dataset = Dataset.from_list(generations_text_only)
    
     dataloader = DataLoader(dataset, batch_size=8, shuffle=False)
@@ -1396,6 +1403,8 @@ def set_consistency_score(generations_df, output_file, device,
             
             if (model.output_form == 'real_num'):
                 probs = output.reshape(-1)
+            elif (model.output_form == '2dim_vec'):
+                probs = F.softmax(output, dim=-1)[:, -1]
             else:
                 raise ValueError(f"Unsupported output form: {model.output_form}")
             sc_scores.extend(probs.tolist())
@@ -1685,12 +1694,17 @@ def HUSE(generations_df):
 
 def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     
-    if task in ['toxicity','sentiment']:
+    if task in ['toxicity','sentiment','set_nli', 'set_snli', 'set_lconvqa', 'lconvqa', 'vqa']:
         sources = pd.read_json(sources_file, lines=True)
         sources.prompt=sources.prompt.apply(lambda x: x['text'])
         sources.columns = sources.columns[:1].tolist() + [x+'_source' for x in sources.columns[1:]]
         
         predictions = pd.read_json(outputs_file, lines=True)
+        if type(predictions['prompt'].values[0]) == str:
+            predictions['prompt'] = predictions['prompt'].apply(lambda x: {'text': x})
+        if type(predictions['generations'].values[0][0]) == str:
+            predictions['generations'] = predictions['generations'].apply(lambda x: [ {'text': y} for y in x])
+
         predictions.prompt=predictions.prompt.apply(lambda x: x['text'])
         predictions.columns = predictions.columns[:1].tolist() + [x+'_prediction' for x in predictions.columns[1:]]
         
@@ -1700,7 +1714,7 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
             # source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
             source_predictions=pd.merge(sources,predictions,on='prompt',how='inner')
             print(source_predictions.columns)
-        elif task=='sentiment':
+        else:
             source_predictions=pd.concat([sources,predictions],axis=1)
             print(source_predictions.columns)
             # source_predictions=source_predictions.iloc[:, [0,1,4]].copy()

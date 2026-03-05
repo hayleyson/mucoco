@@ -21,7 +21,7 @@ import new_module.losses as lossbuilder
 from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
-from new_module.new_decode_utils_v1 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
+from new_module.new_decode_utils_v1_3 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -262,11 +262,12 @@ def main(config):
                                     running_text[0], 
                                     masked_text[0], 
                                     span_lengths,
+                                    prediction_list[0][0],
                                     mlm, 
                                     mlm_tokenizer, 
                                     lossfns, 
                                     config, 
-                                    batch_size=32, 
+                                    batch_size=32,
                                     post_context_mode="original")
                                 
                     final_hypotheses_.extend(final_hypotheses_curr)
@@ -400,7 +401,7 @@ def main(config):
         logger.info(f"toks_p_sec: {num_decoded_tokens/decode_time}")
     
     evaluate_main(
-            run.path,
+            "",
             outfile,
             "set-consistency,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
             source_file_path=config["source_data_path"],
