@@ -40,6 +40,8 @@ class SCEnergy(BaseLoss):
         
         if (self.model.output_form == 'real_num'):
             return output.reshape(-1)
+        elif (self.model.output_form == '2dim_vec'):
+            return F.softmax(output, dim = -1)[:, -1]
         else:
             raise ValueError(f"Unsupported output form: {self.model.output_form}")
         

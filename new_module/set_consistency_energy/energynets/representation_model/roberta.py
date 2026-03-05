@@ -21,6 +21,7 @@ class roberta(nn.Module):
         self.linear1 = None
         self.sigmoid = nn.Sigmoid()
         self.initialize()
+        self.softmax = nn.Softmax()
         
         # special tokens
         # single sequence: <s> X </s>
@@ -60,18 +61,22 @@ class roberta(nn.Module):
         norms = torch.norm(output, dim = -1).detach().unsqueeze(-1)
         output = output / norms
         output = self.linear1(output)
-        output = self.sigmoid(output)
-        
+
+        if self.output_form == 'real_num':
+            output = (self.sigmoid(output))
+        elif self.output_form == '2dim_vec':
+            output = output
+            
         if self.params['locate']['type'] == 'gradnorm': 
             hidden_states = output_all['hidden_states'] ## return hidden states of embedding layer
-            return (output), hidden_states
+            return output, hidden_states
         
         elif self.params['locate']['type'] == 'attention': 
             attentions = output_all['attentions'] 
-            return (output), attentions
+            return output, attentions
             
         else:
-            return (output)
+            return output
         
     def initialize(self, turn_off_LM_grad = False):
         

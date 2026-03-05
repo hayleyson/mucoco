@@ -1,0 +1,62 @@
+energynet:
+  repre_model: roberta
+  decomposition: 'no'
+  loss_type: supervised
+  loss_fully_separate: false
+  weight_fully_separate: 0.1
+  loss_subset_ordering: false
+  weight_subset_ordering: 0.01
+  loss_con_incon_ordering: false
+  weight_con_incon_ordering: 0.1
+  loss_incon_incon_ordering: false
+  weight_incon_incon_ordering: 0.1
+  one_pos_vs_many_neg: false
+  many_pos_vs_one_neg: false
+  lr: 1.0e-05
+  epoch: 15
+  fine_tuning_epoch: 30
+  triplet:
+    margin: 0.1
+    fully_separate_margin: 0.001
+  supervised:
+    loss: CE
+  output_form: 2dim_vec
+baseline:
+  type: ''
+  model: ''
+  shot_num: 0
+  prediction_type: all_in_one
+  locate_type: all_in_one
+lconvqa:
+  stepwise_dataset_train_num: 6754
+  stepwise_dataset_eval_num: 200
+  stepwise_dataset_eval2_num: 200
+  stepwise_dataset_test_num: 200
+set_nli:
+  stepwise_dataset_train_num: 6227
+  stepwise_dataset_eval_num: 200
+  stepwise_dataset_eval2_num: 200
+  stepwise_dataset_test_num: 200
+pairwise: arbitrary_pairs
+seed: 1014
+batch_size: 4
+time_key: ''
+eval:
+  batch_size: 1
+  pairwise: arbitrary_pairs
+task: nli
+dataset: set_nli
+config: config.yaml
+scratch: false
+extra_for_eval: ''
+job_id: 1213401
+finetune_job_id: 0
+device: cuda
+folder_path: results/nli/set_nli/1213401
+model_path: new_module/set_consistency_energy/results/nli/set_nli/nli_set_sup_2-1213401/SetSup-roberta-no-supervised.pth
+threshold_path: results/nli/set_nli/1213401/thresholds.json
+locate:
+  agg_method: avg
+  attentions_num_layer: 9
+  select_method: recursive_max
+  type: attention
