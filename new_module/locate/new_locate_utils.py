@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG))
 
+random.seed(42)
 
 def get_word2tok(row: pd.Series, tokenizer: AutoTokenizer) -> dict:
     """
@@ -549,7 +550,7 @@ class LocateMachine4SCE:
         return prediction_list
     
     
-    def detect_span(self, set_text):
+    def _extract_instances(self, set_text):
 
         # set_text == text, e.g., '<s> qa pair 1 </s> qa pair 2 ... </s>
 
@@ -558,9 +559,9 @@ class LocateMachine4SCE:
         return [o+self.sep_token for o in out]
     
     
-    def _detect_instance(self, string_inputs: List[str]) -> Tuple[List, List]:
+    def _detect_instance_start_end_indexes(self, string_inputs: List[str]) -> Tuple[List, List]:
         """
-        Detect instances (spans) within the input text and return their locations.
+        Detect instances within the input text and return their start and end indexes.
         
         Args:
             string_inputs: List of input strings
@@ -573,7 +574,7 @@ class LocateMachine4SCE:
             raise ValueError(f"Invalid decomposition type: {self.energynet.decomposition_type}")
         
         # Detect spans for each input string
-        instances_per_batch = [self.detect_span(string) for string in string_inputs]
+        instances_per_batch = [self._extract_instances(string) for string in string_inputs]
         
         # Encode each instance and calculate lengths
         instance_locations_per_batch = []
@@ -604,7 +605,7 @@ class LocateMachine4SCE:
     def _instance_preserving_encode_plus(self, string_inputs: List[str]) -> torch.Tensor:
         
         # Detect spans for each input string
-        instances_per_batch = [self.detect_span(string) for string in string_inputs]
+        instances_per_batch = [self._extract_instances(string) for string in string_inputs]
         # logger.debug(f"instances_per_batch: {instances_per_batch}")
         
         # Encode each instance
@@ -628,13 +629,25 @@ class LocateMachine4SCE:
                                            "attention_mask": mask},
                                           tensor_type="pt").to(self.device)
 
-    def locate_main(self, prediction: List[str], max_num_tokens: int = 6, unit: str = "word",**kwargs) -> Tuple[List[str], List[List[int]]]:
+    def locate_main(self, prediction: List[str], max_num_tokens: int = 6, mode: str = "span", unit: str = "word",**kwargs) -> Tuple[List[str], List[List[int]]]:
 
         """
         Locate a instance (a pair) within the input set (set of pairs). 
         
         Suppose input text looks like '<s> q1 </s> a1 </s>, q1, ..., </s>'. 
         The located instance can be anywhere in q1, a2, q2, a2, ...
+
+        Args:
+        - prediction: list of strings, each string is a pair of (question, answer)
+        - max_num_tokens: maximum number of tokens to mask
+        - mode: indicate whether to locate at instance level or span level, "instance" or "span"
+        - unit: unit of masking, "word" or "token"
+        - **kwargs: additional arguments
+
+        Returns:
+        - masked_sequence_text: list of strings, each string is the masked sequence
+        - prediction_list: list of lists of integers, each list is the indexes of the located instance
+
         """
         
         # logger.debug(f"[new_locate_utils] prediction before adding cls token: {prediction}")
@@ -651,7 +664,7 @@ class LocateMachine4SCE:
         # logger.debug(f"input_tensor: {input_tensor}")
         # logger.debug(f"mask: {mask}")
         
-        _, instance_locations = self._detect_instance(prediction)       
+        _, instance_locations = self._detect_instance_start_end_indexes(prediction)       
         batch_size = input_tensor.shape[0]
         assert batch_size == 1 # this code assumes batch_size = 1
             
@@ -667,13 +680,15 @@ class LocateMachine4SCE:
         # Filter out degenerate instances (those with only masked tokens)
         # This prevents division by zero errors in instance scoring
         filtered_instance_locations = []
+        filtered_instance_indexes = []
         for b in range(batch_size):
             valid_instances = []
-            for start, end in instance_locations[b]:
+            for j, (start, end) in enumerate(instance_locations[b]):
                 # Check if instance has at least one non-masked token
                 instance_has_nonmasked = (~final_mask[b][start:end]).any().item()
                 if instance_has_nonmasked:
                     valid_instances.append((start, end))
+                    filtered_instance_indexes.append(j)
                 else:
                     logger.info(f"Filtering out degenerate instance at ({start}, {end}) with only masked tokens")
             filtered_instance_locations.append(valid_instances)
@@ -683,27 +698,78 @@ class LocateMachine4SCE:
         
         # First locate at instance-level
         prediction_list = self._locate_instance(token_scores, instance_locations, batch_size)
+        prediction_list_adjusted = [[filtered_instance_indexes[_idx] for _idx in prediction_list[0]]]
+        
+        if mode == "span":
+            # Mask tokens that are not in located instances
+            instance_mask = torch.zeros_like(token_scores, dtype=torch.bool)
+            for b in range(batch_size):
+                for instance_idx in prediction_list[b]:
+                    instance_mask[b][instance_locations[b][instance_idx][0]:instance_locations[b][instance_idx][1]] = True
+            instance_mask = ~instance_mask
+            token_scores[instance_mask] = -float("inf")
+            token_scores = token_scores.softmax(dim=-1)
+            
+            length_mask = (mask == 1) & ~instance_mask
+            lengths = length_mask.sum(dim=-1)
+            
+            # Then locate & mask tokens within identified instances
+            masked_sequence_text = self._locate_tokens(prediction, token_scores, input_tensor, final_mask, lengths, max_num_tokens, unit, kwargs)
+            
+            # logger.debug(f"masked_sequence_text before stripping cls token: {masked_sequence_text}")
+            masked_sequence_text = [m[len(self.tokenizer.cls_token):].lstrip(" ") for m in masked_sequence_text]
+            # logger.debug(f"masked_sequence_text after stripping cls token: {masked_sequence_text}")
+            
+            return masked_sequence_text, prediction_list_adjusted
+        elif mode == "instance":
+            # Create text with the located instance removed
+            predicted_instance_start, predicted_instance_end = instance_locations[0][prediction_list[0][0]]
+            new_input_tensor = torch.cat([input_tensor[:, :predicted_instance_start], input_tensor[:, predicted_instance_end:]], axis=-1) if predicted_instance_start > 0 else input_tensor[:, predicted_instance_end:]
+            new_prediction = self.tokenizer.batch_decode(new_input_tensor)
+            new_prediction = new_prediction[0].strip('<s>').strip(' ')
 
-        # Mask tokens that are not in located instances
-        instance_mask = torch.zeros_like(token_scores, dtype=torch.bool)
-        for b in range(batch_size):
-            for instance_idx in prediction_list[b]:
-                instance_mask[b][instance_locations[b][instance_idx][0]:instance_locations[b][instance_idx][1]] = True
-        instance_mask = ~instance_mask
-        token_scores[instance_mask] = -float("inf")
-        token_scores = token_scores.softmax(dim=-1)
+            # Extract the located instance
+            predicted_instance_tensor = input_tensor[:, predicted_instance_start: predicted_instance_end]
+            predicted_instance = self.tokenizer.batch_decode(predicted_instance_tensor)
+            predicted_instance = predicted_instance[0].strip('<s>').strip(' ')
+
+            return (new_prediction, predicted_instance), prediction_list_adjusted
+    
+    def verify_consistency(self, text):
         
-        length_mask = (mask == 1) & ~instance_mask
-        lengths = length_mask.sum(dim=-1)
+
+        with torch.no_grad():
+            # set consistency verification
+            batch_text = ['<s> ' + text]
+            output, _ = self.energynet.energy_model(batch_text, pair_only = True)
+            
+            if (self.energynet.output_form == 'real_num'):
+                probs = output.reshape(-1)
+            else:
+                raise ValueError(f"Unsupported output form: {self.energynet.output_form}")
         
-        # Then locate & mask tokens within identified instances
-        masked_sequence_text = self._locate_tokens(prediction, token_scores, input_tensor, final_mask, lengths, max_num_tokens, unit, kwargs)
+            #  classify
+
+            cons = torch.where(probs <= self.energynet.threshold,1,0).item()
+        if cons == 1:
+            return 'con'
+        else:
+            return 'incon'
+
+    def locate_multiple_instances_at_once(self, text):
+        predicted_indexes = []
+        remaining_index_list = list(range(len(self._extract_instances(text))))
+
+        while ((self.verify_consistency(text) == 'incon') and len(text) > 0):
+            
+            (text,_), index_list = self.locate_main([text], mode="instance")
+            index = index_list[0][0]
+            
+            predicted_indexes.append(remaining_index_list[index])
+            remaining_index_list = (remaining_index_list[:index] if index > 0 else []) + remaining_index_list[index+1:] 
         
-        # logger.debug(f"masked_sequence_text before stripping cls token: {masked_sequence_text}")
-        masked_sequence_text = [m[len(self.tokenizer.cls_token):].lstrip(" ") for m in masked_sequence_text]
-        # logger.debug(f"masked_sequence_text after stripping cls token: {masked_sequence_text}")
-        
-        return masked_sequence_text, prediction_list
+        return sorted(predicted_indexes)
+
     
     
 if __name__ == "__main__":
