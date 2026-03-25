@@ -12,8 +12,9 @@ import argparse
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import warnings
+import re
 
 # Import evaluation functions from evaluate_locate_nli.py
 from new_module.evaluation.evaluate_locate.evaluate_locate_nli import (
@@ -31,6 +32,40 @@ from transformers import GPT2Tokenizer
 def tokenize_by_whitespace(text: str) -> List[str]:
     """Tokenize text by whitespace, keeping internal apostrophes and hyphens."""
     return text.split()
+
+
+def parse_filename_metadata(filename: str) -> Tuple[str, str]:
+    """
+    Parse filename to extract model name and prompt type.
+    
+    Args:
+        filename: The filename (e.g., "gpt-4.1-2025-04-14_locate_toxic_0shot_type1_v3_toxicspans_1762982031_processed.jsonl")
+    
+    Returns:
+        Tuple of (model, prompt_type)
+    """
+    # Extract model name (everything before _locate_)
+    if '_locate_' in filename:
+        model = filename.split('_locate_')[0]
+    else:
+        model = 'unknown'
+    
+    # Extract prompt type (everything before _toxicspans_ or _inconsistentspans_, including shot count)
+    prompt_type = 'default'
+    
+    # Look for pattern before toxicspans or inconsistentspans
+    # Pattern: ..._something_toxicspans_... or ..._something_inconsistentspans_...
+    # This captures everything from the shot pattern to just before the dataset name
+    # Examples: 0shot_type1_v3, 0shot_v2, 5shot_cot_type1_v4
+    match_toxic = re.search(r'_(\d+shot.*?)_toxicspans_', filename)
+    match_incon = re.search(r'_(\d+shot.*?)_inconsistentspans_', filename)
+    
+    if match_toxic:
+        prompt_type = match_toxic.group(1)
+    elif match_incon:
+        prompt_type = match_incon.group(1)
+    
+    return model, prompt_type
 
 
 def get_word2tok(tokens: List[int], words: List[str], tokenizer: GPT2Tokenizer, ws: str = " ") -> Dict[int, List[int]]:
@@ -148,29 +183,21 @@ def load_gold_labels_toxic(original_file: str) -> List[Dict]:
     Load gold labels for toxic span detection.
     Converts token-level labels to word-level labels.
     """
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    tokenizer.pad_token = tokenizer.eos_token
-    
+     
     gold_data = []
     with open(original_file, 'r', encoding='utf-8') as f:
         for line in f:
             data = json.loads(line)
             generation = data['generation']
-            tokens = data['generation_gpt2_tokens']
-            token_labels = data['generation_gpt2_token_labels']
-            
-            # Convert token labels to word labels
-            word_labels_continuous = convert_gpt2_token_labels_to_word_labels(
-                tokens, token_labels, generation, tokenizer
-            )
+            words = data['generation_words']
+            word_labels_continuous = data['generation_word_labels']
             
             # Binarize at 0.5
             word_labels_binary = binarize_labels(word_labels_continuous, threshold=0.5)
             
-            words = tokenize_by_whitespace(generation)
-            
             gold_data.append({
                 'index': len(gold_data),
+                'prefix': prefix,
                 'generation': generation,
                 'generation_words': words,
                 'word_labels_continuous': word_labels_continuous,
@@ -178,6 +205,38 @@ def load_gold_labels_toxic(original_file: str) -> List[Dict]:
             })
     
     return gold_data
+
+
+
+
+def load_gold_labels_toxic_extended(original_file: str) -> List[Dict]:
+    """
+    Load gold labels for toxic span detection.
+    Converts token-level labels to word-level labels.
+    """
+    
+    gold_data = []
+    with open(original_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            data = json.loads(line)
+            generation = data['text']
+            words = data['words']
+            word_labels_continuous = data['word_labels']
+            
+            # Binarize at 0.5
+            word_labels_binary = binarize_labels(word_labels_continuous, threshold=0.5)
+            
+            gold_data.append({
+                'index': len(gold_data),
+                'prefix': prefix,
+                'generation': generation,
+                'generation_words': words,
+                'word_labels_continuous': word_labels_continuous,
+                'word_labels_binary': word_labels_binary
+            })
+    
+    return gold_data
+
 
 
 def load_gold_labels_inconsistent(original_file: str) -> List[Dict]:
@@ -189,6 +248,9 @@ def load_gold_labels_inconsistent(original_file: str) -> List[Dict]:
     with open(original_file, 'r', encoding='utf-8') as f:
         for line in f:
             data = json.loads(line)
+            pairID = data.get('pairID', '')
+            premise = data.get('premise', '')
+            hypothesis = data.get('hypothesis', '')
             hypothesis_words = data.get('hypothesis_words', [])
             hypothesis_word_labels = data.get('hypothesis_word_labels', [])
             
@@ -197,10 +259,40 @@ def load_gold_labels_inconsistent(original_file: str) -> List[Dict]:
             
             gold_data.append({
                 'index': len(gold_data),
-                'pairID': data.get('pairID', ''),
+                'pairID': pairID,
+                'premise': premise,
+                'hypothesis': hypothesis,
                 'hypothesis_words': hypothesis_words,
                 'word_labels_continuous': hypothesis_word_labels,
                 'word_labels_binary': word_labels_binary
+            })
+    
+    return gold_data
+
+
+def load_gold_labels_bbm(original_file: str) -> List[Dict]:
+    """
+    Load gold labels for BIG-Bench-Mistake tasks.
+    Extracts 'input' and 'mistake_index'.
+    """
+    gold_data = []
+    with open(original_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            data = json.loads(line)
+            input_text = data.get('input', '')
+            mistake_index = data.get('mistake_index')
+            
+            # Normalize mistake_index
+            # In gold: null (no mistake), integer (step of first mistake)
+            if mistake_index is None:
+                gold_label = "No"
+            else:
+                gold_label = str(mistake_index)
+            
+            gold_data.append({
+                'index': len(gold_data),
+                'input': input_text,
+                'gold_label': gold_label
             })
     
     return gold_data
@@ -215,10 +307,41 @@ def load_predictions(prediction_file: str) -> List[Dict]:
     return predictions
 
 
+def load_predictions_bbm(prediction_file: str) -> List[Dict]:
+    """Load predictions for BBM tasks."""
+    predictions = []
+    with open(prediction_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            data = json.loads(line)
+            # Result might be a single string or a JSON object with 'answer'
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except:
+                    pass
+            
+            answer = data.get('answer', '')
+            reasoning = data.get('reasoning', '')
+            
+            # Normalize answer
+            if isinstance(answer, (int, float)):
+                answer = str(int(answer))
+            elif isinstance(answer, str):
+                answer = answer.strip()
+                if answer.lower() in ['no', 'none', 'no mistake', 'n/a', 'nothing'] or answer == '':
+                    answer = "No"
+            else:
+                answer = "No" # Default/Fallback
+                
+            predictions.append({
+                'answer': answer,
+                'reasoning': reasoning
+            })
+    return predictions
+
 def evaluate_predictions(
     gold_data: List[Dict],
-    predictions: List[Dict],
-    task: str
+    predictions: List[Dict]
 ) -> Dict[str, float]:
     """
     Evaluate predictions against gold labels.
@@ -292,6 +415,52 @@ def evaluate_predictions(
     return metrics
 
 
+def evaluate_predictions_bbm(
+    gold_data: List[Dict],
+    predictions: List[Dict]
+) -> Dict[str, float]:
+    """
+    Evaluate BBM predictions (classification accuracy).
+    """
+    correct = 0
+    correct_no = 0
+    correct_mistake = 0
+    false_positive_no = 0 # Gold is mistake, Pred is No (False Negative Mistake)
+    false_negative_no = 0 # Gold is No, Pred is mistake (False Positive Mistake)
+    
+    total = len(gold_data)
+    
+    for gold, pred in zip(gold_data, predictions):
+        g = gold['gold_label']
+        p = pred['answer']
+        
+        is_correct = (g == p)
+        if is_correct:
+            correct += 1
+            if g == "No":
+                correct_no += 1
+            else:
+                correct_mistake += 1
+        else:
+            if g == "No":
+                false_negative_no += 1
+            else:
+                if p == "No":
+                    false_positive_no += 1
+    
+    metrics = {
+        'accuracy': correct / total if total > 0 else 0,
+        'correct': correct,
+        'correct_no': correct_no,
+        'correct_mistake': correct_mistake,
+        'false_positive_no': false_positive_no,
+        'false_negative_no': false_negative_no,
+        'num_examples': total
+    }
+    
+    return metrics
+
+
 def evaluate_single_file(
     prediction_file: str,
     original_file: str,
@@ -314,10 +483,14 @@ def evaluate_single_file(
     
     # Load gold labels
     print("Loading gold labels...")
-    if task == 'toxic':
+    if task == 'toxic_extended':
+        gold_data = load_gold_labels_toxic_extended(original_file)
+    elif task == 'toxic':
         gold_data = load_gold_labels_toxic(original_file)
     elif task == 'inconsistent':
         gold_data = load_gold_labels_inconsistent(original_file)
+    elif task in ['logical_deduction', 'tracking_shuffled_objects']:
+        gold_data = load_gold_labels_bbm(original_file)
     else:
         raise ValueError(f"Unknown task: {task}")
     
@@ -325,7 +498,10 @@ def evaluate_single_file(
     
     # Load predictions
     print("Loading predictions...")
-    predictions = load_predictions(prediction_file)
+    if task in ['logical_deduction', 'tracking_shuffled_objects']:
+        predictions = load_predictions_bbm(prediction_file)
+    else:
+        predictions = load_predictions(prediction_file)
     print(f"Loaded {len(predictions)} predictions")
     
     # Check if lengths match
@@ -341,19 +517,31 @@ def evaluate_single_file(
     
     # Evaluate
     print("Calculating metrics...")
-    metrics = evaluate_predictions(gold_data, predictions, task)
+    if task in ['logical_deduction', 'tracking_shuffled_objects']:
+        metrics = evaluate_predictions_bbm(gold_data, predictions)
+    else:
+        metrics = evaluate_predictions(gold_data, predictions)
     
     # Print results
     print("\n" + "="*60)
     print("EVALUATION RESULTS")
     print("="*60)
     print(f"Number of examples: {metrics['num_examples']}")
-    print(f"Mean Precision:  {metrics['mean_precision']:.4f}")
-    print(f"Mean Recall:     {metrics['mean_recall']:.4f}")
-    print(f"Mean F1:         {metrics['mean_f1']:.4f}")
-    print(f"Mean AP:         {metrics['mean_ap']:.4f}")
-    print(f"Mean RR:         {metrics['mean_rr']:.4f}")
-    print(f"Exact Match:     {metrics['exact_match']:.4f}")
+    
+    if task in ['logical_deduction', 'tracking_shuffled_objects']:
+        print(f"Accuracy:        {metrics['accuracy']:.4f}")
+        print(f"Correct:         {metrics['correct']} / {metrics['num_examples']}")
+        print(f"Correct No:      {metrics['correct_no']}")
+        print(f"Correct Mistake: {metrics['correct_mistake']}")
+        print(f"Gold No, Pred != No (False Pos Mistake): {metrics['false_negative_no']}")
+        print(f"Gold != No, Pred No (False Neg Mistake): {metrics['false_positive_no']}")
+    else:
+        print(f"Mean Precision:  {metrics['mean_precision']:.4f}")
+        print(f"Mean Recall:     {metrics['mean_recall']:.4f}")
+        print(f"Mean F1:         {metrics['mean_f1']:.4f}")
+        print(f"Mean AP:         {metrics['mean_ap']:.4f}")
+        print(f"Mean RR:         {metrics['mean_rr']:.4f}")
+        print(f"Exact Match:     {metrics['exact_match']:.4f}")
     print("="*60 + "\n")
     
     # Save detailed results if requested
@@ -373,6 +561,7 @@ def evaluate_single_file(
 
 def evaluate_all_results(
     results_dir: str,
+    original_toxic_extended_file: str,
     original_toxic_file: str,
     original_inconsistent_file: str,
     output_dir: str = None
@@ -387,15 +576,46 @@ def evaluate_all_results(
     
     for pred_file in prediction_files:
         # Determine task type from filename
-        if 'toxic' in pred_file.name:
+        if 'toxicspans_extended' in pred_file.name:
+            task = 'toxic_extended'
+            original_file = original_toxic_extended_file
+        elif 'toxic' in pred_file.name:
             task = 'toxic'
             original_file = original_toxic_file
         elif 'incon' in pred_file.name or 'inconsistent' in pred_file.name:
             task = 'inconsistent'
             original_file = original_inconsistent_file
+        elif 'logical_deduction' in pred_file.name:
+            task = 'logical_deduction'
+            original_file = 'new_module/data/BIG-Bench-Mistake/logical_deduction.jsonl'
+        elif 'tracking_shuffled_objects' in pred_file.name:
+            task = 'tracking_shuffled_objects'
+            original_file = 'new_module/data/BIG-Bench-Mistake/tracking_shuffled_objects.jsonl'
         else:
             print(f"Warning: Could not determine task type for {pred_file.name}, skipping...")
             continue
+        
+        if original_file is None:
+            print(f"Warning: Could not find original file for {pred_file.name}, skipping...")
+            continue
+        
+        # Extract model and prompt_type from filename
+        model, prompt_type = parse_filename_metadata(pred_file.name)
+        
+        # Try to read execution time from corresponding .time file
+        execution_seconds = None
+        time_file = pred_file.parent / f"{pred_file.stem.replace('_processed', '')}.time"
+        if time_file.exists():
+            try:
+                with open(time_file, 'r') as f:
+                    time_content = f.read().strip()
+                    # Try to parse as float
+                    execution_seconds = float(time_content)
+            except (ValueError, IOError) as e:
+                print(f"Warning: Could not read execution time from {time_file}: {e}")
+        else:
+            print(f"Warning: No execution time file found for {pred_file.name}, skipping...")
+        
         
         # Evaluate
         try:
@@ -407,6 +627,9 @@ def evaluate_all_results(
             
             metrics['prediction_file'] = str(pred_file)
             metrics['task'] = task
+            metrics['model'] = model
+            metrics['prompt_type'] = prompt_type
+            metrics['execution_seconds'] = execution_seconds
             all_metrics.append(metrics)
         except Exception as e:
             print(f"Error evaluating {pred_file.name}: {e}")
@@ -419,7 +642,9 @@ def evaluate_all_results(
         print("SUMMARY OF ALL RESULTS")
         print("="*60)
         df_summary = pd.DataFrame(all_metrics)
-        print(df_summary[['prediction_file', 'task', 'mean_precision', 'mean_recall', 'mean_f1', 'mean_ap', 'mean_rr', 'exact_match']].to_string(index=False))
+        display_cols = ['prediction_file', 'model', 'prompt_type', 'task', 'mean_precision', 'mean_recall', 'mean_f1', 'mean_ap', 'mean_rr', 'exact_match', 'accuracy', 'execution_seconds']
+        display_cols = [c for c in display_cols if c in df_summary.columns]
+        print(df_summary[display_cols].to_string(index=False))
         print("="*60 + "\n")
         
         # Save summary if output_dir is provided
@@ -437,14 +662,17 @@ def main():
                         help='Path to post-processed prediction file (single file mode)')
     parser.add_argument('--original_file', type=str, default=None,
                         help='Path to original data file with gold labels (single file mode)')
-    parser.add_argument('--task', type=str, choices=['toxic', 'inconsistent'], default=None,
-                        help='Task type: toxic or inconsistent (single file mode)')
+    parser.add_argument('--task', type=str, choices=['toxic', 'inconsistent', 'logical_deduction', 'tracking_shuffled_objects'], default=None,
+                        help='Task type: toxic or inconsistent or logical_deduction or tracking_shuffled_objects (single file mode)')
     parser.add_argument('--output_file', type=str, default=None,
                         help='Path to save detailed results (optional)')
     parser.add_argument('--results_dir', type=str, default=None,
                         help='Directory containing processed prediction files (batch mode)')
     parser.add_argument('--original_toxic_file', type=str,
                         default='new_module/data/locate/toxicspans/realtoxicityprompts_gpt2_gen_115_locate_labels.jsonl',
+                        help='Path to original toxic spans data file')
+    parser.add_argument('--original_toxic_extended_file', type=str,
+                        default='new_module/data/locate/toxicspans/realtoxicityprompts_gpt2_gen_extended_locate_labels.jsonl',
                         help='Path to original toxic spans data file')
     parser.add_argument('--original_inconsistent_file', type=str,
                         default='new_module/data/locate/inconsistentspans/nli_contra_300_locate_labels_final.jsonl',
@@ -458,6 +686,7 @@ def main():
     if args.results_dir:
         evaluate_all_results(
             args.results_dir,
+            args.original_toxic_extended_file,
             args.original_toxic_file,
             args.original_inconsistent_file,
             args.output_dir
