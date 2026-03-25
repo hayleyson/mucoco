@@ -1,14 +1,14 @@
 from typing import Union
 import numpy as np
 import pandas as pd
+import yaml, torch
+
+from new_module.set_consistency_energy.energynets.energynet import energynet
 
 def read_outputs(file_path):
     outputs = pd.read_json(file_path, lines=True)
     outputs = outputs.explode('generations',ignore_index=True)
-    # outputs['generations'] = outputs['generations'].apply(lambda x: [x])
     outputs['prompt']=outputs['prompt'].apply(lambda x: x['text'])
-    
-    # outputs['text']=outputs['generations'].apply(lambda x: x['text'])
     
     gen_keys = [set(x.keys()) for x in outputs['generations'].values]
     gen_key = set()
@@ -27,10 +27,25 @@ def ravel(unraveled_df):
     gen_keys = list(set(unraveled_df.columns) - {'prompt'})
         
     unraveled_df['generations']= unraveled_df.apply(lambda x: [{key: x[key] for key in gen_keys}],axis=1)
-    return_df = unraveled_df.groupby('prompt')['generations'].sum([]).reset_index()
-    return_df['prompt'] = return_df['prompt'].apply(lambda x: {'text':x})
-        
+    prompt_list = unraveled_df['prompt'].tolist()
+    return_df = []
+
+    for prompt in prompt_list:
+
+        generations_list = unraveled_df.loc[unraveled_df['prompt'] == prompt, 'generations'].tolist()
+        generations_list = sum(generations_list, [])
+        return_df.append({'prompt': {'text': prompt}, 
+                          'generations': generations_list})
+
+    return_df = pd.DataFrame.from_dict(return_df)
     return return_df
+
+def unravel(outputs_df):
+    outputs_df=outputs_df.explode('generations',ignore_index=True)
+    outputs_df['prompt']=outputs_df['prompt'].apply(lambda x: x['text'])
+    outputs_df['generations']=outputs_df['generations'].apply(lambda x: x['text'] if isinstance(x, dict) else x)
+    outputs_df = outputs_df.dropna().reset_index(drop=True)
+    return outputs_df
 
 def unravel_toxicity_data(df):
     df['toxicity']=df['allresponses'].apply(lambda x: [x[0]['attributeScores']['TOXICITY']['summaryScore']['value'] for x in list(x.values())])
@@ -46,11 +61,17 @@ def read_metric_file(result_file, metric) -> Union[np.array, pd.DataFrame]:
     
     elif metric == 'fluency':
         result=pd.read_csv(result_file,header=None)
+        
         if result.shape[1] == 2:
-            result[0] = result[0].apply(lambda x: 1 if x=='LABEL_1' else 0)
+            if 'LABEL_1' in result[0]:
+                fluent_label = 'LABEL_1'
+            else:
+                fluent_label = 1 # 2026/03/07: evaluation code has changed to save 1 for fluent and 0 for not fluent.
+            result[0] = result[0].apply(lambda x: 1 if x==fluent_label else 0)
             result.columns=['fluency_class','fluency_proba']
             return result
         else:
+            # 2026/03/07: this part of code is not affected by the evaluation code change mentioned above.
             result_class_only = result.loc[result[0].isin(['LABEL_0','LABEL_1'])].copy()
             if result.shape[0] == result_class_only.shape[0]*2:
                 ## if above is true, then first half of data is fluency class while second half is fluency proba
@@ -72,7 +93,11 @@ def read_metric_file(result_file, metric) -> Union[np.array, pd.DataFrame]:
     
     elif metric == 'sentiment_ext':
         result=pd.read_json(result_file,lines=True)
-        return result['label'].apply(lambda x: 1 if x == 'POSITIVE' else 0).values
+        if 'POSITIVE' in result[0]:
+            sentiment_label = 'POSITIVE'
+        else:
+            sentiment_label = 1 # 2026/03/07: evaluation code has changed to save 1 for posivie and 0 for not positive.
+        return result['label'].apply(lambda x: 1 if x == sentiment_label else 0).values
     
     elif metric == 'formality_ext':
         result = pd.read_csv(result_file,header=None)
@@ -110,3 +135,64 @@ def read_nli_result(file_path):
     data = [eval(x.strip()) for x in data]
     data = pd.DataFrame.from_dict(data)
     return data
+
+def precision_score_fn(gold_array, pred_array):
+    
+    pred = set(pred_array)
+    gold = set(gold_array)
+    tp = pred & gold
+
+    if (len(pred) == 0):
+        return 1
+    else:
+        return len(tp) / len(pred)
+
+def recall_score_fn(gold_array, pred_array):
+
+    pred = set(pred_array)
+    gold = set(gold_array)
+    tp = pred & gold
+
+    if len(gold) == 0:
+        return 1
+    else:
+        return len(tp) / len(gold)
+
+def f1_score_fn(gold_array, pred_array):
+
+    pred = set(pred_array)
+    gold = set(gold_array)
+    
+    tp = pred & gold
+    fp = pred - gold
+    fn = gold - pred
+    
+    if (len(tp) == 0) and (len(fn) == 0) and (len(fp) == 0):
+        return 1.0
+    else:
+        return (2 * len(tp)) / (2 * len(tp) + len(fp) + len(fn))
+
+
+        
+def load_sc_energy_model(config_path, device):
+    
+    model_config = yaml.load(open(config_path), 
+                                Loader=yaml.FullLoader)
+    model_config['device'] = device
+
+    energy_net = energynet(params=model_config)
+    energy_net.load_state_dict(torch.load(model_config["model_path"], 
+                                        map_location=model_config['device'],
+                                        weights_only=True)['state_dict'], strict=False)
+    if 'threshold' in torch.load(model_config["model_path"],
+                                map_location=model_config['device'],
+                                weights_only=True):
+        energy_net.threshold = torch.load(model_config["model_path"],
+                                map_location=model_config['device'],
+                                weights_only=True)['threshold']
+    energy_net.eval()
+    energy_net.to(device)
+    
+    return energy_net
+    
+    

@@ -1,4 +1,4 @@
-from evaluation.prompted_sampling.evaluate import load_sc_energy_model
+from new_module.dev_utils.utils import load_sc_energy_model
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.dev_utils.utils import read_outputs
 import yaml 
