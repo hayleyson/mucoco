@@ -71,6 +71,8 @@ def params_add(args, mode = 'train'):
     with open(config_file, 'r') as f:
         params = yaml.load(f, Loader = yaml.FullLoader)    
 
+    print(f"params: {params}")
+
     # Add the arguments you added at the terminal into the configuration variable.
     replace_args = ('loss_type', 
     'loss_fully_separate', 
@@ -82,22 +84,26 @@ def params_add(args, mode = 'train'):
     'repre_model', 'decomposition')
     for r in replace_args:
         if getattr(args, r) != None:
+            print(f'Replacing {r} with {getattr(args, r)}')
             params['energynet'][r] = getattr(args, r)  
 
     replace_args = ('task', 'dataset', 'config', 'scratch', 'time_key', 'pairwise', 'extra_for_eval', 
                     'job_id', 'finetune_job_id')
     for r in replace_args:
         if getattr(args, r) != None:
+            print(f'Replacing {r} with {getattr(args, r)}')
             params[r] = getattr(args, r)   
 
     replace_args = ('type', 'model', 'shot_num', 'prediction_type')
     for r in replace_args:
         if getattr(args, r) != None:
+            print(f'Replacing {r} with {getattr(args, r)}')
             params['baseline'][r] = getattr(args, r) 
 
     replace_args = ('locate_type', 'agg_method', 'select_method', 'attentions_num_layer')
     for r in replace_args:
         if getattr(args, r) != None:
+            print(f'Replacing {r} with {getattr(args, r)}')
             if r == 'locate_type':
                 params['locate']['type'] = getattr(args, r)    
             else:
@@ -118,6 +124,7 @@ def params_add(args, mode = 'train'):
     replace_args = ('stepwise_dataset_train_num', 'stepwise_dataset_eval_num','stepwise_dataset_eval2_num','stepwise_dataset_test_num',)
     for r in replace_args:
         if getattr(args, r) != None:
+            print(f'Replacing {r} with {getattr(args, r)}')
             if params['dataset'] not in params:
                 params[params['dataset']] = {}
             params[params['dataset']][r] = getattr(args, r)

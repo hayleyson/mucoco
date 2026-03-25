@@ -28,3 +28,9 @@ locate:
     attentions_num_layer: 7
     select_method: recursive_max
     type: attention
+baseline:
+  type: llm
+  model: gpt-4o
+  shot_num: 5
+  prediction_type: all_in_one
+  locate_type: all_in_one
