@@ -13,9 +13,9 @@ from .losses.supervised import supervised
 
 from .decomposition.no_decomposition import no_decomposition
 
-from .representation_model.gte_qwen import gte_qwen
+# from .representation_model.gte_qwen import gte_qwen
 from .representation_model.roberta import roberta
-from .representation_model.longformer import longformer
+# from .representation_model.longformer import longformer
 
 class energynet(nn.Module):
     def __init__(self, params):
@@ -75,12 +75,8 @@ class energynet(nn.Module):
             self.energy_model = no_decomposition(self.params)
 
         # representation model.
-        if self.representation_model_type == 'longformer':
-            self.representation_model = longformer(self.params)
-        elif self.representation_model_type == 'roberta':
+        if self.representation_model_type == 'roberta':
             self.representation_model = roberta(self.params)
-        elif 'gte' in self.representation_model_type.lower():
-            self.representation_model = gte_qwen(self.params)
             
 
 

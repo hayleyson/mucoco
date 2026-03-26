@@ -195,7 +195,7 @@ def main():
                         sc_scores.extend([torch.nan] * len(text_input))
                         sc_preds.extend([torch.nan] * len(text_input))
                         continue
-                    output, _ = energynet.energy_model(text_input, pair_only=True)
+                    output = energynet.energy_model(text_input, pair_only=True)["predictions"]
                     
                     if hasattr(energynet, 'output_form'):
                         output_form = energynet.output_form

@@ -8,15 +8,13 @@ class roberta(nn.Module):
 
     def __init__(self, params):
         super(roberta, self).__init__()
-        if params['locate']['type'] == 'gradnorm':
-            self.RoBERTa = RobertaModel.from_pretrained('roberta-base', output_hidden_states=True)
-        elif params['locate']['type'] == 'attention':
-            self.RoBERTa = RobertaModel.from_pretrained('roberta-base', output_attentions=True)
-        else:
-            self.RoBERTa = RobertaModel.from_pretrained('roberta-base')
+        self.params = params
+        self.configure_output_flags()
+        self.RoBERTa = RobertaModel.from_pretrained('roberta-base', 
+                                                    output_hidden_states=self.output_hidden_states,
+                                                    output_attentions=self.output_attentions)
         self.tokenizer = RobertaTokenizerFast.from_pretrained("roberta-base")
         self.ReLU = nn.ReLU()
-        self.params = params
         self.output_form = self.params['energynet']['output_form']
         self.linear1 = None
         self.sigmoid = nn.Sigmoid()
@@ -66,17 +64,17 @@ class roberta(nn.Module):
             output = (self.sigmoid(output))
         elif self.output_form == '2dim_vec':
             output = output
-            
-        if self.params['locate']['type'] == 'gradnorm': 
-            hidden_states = output_all['hidden_states'] ## return hidden states of embedding layer
-            return output, hidden_states
         
-        elif self.params['locate']['type'] == 'attention': 
+
+        hidden_states, attentions = None, None
+        if self.output_hidden_states:
+            hidden_states = output_all['hidden_states'] ## return hidden states of embedding layer
+        if self.output_attentions:
             attentions = output_all['attentions'] 
-            return output, attentions
             
-        else:
-            return output
+        return {"predictions": output,
+                'hidden_states': hidden_states,
+                'attentions': attentions}
         
     def initialize(self, turn_off_LM_grad = False):
         
@@ -92,4 +90,15 @@ class roberta(nn.Module):
             self.linear1 = nn.Linear(768, 1) # Regard output as a compatibility score (a single real value)
         elif self.output_form == '2dim_vec':
             self.linear1 = nn.Linear(768, 2) # Regard output as a classification result = (consistent, in_consistent)
+    
+    def configure_output_flags(self):
+        # Initialize defaults
+        self.output_hidden_states = False
+        self.output_attentions = False
         
+        # Enable based on localization type
+        locate_config = self.params['locate']
+        if 'gradnorm' in [locate_config['instance']['type'], locate_config['span']['type']]:
+            self.output_hidden_states = True
+        if 'attention' in [locate_config['instance']['type'], locate_config['span']['type']]:
+            self.output_attentions = True

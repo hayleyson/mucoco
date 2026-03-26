@@ -397,33 +397,45 @@ class LocateMachine4SCE:
                     word_indices.append(index)    
         return list(set(word_indices))
     
-    def _calculate_token_scores(self, outputs: torch.Tensor, additional_tensor: torch.Tensor) -> torch.Tensor:
-        if self.params['locate']['type'] == 'gradnorm':
-            return self._calculate_token_scores_by_gradnorm(outputs, additional_tensor)
-        elif self.params['locate']['type'] == 'attention':
-            return self._calculate_token_scores_by_attention(outputs, additional_tensor)
-        else:
-            raise ValueError(f"Invalid locate method: {self.params['locate']['type']}")
+    def _calculate_token_scores(self, outputs: dict) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        token_scores_for_inst_loc = None
+        token_scores_for_span_loc = None
+
+        # This function should be called only once.
+        gradient_norm_scores = self._calculate_token_scores_by_gradnorm(outputs)
+        if self.params['locate']['instance']['type'] == 'gradnorm':
+            token_scores_for_inst_loc = gradient_norm_scores
+        elif self.params['locate']['instance']['type'] == 'attention':
+            token_scores_for_inst_loc = self._calculate_token_scores_by_attention(outputs, self.params['locate']['instance']['attentions_num_layer'])
+        
+        if self.params['locate']['span']['type'] == 'gradnorm':
+            token_scores_for_span_loc = gradient_norm_scores
+        elif self.params['locate']['span']['type'] == 'attention':
+            token_scores_for_span_loc = self._calculate_token_scores_by_attention(outputs, self.params['locate']['span']['attentions_num_layer'])
+
+        return token_scores_for_inst_loc, token_scores_for_span_loc
     
-    def _calculate_token_scores_by_gradnorm(self, outputs: torch.Tensor, additional_tensor: torch.Tensor) -> torch.Tensor:
+    def _calculate_token_scores_by_gradnorm(self, outputs: dict) -> torch.Tensor:
 
         """
         Inputs
-        @outputs: main outputs (energy score or 2-dim vector of logits) returned by an energy model
-        @additional_tensor: hidden_states returned by an energy model
+        @outputs: output dictionary returned by an energy model with keys ['predictions', 'hidden_states', 'attentions']
         
         Returns
         @token_scores: gradient norm calculated for each token in the sequence. Shape: (batch_size, sequence_length)
         """
-        
+        if not outputs['hidden_states']:
+            return None
+
         # calculate gradient norm
-        additional_tensor = additional_tensor[0] # take embedding layer
+        additional_tensor = outputs['hidden_states'][0] # take embedding layer
         additional_tensor.retain_grad()
         if self.energynet.output_form == 'real_num':
-            e_val = outputs 
+            e_val = outputs["predictions"] 
             e_val.sum().backward()
         elif self.energynet.output_form == '2dim_vec':
-            probs_for_incon = self.softmax(outputs)[:, 1]
+            probs_for_incon = self.softmax(outputs["predictions"])[:, 1]
             probs_for_incon.backward()
         
         # additional_tensor.grad dimension: (batch_size, seq_len, hidden_size) 
@@ -438,19 +450,21 @@ class LocateMachine4SCE:
         
         return token_scores
     
-    def _calculate_token_scores_by_attention(self, outputs: torch.Tensor, additional_tensor: torch.Tensor) -> torch.Tensor:
+    def _calculate_token_scores_by_attention(self, outputs: dict, attentions_num_layer: int) -> torch.Tensor:
         """
         Inputs
-        @outputs: main outputs (energy score or 2-dim vector of logits) returned by an energy model
-        @additional_tensor: attention scores () returned by an energy model
+        @outputs: output dictionary returned by an energy model with keys ['predictions', 'hidden_states', 'attentions']
+        @attentions_num_layer: layer number of attention scores to use
         
         Returns
         @token_scores: attention-based scores calculated for each token in the sequence. Shape: (batch_size, sequence_length)
         """
-        
-        attentions = additional_tensor[self.params['locate']['attentions_num_layer']]
-        attentions = attentions[:, 0] # attention weights between cls token (query) and all tokens (key)
-        attentions = attentions.max(-1)[0] # max attention weight between cls token (query) and all tokens (key) calculated across multi-heads 
+        if not outputs['attentions']:
+            return None
+
+        attentions = outputs['attentions'][attentions_num_layer]
+        attentions = attentions.max(1)[0] # max attention weight between query tokens and key tokens calculated across multi-heads 
+        attentions = attentions[:, 0] # select attention weights of cls token as a query
         token_scores = attentions
         
         return token_scores
@@ -498,7 +512,7 @@ class LocateMachine4SCE:
         # calculate instance-level score
         instance_scores = []
 
-        if self.params['locate']['agg_method'] == 'max':
+        if self.params['locate']['instance']['agg_method'] == 'max':
             # calculate max token score within each instance 
             for b in range(batch_size):
                 instance_scores.append([
@@ -506,7 +520,7 @@ class LocateMachine4SCE:
                     for start, end in instance_locations[b]
                 ])
         
-        elif self.params['locate']['agg_method'] == 'avg':
+        elif self.params['locate']['instance']['agg_method'] == 'avg':
             # calculate average of token scores within each instance
             # for denominator, only consider nonzero values (=exclude stopwords)
             for b in range(batch_size):
@@ -520,7 +534,7 @@ class LocateMachine4SCE:
                         batch_scores.append(0.0)
                 instance_scores.append(batch_scores)
        
-        elif self.params['locate']['agg_method'] == 'median':
+        elif self.params['locate']['instance']['agg_method'] == 'median':
             # calculate median of token scores within each instance
             for b in range(batch_size):
                 instance_scores.append([
@@ -530,7 +544,7 @@ class LocateMachine4SCE:
 
 
         # choose instances to detect
-        if self.params['locate']['select_method'] in ['max', 'recursive_max']:
+        if self.params['locate']['instance']['select_method'] in ['max', 'recursive_max']:
             thresholds = []
             prediction_list = []
             for b in range(batch_size):
@@ -653,9 +667,9 @@ class LocateMachine4SCE:
         # logger.debug(f"[new_locate_utils] prediction before adding cls token: {prediction}")
         prediction = [self.tokenizer.cls_token + " " + p.lstrip(self.tokenizer.cls_token).lstrip(" ") for p in prediction]
         # logger.debug(f"[new_locate_utils] prediction after adding cls token: {prediction}")
-        outputs, hidden_states_or_attentions = self.energynet.energy_model(prediction, pair_only = True)
+        outputs = self.energynet.energy_model(prediction, pair_only = True)
         # Calculate token scores
-        token_scores = self._calculate_token_scores(outputs, hidden_states_or_attentions)
+        token_scores_for_inst_loc, token_scores_for_span_loc = self._calculate_token_scores(outputs)
         
         # set additional information
         inputs = self._instance_preserving_encode_plus(prediction)
@@ -672,10 +686,8 @@ class LocateMachine4SCE:
         prediction_list = []
         masked_sequence_text = []
         
-        # Apply attention and stopwords mask. Then take softmax
+        # Define a union of attention and stopwords mask 
         final_mask = (mask == 0) | torch.isin(input_tensor, self.stopwords_ids)
-        token_scores[final_mask] = -float("inf")
-        token_scores = token_scores.softmax(dim=-1)
         
         # Filter out degenerate instances (those with only masked tokens)
         # This prevents division by zero errors in instance scoring
@@ -696,31 +708,36 @@ class LocateMachine4SCE:
         # Update instance_locations to use only valid instances
         instance_locations = filtered_instance_locations
         
+        # Apply attention and stopwords mask. Then take softmax
+        token_scores_for_inst_loc[final_mask] = -float("inf")
+        token_scores_for_inst_loc = token_scores_for_inst_loc.softmax(dim=-1)
+
         # First locate at instance-level
-        prediction_list = self._locate_instance(token_scores, instance_locations, batch_size)
+        prediction_list = self._locate_instance(token_scores_for_inst_loc, instance_locations, batch_size)
         prediction_list_adjusted = [[filtered_instance_indexes[_idx] for _idx in prediction_list[0]]]
         
         if mode == "span":
             # Mask tokens that are not in located instances
-            instance_mask = torch.zeros_like(token_scores, dtype=torch.bool)
+            instance_mask = torch.zeros_like(token_scores_for_span_loc, dtype=torch.bool)
             for b in range(batch_size):
                 for instance_idx in prediction_list[b]:
                     instance_mask[b][instance_locations[b][instance_idx][0]:instance_locations[b][instance_idx][1]] = True
             instance_mask = ~instance_mask
-            token_scores[instance_mask] = -float("inf")
-            token_scores = token_scores.softmax(dim=-1)
+            token_scores_for_span_loc[final_mask | instance_mask] = -float("inf")
+            token_scores_for_span_loc = token_scores_for_span_loc.softmax(dim=-1)
             
             length_mask = (mask == 1) & ~instance_mask
             lengths = length_mask.sum(dim=-1)
             
             # Then locate & mask tokens within identified instances
-            masked_sequence_text = self._locate_tokens(prediction, token_scores, input_tensor, final_mask, lengths, max_num_tokens, unit, kwargs)
+            masked_sequence_text = self._locate_tokens(prediction, token_scores_for_span_loc, input_tensor, final_mask, lengths, max_num_tokens, unit, kwargs)
             
             # logger.debug(f"masked_sequence_text before stripping cls token: {masked_sequence_text}")
             masked_sequence_text = [m[len(self.tokenizer.cls_token):].lstrip(" ") for m in masked_sequence_text]
             # logger.debug(f"masked_sequence_text after stripping cls token: {masked_sequence_text}")
             
             return masked_sequence_text, prediction_list_adjusted
+        
         elif mode == "instance":
             # Create text with the located instance removed
             predicted_instance_start, predicted_instance_end = instance_locations[0][prediction_list[0][0]]
@@ -741,7 +758,8 @@ class LocateMachine4SCE:
         with torch.no_grad():
             # set consistency verification
             batch_text = ['<s> ' + text]
-            output, _ = self.energynet.energy_model(batch_text, pair_only = True)
+            outputs = self.energynet.energy_model(batch_text, pair_only = True)
+            output = outputs["predictions"]
             
             if (self.energynet.output_form == 'real_num'):
                 probs = output.reshape(-1)

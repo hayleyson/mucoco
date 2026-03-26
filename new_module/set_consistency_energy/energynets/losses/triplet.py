@@ -31,8 +31,8 @@ class triplet(nn.Module):
                 Outer list length = batch_size
                 Inner list: indices of inconsistent pairs
         """
-        e_pos, hidden_states = self.decomposition(pos_pair) # get the energy value for true pair
-        e_neg, hidden_states = self.decomposition(neg_pair) # get the energy value for false pair
+        e_pos = self.decomposition(pos_pair)["predictions"] # get the energy value for true pair
+        e_neg = self.decomposition(neg_pair)["predictions"] # get the energy value for false pair
 
         if e_pos.shape != e_neg.shape:
             loss = self.ReLU(e_pos[:1] - e_neg[:1] + self.margin)

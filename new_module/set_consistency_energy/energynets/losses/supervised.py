@@ -18,7 +18,7 @@ class supervised(nn.Module):
         side = 0(consistent pair), 1(negative pair), or list (each element represents the gold)
         """
 
-        output_vec, _ = self.decomposition(pair, pair_only) # shape: (bat_size, 2)
+        output_vec = self.decomposition(pair, pair_only)["predictions"] # shape: (bat_size, 2)
         
         probs = self.softmax1(output_vec)
 

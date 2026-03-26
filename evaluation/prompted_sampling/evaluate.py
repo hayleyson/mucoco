@@ -1029,7 +1029,7 @@ def set_consistency_score(generations_df, output_file, device,
         with torch.no_grad():
              # set consistency verification
             batch_text = batch['text']
-            output, _ = model.energy_model(batch_text, pair_only = True)
+            output = model.energy_model(batch_text, pair_only = True)["predictions"]
             
             if (model.output_form == 'real_num'):
                 probs = output.reshape(-1)
@@ -1110,7 +1110,11 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
         
         parsed_qa_pairs = []
         for qa in qa_pairs:
-            question, answer = qa.split(qa_separator)
+            try:
+                question, answer = qa.split(qa_separator)
+            except ValueError:
+                logger.info(f"Failed to parse question-answer pair: {qa}")
+                raise
             question = question.strip()[len(question_prefix):].strip()
             answer = answer.strip()[len(answer_prefix):].strip()
             if not question.endswith('?'):
@@ -1132,6 +1136,7 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
 
         test_dataset = []
         for _text in raw_texts:
+            logger.info(f"_text: {_text}")
             parsed_qa_pairs = parse_question_answer(_text, pair_separator, qa_separator, question_prefix, answer_prefix)
             test_dataset.append(parsed_qa_pairs)
         test_dataset = l_convqa_fine_grained_dataset(test_dataset)

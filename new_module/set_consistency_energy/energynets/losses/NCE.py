@@ -21,8 +21,8 @@ class NCE(nn.Module):
                 Inner list: indices of inconsistent pairs
         """
         loss = 0
-        e_pos, hidden_states = self.decomposition(pos_pair) # get the energy value for true pair
-        e_neg, hidden_states = self.decomposition(neg_pair) # get the energy value for false pair
+        e_pos = self.decomposition(pos_pair)["predictions"] # get the energy value for true pair
+        e_neg = self.decomposition(neg_pair)["predictions"] # get the energy value for false pair
         e_pos_exp_minus = torch.exp(-e_pos)
         e_neg_exp_minus = torch.exp(-e_neg)
 
@@ -55,6 +55,6 @@ class NCE(nn.Module):
         input_matrix: list of list of str, shape: (batch_size, batch_size)
         """
 
-        e_mat = [self.decomposition(m)[0] for m in input_matrix]
+        e_mat = [self.decomposition(m)["predictions"] for m in input_matrix]
 
         return torch.stack(e_mat, dim = 0)

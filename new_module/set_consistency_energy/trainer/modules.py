@@ -1126,7 +1126,7 @@ def locate_energy(locate_net, dataloader, device = 'cpu', params = None):
                     # print(f"inputs after subtracting pred_list: {inputs}")
                     
                     # calculate E(set^(0) \ pred_list)
-                    output, _ = locate_net.locate_method.energynet.energy_model(inputs, pair_only = True)
+                    output = locate_net.locate_method.energynet.energy_model(inputs, pair_only = True)["predictions"]
                     if (locate_net.locate_method.energynet.output_form == 'real_num'):
                         e_val = float(output)
                     elif (locate_net.locate_method.energynet.output_form == '2dim_vec'):
@@ -1176,7 +1176,7 @@ def locate_energy(locate_net, dataloader, device = 'cpu', params = None):
                         # print(f"inputs: {inputs}")
 
                         # classify if the updated set is consistent
-                        output, _ = locate_net.locate_method.energynet.energy_model(inputs, pair_only = True)
+                        output = locate_net.locate_method.energynet.energy_model(inputs, pair_only = True)["predictions"]
                         if (locate_net.locate_method.energynet.output_form == 'real_num'):
                             e_val = float(output)
                         elif (locate_net.locate_method.energynet.output_form == '2dim_vec'):

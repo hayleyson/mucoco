@@ -35,7 +35,7 @@ class SCEnergy(BaseLoss):
         
         # set consistency verification
         prediction = [self.tokenizer.cls_token + " " + p for p in prediction]
-        output, _ = self.model.energy_model(prediction, pair_only = True)
+        output = self.model.energy_model(prediction, pair_only = True)['predictions']
         # print(f"output: {output}")
         
         if (self.model.output_form == 'real_num'):

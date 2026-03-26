@@ -296,8 +296,8 @@ class locate_by_attention(locate_by_token_scores):
         """
         
         attentions = additional_tensor[self.params['locate']['attentions_num_layer']]
+        attentions = attentions.max(1)[0] # max attention weight between cls token (query) and all tokens (key) calculated across multi-heads 
         attentions = attentions[:, 0] # attention weights between cls token (query) and all tokens (key)
-        attentions = attentions.max(-1)[0] # max attention weight between cls token (query) and all tokens (key) calculated across multi-heads 
         token_scores = attentions
         
         return token_scores

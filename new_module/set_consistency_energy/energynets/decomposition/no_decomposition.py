@@ -74,15 +74,8 @@ class no_decomposition(nn.Module):
         
         # print("inputs:", inputs)
         inputs = self.instance_preserving_encode_plus(inputs)
-        if self.params['locate']['type'] == 'gradnorm':
-            e_val, hidden_states = self.representation_model(inputs)
-            return e_val, hidden_states
-        elif self.params['locate']['type'] == 'attention':
-            e_val, attentions = self.representation_model(inputs)
-            return e_val, attentions
-        else:
-            e_val = self.representation_model(inputs)
-            return e_val, None
+        outputs = self.representation_model(inputs)
+        return outputs
 
     def set_representation_model(self, representation_model):
         self.representation_model = representation_model
