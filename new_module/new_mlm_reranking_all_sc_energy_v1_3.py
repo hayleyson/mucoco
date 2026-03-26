@@ -65,23 +65,21 @@ def main(config):
     ###########################################################
     
     # 1) MLM
-    mlm = AutoModelForMaskedLM.from_pretrained('roberta-base')
+    mlm = AutoModelForMaskedLM.from_pretrained(config["mlm_path"])
     mlm.eval()
     mlm.to(device)
-    mlm_tokenizer = AutoTokenizer.from_pretrained('roberta-base')
+    mlm_tokenizer = AutoTokenizer.from_pretrained(config["mlm_path"])
 
     # 2) Causal LM
-    # causal_lm = AutoModelForCausalLM.from_pretrained('Qwen/Qwen2.5-7B-Instruct')
-    causal_lm = AutoModelForCausalLM.from_pretrained('gpt2-large')
+    causal_lm = AutoModelForCausalLM.from_pretrained(config["causal_lm_path"])
     causal_lm.eval()
     causal_lm.half()
     causal_lm.to(device)
-    # causal_lm_tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen2.5-7B-Instruct')
-    causal_lm_tokenizer = AutoTokenizer.from_pretrained('gpt2-large')
+    causal_lm_tokenizer = AutoTokenizer.from_pretrained(config["causal_lm_path"])
     causal_lm_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
 
     # 3) Energy Net
-    model_config = yaml.load(open(config["params_path"]), 
+    model_config = yaml.load(open(config["ebm_params_path"]), 
                                 Loader=yaml.FullLoader)
     model_config['device'] = device
 
@@ -423,12 +421,13 @@ if __name__ == "__main__":
     parser.add_argument("--beam_size", type=int, default=5)
     parser.add_argument("--n_iter", type=int, default=4)
     parser.add_argument("--selection_criteria", type=str, choices=["weighted_sum", "allsat_primary"], default="allsat_primary",)
-    parser.add_argument("--locate_method", type=str, choices=["attention", "grad_norm"], default="attention")
     parser.add_argument("--slurm_job_id", type=str)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_entity", type=str)
-    parser.add_argument("--params_path", type=str, help="Path to model-specific YAML configuration")
+    parser.add_argument("--ebm_params_path", type=str, help="Path to model-specific YAML configuration")
+    parser.add_argument("--causal_lm_path", type=str, default="gpt2-large")
+    parser.add_argument("--mlm_path", type=str, default="roberta-base")
     parser.add_argument("--dont_skip_allsat", action="store_true", help="if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints",)
     parser.add_argument("--num_edit_tokens_per_step", type=int, default=2)
     parser.add_argument("--max_tokens_per_span", type=int, default=2)
