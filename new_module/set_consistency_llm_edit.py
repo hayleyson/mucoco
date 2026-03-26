@@ -265,7 +265,7 @@ Before finalizing, verify that the contradiction is resolved, only the allowed p
     def parse_response(self, response: str) -> list:
         
         # Parse the output text to extract the edited question-answer pairs.
-        if '</think>' not in response:
+        if ('<think>' in response) and ('</think>' not in response):
             # The response got truncated before the reasoning completed.
             # In this case, we cannot extract the edited pairs.
             return []
@@ -307,7 +307,6 @@ def main():
     parser = argparse.ArgumentParser('')
     parser.add_argument('model_id', type=str)
     parser.add_argument('--output_dir', type=str, default=None, required=True)
-    parser.add_argument('--config_path', type=str, default=None, required=True)
     parser.add_argument('--dataset_path', type=str, default=None)
     parser.add_argument('--reasoning_effort', type=str, default=None, choices=['none', 'low', 'medium', 'high'])
     parser.add_argument('--use_incon_samples', action='store_true')
@@ -399,7 +398,6 @@ def main():
         model = HFModel(args.model_id)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    energynet = load_sc_energy_model(args.config_path, device)
 
     located_indexes_dict = {}
     if args.mode == 'w_self_locate':
