@@ -30,7 +30,8 @@ from evaluation.prompted_sampling.evaluate import (
     sentiment_classify_gpt4o,
     contents_preservation_metrics,
     save_qualitative_results,
-    set_consistency_score
+    set_consistency_score,
+    set_consistency_score_gpt
 )
 
 ## logging-related
@@ -396,7 +397,16 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
         if run_path != "":
             run.summary.update({'avg_sc_score_clsf': avg_sc_score, 'consistent_proba_clsf': cons_prop})
         fp.write(f'avg_sc_score_clsf: {avg_sc_score}, consistent_proba_clsf: {cons_prop}\n')
+    
+    if "set-consistency-gpt" in metricset:
+        logger.debug("set-consistency-gpt")
         
+        device = 'cuda'
+        
+        cons_prop = 1 - set_consistency_score_gpt(generations_file_path, "gpt-5-mini", output_dir / (output_file+".sc_gpt"), dataset='lconvqa')
+        if run_path != "":
+            run.summary.update({'consistent_proba_gpt': cons_prop})
+        fp.write(f'consistent_proba_gpt: {cons_prop}\n')
     # if "avg-num-instances" in metricset:
     #     logger.debug("num-instances")
     #     avg_num_instances_value = avg_num_instances(generations_df, output_file, output_dir / (output_file+".num_instances"))

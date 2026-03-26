@@ -11,7 +11,7 @@ sys.path.append("new_module/set_consistency_energy")
 from baselines.LLM.lm_loader import lm_loader
 from baselines.baseline_model import baseline_model
 from energynets.decomposition.no_decomposition import no_decomposition_loader
-from tasks.dataset_loader import dataset_loader_fine_grained, transform_arbitrary_pairs_to_two_pairs, concat_arbitrary_pairs
+from tasks.dataset_loader import concat_arbitrary_pairs
 from trainer.modules import locate_baseline
 
 # =========================
@@ -368,7 +368,6 @@ def main():
     raw_response_list.to_json(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_locate_raw_response.jsonl'), lines=True, orient='records')
 
     # Also save metrics
-    metrics_list = []
     metrics = {k: v for k, v in results.items() if ('gold' not in k) and ('pred') not in k and ('raw_response') not in k}
     with open(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_locate_metrics.jsonl'), 'w') as f:
         json.dump(metrics, f, indent=4)
