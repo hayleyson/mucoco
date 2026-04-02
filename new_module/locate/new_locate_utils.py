@@ -648,7 +648,7 @@ class LocateMachine4SCE:
         """
         Locate a instance (a pair) within the input set (set of pairs). 
         
-        Suppose input text looks like '<s> q1 </s> a1 </s>, q1, ..., </s>'. 
+        Suppose input text looks like 'q1 </s> a1 </s>, q1, ..., </s>'. 
         The located instance can be anywhere in q1, a2, q2, a2, ...
 
         Args:
@@ -787,6 +787,124 @@ class LocateMachine4SCE:
             remaining_index_list = (remaining_index_list[:index] if index > 0 else []) + remaining_index_list[index+1:] 
         
         return sorted(predicted_indexes)
+
+    def locate_with_gt(self, prediction: List[str], gt_indices: List[int]) -> str:
+        """
+        Locates the pairs in the given text based on ground truth indices 
+        and masks the answer part which comes after "The answer is" and before period.
+        
+        Args:
+            text: input text, e.g., 'qa pair 1 . qa pair 2 . ...'
+            gt_indices: list of indexes of erroneous QA pairs
+            
+        Returns:
+            masked_text: text with specified answer parts masked
+        """
+        # logger.debug(f"prediction: {prediction}")
+        prediction = [self.tokenizer.cls_token + " " + p.lstrip(self.tokenizer.cls_token).lstrip(" ") for p in prediction]
+        # logger.debug(f"prediction: {prediction}")
+        instances = self._extract_instances(prediction[0])
+        # logger.debug(f"instances: {instances}")
+        mask_token = self.tokenizer.mask_token
+        
+        for idx in gt_indices:
+            if idx < len(instances):
+                instance = instances[idx]
+                if "The answer is" in instance:
+                    # The answer part is between "The answer is" and the period.
+                    # _extract_instances ensures each instance ends with self.sep_token ('.')
+                    parts = instance.split("The answer is")
+                    prefix = parts[0]
+                    
+                    # rest contains the answer and the period.
+                    # We assume "The answer is" occurs only once per instance.
+                    # We mask everything after "The answer is" until the period.
+                    instances[idx] = prefix + "The answer is" + mask_token + self.sep_token
+        # logger.debug(f"instances:{''.join(instances).lstrip(" ")}")
+        return ["".join(instances).lstrip(" ")]
+    
+    def locate_main_with_gt_span(self, prediction: List[str], max_num_tokens: int = 6, mode: str = "span", unit: str = "word",**kwargs) -> Tuple[List[str], List[List[int]]]:
+
+        """
+        Locate an instance (a pair) within the input set (set of pairs) using energy-based scores.
+        Then, use a fixed rule to identify the span to edit: mask the part after "The answer is" 
+        and before the period "." in the identified instance.
+
+        Args:
+        - prediction: list of strings, each string is a pair of (question, answer)
+        - max_num_tokens: maximum number of tokens to mask (ignored for fixed rule)
+        - mode: indicate whether to locate at instance level or span level, "instance" or "span" (ignored for fixed rule)
+        - unit: unit of masking, "word" or "token" (ignored for fixed rule)
+        - **kwargs: additional arguments
+
+        Returns:
+        - masked_sequence_text: list of strings, each string is the masked sequence
+        - prediction_list_adjusted: list of lists of integers, each list is the indexes of the located instance
+        """
+        
+        # logger.debug(f"[new_locate_utils] prediction before adding cls token: {prediction}")
+        prediction = [self.tokenizer.cls_token + " " + p.lstrip(self.tokenizer.cls_token).lstrip(" ") for p in prediction]
+        # logger.debug(f"[new_locate_utils] prediction after adding cls token: {prediction}")
+        outputs = self.energynet.energy_model(prediction, pair_only = True)
+        
+        # Calculate token scores (we only need the instance level scores)
+        token_scores_for_inst_loc, _ = self._calculate_token_scores(outputs)
+        
+        # set additional information
+        inputs = self._instance_preserving_encode_plus(prediction)
+        input_tensor = inputs['input_ids']
+        mask = inputs['attention_mask']
+        # logger.debug(f"input_tensor: {input_tensor}")
+        # logger.debug(f"mask: {mask}")
+        
+        _, instance_locations = self._detect_instance_start_end_indexes(prediction)       
+        batch_size = input_tensor.shape[0]
+        assert batch_size == 1 # this code assumes batch_size = 1
+            
+        # Define a union of attention and stopwords mask 
+        final_mask = (mask == 0) | torch.isin(input_tensor, self.stopwords_ids)
+        
+        # Filter out degenerate instances (those with only masked tokens)
+        # This prevents division by zero errors in instance scoring
+        filtered_instance_locations = []
+        filtered_instance_indexes = []
+        for b in range(batch_size):
+            valid_instances = []
+            for j, (start, end) in enumerate(instance_locations[b]):
+                # Check if instance has at least one non-masked token
+                instance_has_nonmasked = (~final_mask[b][start:end]).any().item()
+                if instance_has_nonmasked:
+                    valid_instances.append((start, end))
+                    filtered_instance_indexes.append(j)
+                else:
+                    logger.info(f"Filtering out degenerate instance at ({start}, {end}) with only masked tokens")
+            filtered_instance_locations.append(valid_instances)
+        
+        # Update instance_locations to use only valid instances
+        instance_locations = filtered_instance_locations
+        
+        # Apply attention and stopwords mask. Then take softmax
+        token_scores_for_inst_loc[final_mask] = -float("inf")
+        token_scores_for_inst_loc = token_scores_for_inst_loc.softmax(dim=-1)
+
+        # First locate at instance-level
+        prediction_list = self._locate_instance(token_scores_for_inst_loc, instance_locations, batch_size)
+        prediction_list_adjusted = [[filtered_instance_indexes[_idx] for _idx in prediction_list[0]]]
+        
+        instances = self._extract_instances(prediction[0])
+        mask_token = self.tokenizer.mask_token
+        
+        for idx in prediction_list_adjusted[0]:
+            if idx < len(instances):
+                instance = instances[idx]
+                if "The answer is" in instance:
+                    parts = instance.split("The answer is")
+                    prefix = parts[0]
+                    instances[idx] = prefix + "The answer is" + mask_token + self.sep_token
+
+        masked_sequence_text = ["".join(instances).lstrip(" ")]
+        
+        return masked_sequence_text, prediction_list_adjusted
 
     
     

@@ -21,7 +21,7 @@ import new_module.losses as lossbuilder
 from new_module.evaluation.evaluate_wandb import evaluate_main
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
-from new_module.new_decode_utils_v1_3 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
+from new_module.new_decode_utils_v1_3_2 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -98,11 +98,6 @@ def main(config):
 
     energy_net_tokenizer = energy_net.representation_model.tokenizer
     energy_net_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
-
-    # log locate method to wandb
-    if not config["debug"]:
-        wandb.config.update({"locate_type_inst": model_config["locate"]["instance"]["type"]})
-        wandb.config.update({"locate_type_span": model_config["locate"]["span"]["type"]})
 
     ###########################################################
     # Wrap models into loss functions
@@ -233,8 +228,10 @@ def main(config):
                 # Locate
                 ###########################################################
                 
-                masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                masked_text, prediction_list = locator.locate_main_with_gt_span(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
                 
+                logger.debug(f"masked_text: {masked_text}")
+
                 if _iter == 0:
                     located_instance_list = prediction_list
                 else:

@@ -99,11 +99,6 @@ def main(config):
     energy_net_tokenizer = energy_net.representation_model.tokenizer
     energy_net_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
 
-    # log locate method to wandb
-    if not config["debug"]:
-        wandb.config.update({"locate_type_inst": model_config["locate"]["instance"]["type"]})
-        wandb.config.update({"locate_type_span": model_config["locate"]["span"]["type"]})
-
     ###########################################################
     # Wrap models into loss functions
     ###########################################################
@@ -176,6 +171,7 @@ def main(config):
 
         source_text = data[i]['prompt']['text']
         AR_prediction_all = [data[i]['generations'][0]['text']]
+        gt_indices = [data[i]['generations'][0]['locate_labels']]
         
         curr_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
         logging_loss = torch.zeros((len(AR_prediction_all),len(config["losses"]))).to(config['device'])
@@ -223,25 +219,20 @@ def main(config):
             num_edited += edit_yn.sum().item()
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
             num_decoded_tokens += sum([len(x) for x in causal_lm_tokenizer(running_text).input_ids])       
-            located_instance_list = []
+            located_instance_list = gt_indices
         
-            for _iter in range(config['n_iter']):
+            for _iter, _idx in enumerate(gt_indices[0]):
                 
-                logger.debug(f"!!! {_iter}th iteration !!!")
+                logger.debug(f"!!! Editing {_idx}th instance !!!")
                 
                 ###########################################################
                 # Locate
                 ###########################################################
                 
-                masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                # masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                prediction_list = [[_idx]]
+                masked_text = locator.locate_with_gt(prediction=running_text, gt_indices = prediction_list[0])
                 
-                if _iter == 0:
-                    located_instance_list = prediction_list
-                else:
-                    for index, item in enumerate(located_instance_list):
-                        located_instance_list[index].extend(prediction_list[index])
-                
-
                 ###########################################################
                 # Edit
                 ###########################################################
@@ -328,12 +319,13 @@ def main(config):
                     best_losses[update] = new_best_logging_loss[update]
                     best_weighted_loss[update] = new_best_weighted_loss[update]
 
-                    es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
+                    ## turn off early stopping
+                    # es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1 
 
-                    if (config["early_stopping_patience"] != -1):
-                        edit_yn[es_patience_count > config['early_stopping_patience']] = False
-                    if edit_yn.sum() == 0:
-                        break
+                    # if (config["early_stopping_patience"] != -1):
+                    #     edit_yn[es_patience_count > config['early_stopping_patience']] = False
+                    # if edit_yn.sum() == 0:
+                    #     break
                     
                 
                     running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]

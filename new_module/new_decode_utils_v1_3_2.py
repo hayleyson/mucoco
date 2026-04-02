@@ -379,6 +379,7 @@ def get_beam_4sce(source_text:str,
             if lossid == 0: # for fluency, only consider current instance
                 data_loader = data_loader1
             else:
+                continue
                 data_loader = data_loader2
 
             lossvalues=[]
