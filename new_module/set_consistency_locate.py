@@ -4,7 +4,7 @@ from pathlib import Path
 from tqdm import tqdm
 import pandas as pd
 
-from new_module.dev_utils.utils import precision_score_fn, recall_score_fn, f1_score_fn, load_sc_energy_model
+from new_module.dev_utils.utils import precision_score_fn, recall_score_fn, f1_score_fn, load_sc_energy_model, _pkl_path, load_pickle_dataset
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 
 sys.path.append("new_module/set_consistency_energy")
@@ -14,25 +14,6 @@ from energynets.decomposition.no_decomposition import no_decomposition_loader
 from tasks.dataset_loader import concat_arbitrary_pairs
 from trainer.modules import locate_baseline
 
-# =========================
-# set_consistency_dataset 로더 유틸
-# =========================
-def _pkl_path(dataset_name: str, split: str, name: str) -> Path:
-    """
-    set_consistency_dataset/{dataset_name}/ 경로의 피클 파일 경로를 반환.
-    파일명 규칙: {dataset_name}_{split}_{NAME}_dataset.pickle
-      예) lconvqa_test_C_dataset.pickle, lconvqa_test_CI_dataset.pickle
-    name 인자는 "test_C", "test_CI" 등 split 접두사를 포함한 문자열을 기대.
-    """
-    base = Path("new_module/data/convqa")
-    fname = f"{dataset_name}_{split}_{name}_dataset.pickle"
-    return base / fname
-
-def load_pickle_dataset(dataset_name: str, split: str, name: str):
-    path = _pkl_path(dataset_name, split, name)
-    with open(path, "rb") as f:
-        ds = pickle.load(f)
-    return ds
 
 def locate_ebm(locate_machine, data_loader, device, params):
     total_accuracy = 0

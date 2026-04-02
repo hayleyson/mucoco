@@ -1,9 +1,12 @@
 from typing import Union
 import numpy as np
 import pandas as pd
-import yaml, torch
+import yaml, torch, pickle, sys
+from pathlib import Path
 
-from new_module.set_consistency_energy.energynets.energynet import energynet
+sys.path.append("new_module/set_consistency_energy")
+from energynets.energynet import energynet
+from tasks.dataset_loader import concat_arbitrary_pairs
 
 def read_outputs(file_path):
     outputs = pd.read_json(file_path, lines=True)
@@ -195,4 +198,50 @@ def load_sc_energy_model(config_path, device):
     
     return energy_net
     
+def _pkl_path(dataset_name: str, split: str, name: str) -> Path:
+    """
+    set_consistency_dataset/{dataset_name}/ 경로의 피클 파일 경로를 반환.
+    파일명 규칙: {dataset_name}_{split}_{NAME}_dataset.pickle
+      예) lconvqa_test_C_dataset.pickle, lconvqa_test_CI_dataset.pickle
+    name 인자는 "test_C", "test_CI" 등 split 접두사를 포함한 문자열을 기대.
+    """
+    base = Path("new_module/data/convqa")
+    fname = f"{dataset_name}_{split}_{name}_dataset.pickle"
+    return base / fname
+
+def load_pickle_dataset(dataset_name: str, split: str, name: str):
+    path = _pkl_path(dataset_name, split, name)
+    with open(path, "rb") as f:
+        ds = pickle.load(f)
+    return ds
+
+def load_eval2_dataset(dataset_name):
+    # 규칙에 따라 Eval2 데이터셋을 로딩한다.
+    eval2_con_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, "eval2", "C")
+    eval2_incon_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, "eval2", "I")
+    eval2_con_dataset_arbitrary_pairs.dataset = [t for t in eval2_con_dataset_arbitrary_pairs.dataset if len(t) >=4]
+    eval2_incon_dataset_arbitrary_pairs.dataset = [t for t in eval2_incon_dataset_arbitrary_pairs.dataset if len(t) >=4]
     
+    concat2_dataset, concat2_names, concat2_set_sizes = concat_arbitrary_pairs([eval2_con_dataset_arbitrary_pairs, eval2_incon_dataset_arbitrary_pairs], concat_num=2)
+    concat3_dataset, concat3_names, concat3_set_sizes = concat_arbitrary_pairs([eval2_con_dataset_arbitrary_pairs, eval2_incon_dataset_arbitrary_pairs], concat_num=3)
+    concat4_dataset, concat4_names, concat4_set_sizes = concat_arbitrary_pairs([eval2_con_dataset_arbitrary_pairs, eval2_incon_dataset_arbitrary_pairs], concat_num=4)
+
+    eval2_steps_names = ['con', 'incon'] + concat2_names+ concat3_names+ concat4_names
+    eval2_datasets = [eval2_con_dataset_arbitrary_pairs, eval2_incon_dataset_arbitrary_pairs
+            ] + concat2_dataset + concat3_dataset + concat4_dataset
+
+    # Classification accuracy와 별개로 locate accuracy만 보고 싶기 때문에, incon인 샘플만 취한다.
+    eval2_datasets = [eval2_datasets[i] for i in range(len(eval2_datasets)) if ('incon' in eval2_steps_names[i])]
+    eval2_steps_names = [eval2_steps_name for eval2_steps_name in eval2_steps_names if ('incon' in eval2_steps_name)]
+    print(f"Using samples from inconsistent datasets: {eval2_steps_names}")
+    
+    # 편의상 데이터셋을 하나로 합친다.
+    eval2_samples = []
+    for dataset in eval2_datasets:
+        eval2_samples.extend(dataset.dataset)
+    print(f"Num samples: {len(eval2_samples)}")
+    
+    canonical_eval2_dataset = eval2_datasets[0]
+    canonical_eval2_dataset.dataset = eval2_samples
+
+    return canonical_eval2_dataset
