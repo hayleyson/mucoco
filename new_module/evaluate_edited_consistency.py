@@ -158,7 +158,7 @@ def main():
         outputs = row['pred'] # list of list of [q, a, None]
         # temporary fix to get rid of "." at the end of answers
         new_outputs = []
-
+        
         for example in outputs:
             new_example = []
             broken = False
@@ -171,7 +171,7 @@ def main():
             if not broken:
                 new_outputs.append(new_example)
             else:
-                new_outputs.append([['', '', None]] * len(example))
+                new_outputs.append([])
         outputs = new_outputs
         
         print(f"Evaluating {data_name}...")
@@ -191,7 +191,7 @@ def main():
                 with torch.no_grad():
                     text_input = [b[0] for b in batch]
                     
-                    if text_input[0].split('.')[0] == '<s>  The answer is ': # logic to find out cases where parsing failed.
+                    if text_input[0].strip() == energynet.representation_model.tokenizer.cls_token: # logic to find out cases where parsing failed.
                         sc_scores.extend([torch.nan] * len(text_input))
                         sc_preds.extend([torch.nan] * len(text_input))
                         continue
@@ -233,7 +233,7 @@ def main():
             print(f"Running GPT evaluation for {data_name}...")
             for i, pairs in enumerate(lm_dataloader):
                 print(f"pairs: {pairs}")
-                if pairs[0][0][0] == 'question: , answer: .': # logic to find out cases where parsing failed.
+                if len(pairs[0][0]) == 0: # logic to find out cases where parsing failed.
                     print(f"Skipping evaluation for this example!!!")
                     preds.extend([torch.nan] * len(pairs))
                     continue

@@ -19,25 +19,35 @@ export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
 export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
---edit_result_path new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/set_lconvqa_gpt-5.4_none_w_ebm_locate_edit_result.jsonl \
+--edit_result_path outputs/sc_energy/set_lconvqa/llm/testset_incon_300/set_lconvqa_qwen3-8b_w_ebm_locate_edit_result.jsonl \
 --config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
---output_dir new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/ \
+--output_dir outputs/sc_energy/set_lconvqa/llm/testset_incon_300/ \
 --eval_model_id gpt-5-mini
 
-srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
---edit_result_path new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/set_lconvqa_gpt-5.4_none_w_gt_locate_edit_result.jsonl \
---config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
---output_dir new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/ \
---eval_model_id gpt-5-mini
+# srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
+# --edit_result_path outputs/sc_energy/set_lconvqa/llm/testset_incon_300/set_lconvqa_qwen3-8b_w_gt_locate_edit_result.jsonl \
+# --config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
+# --output_dir outputs/sc_energy/set_lconvqa/llm/testset_incon_300/ \
+# --eval_model_id gpt-5-mini
 
-srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
---edit_result_path new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/set_lconvqa_gpt-5.4_none_w_self_locate_edit_result.jsonl \
---config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
---output_dir new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/ \
---eval_model_id gpt-5-mini
+# srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
+# --edit_result_path outputs/sc_energy/set_lconvqa/llm/testset_incon_300/set_lconvqa_qwen3-8b_w_self_locate_edit_result.jsonl \
+# --config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
+# --output_dir outputs/sc_energy/set_lconvqa/llm/testset_incon_300/ \
+# --eval_model_id gpt-5-mini
 
-srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
---edit_result_path new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/set_lconvqa_gpt-5.4_none_wo_locate_edit_result.jsonl \
---config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
---output_dir new_module/_notebooks/20260309_UIUC_talk_outputs/testset_incon_300/ \
---eval_model_id gpt-5-mini
+# srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
+# --edit_result_path outputs/sc_energy/set_lconvqa/llm/testset_incon_300/set_lconvqa_qwen3-8b_wo_locate_edit_result.jsonl \
+# --config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
+# --output_dir outputs/sc_energy/set_lconvqa/llm/testset_incon_300/ \
+# --eval_model_id gpt-5-mini
+
+# srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
+# --edit_result_path outputs/sc_energy/set_lconvqa/llm/testset_incon_300/set_lconvqa_gpt-5.4_none_w_gt_locate_edit_result.jsonl \
+# --output_dir outputs/sc_energy/set_lconvqa/llm/testset_incon_300/ \
+# --eval_model_id gpt-5-mini
+
+# srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
+# --edit_result_path outputs/sc_energy/set_lconvqa/llm/testset_incon_300/set_lconvqa_gpt-5.4_none_w_gt_locate_edit_result.jsonl \
+# --output_dir outputs/sc_energy/set_lconvqa/llm/testset_incon_300/ \
+# --eval_model_id gpt-5-mini
