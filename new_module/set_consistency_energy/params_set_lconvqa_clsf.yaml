@@ -56,7 +56,11 @@ folder_path: results/vqa/lconvqa/1213354
 model_path: new_module/set_consistency_energy/results/vqa/lconvqa/lcon_set_sup_2-1213354/SetSup-roberta-no-supervised.pth
 threshold_path: results/vqa/lconvqa/1213354/thresholds.json
 locate:
-  type: gradnorm
-  attentions_num_layer: -1
-  agg_method: avg
-  select_method: recursive_max
+  instance:
+    type: gradnorm
+    attentions_num_layer: -1
+    agg_method: avg
+    select_method: recursive_max
+  span:
+    type: gradnorm
+    attentions_num_layer: -1

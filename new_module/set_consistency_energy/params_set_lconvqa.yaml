@@ -24,13 +24,17 @@ batch_size: 1
 eval:
     batch_size: 1
 locate:
-    agg_method: avg
-    attentions_num_layer: 7
-    select_method: recursive_max
-    type: attention
+    instance:
+        agg_method: avg
+        attentions_num_layer: 10
+        select_method: recursive_max
+        type: attention
+    span:
+        attentions_num_layer: -1
+        type: gradnorm
 baseline:
-  type: llm
-  model: gpt-4o
-  shot_num: 5
-  prediction_type: all_in_one
-  locate_type: all_in_one
+    type: llm
+    model: gpt-4o
+    shot_num: 5
+    prediction_type: all_in_one
+    locate_type: all_in_one
