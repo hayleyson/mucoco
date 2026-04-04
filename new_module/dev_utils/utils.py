@@ -28,20 +28,21 @@ def read_outputs(file_path):
 def ravel(unraveled_df):
 
     gen_keys = list(set(unraveled_df.columns) - {'prompt'})
+
+    # assumption: prompts would be all empty if the dataset is not a prompt-continuation dataset.
+    if all([x=="" for x in unraveled_df['prompt'].tolist()]):
         
-    unraveled_df['generations']= unraveled_df.apply(lambda x: [{key: x[key] for key in gen_keys}],axis=1)
-    prompt_list = unraveled_df['prompt'].tolist()
-    return_df = []
-
-    for prompt in prompt_list:
-
-        generations_list = unraveled_df.loc[unraveled_df['prompt'] == prompt, 'generations'].tolist()
-        generations_list = sum(generations_list, [])
-        return_df.append({'prompt': {'text': prompt}, 
-                          'generations': generations_list})
-
-    return_df = pd.DataFrame.from_dict(return_df)
-    return return_df
+        df_temp = unraveled_df.copy()
+        df_temp['generations'] = df_temp.apply(lambda x: [{k: x[k] for k in gen_keys}], axis=1)
+        df_temp['prompt'] = df_temp['prompt'].apply(lambda _: {"text": ""})
+        return df_temp[['prompt', 'generations']]
+    else:
+        df_temp = unraveled_df.copy()
+        df_temp['gen_dict'] = df_temp.apply(lambda x: {k: x[k] for k in gen_keys}, axis=1)
+        result = df_temp.groupby('prompt', sort=False)['gen_dict'].apply(list).reset_index()
+        result['prompt'] = result['prompt'].apply(lambda x: {'text': x})
+        result = result.rename(columns={'gen_dict': 'generations'})
+        return result[['prompt', 'generations']]
 
 def unravel(outputs_df):
     outputs_df=outputs_df.explode('generations',ignore_index=True)
