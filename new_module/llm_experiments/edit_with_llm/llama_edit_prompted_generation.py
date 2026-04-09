@@ -11,7 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from new_module.llm_experiments.prompts import get_prompt
-from new_module.evaluation.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 
 
 def unravel(outputs_df):
@@ -139,7 +139,7 @@ def generate_and_save_result(args):
     #     data_2 = ravel(data_1)
     #     data_2.to_json(args.file_save_path, orient='records', lines=True)
         
-    # evaluate_main(
+    # run_generation_evaluation(
     #     run.path,
     #     args.file_save_path,
     #     "toxicity,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",

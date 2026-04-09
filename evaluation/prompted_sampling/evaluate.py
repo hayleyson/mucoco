@@ -26,9 +26,8 @@ from new_module.set_consistency_energy.baselines.LLM.lm_loader import lm_loader
 from new_module.dev_utils.utils import unravel, unravel_toxicity_data, load_sc_energy_model
 
 
+logging.basicConfig(level=os.getenv('LOGGING_LEVEL', 'INFO'), format="%(message)s")
 logger = logging.getLogger(__name__)
-logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
-
 
 def conditional_perplexity(generations_df, model, tokenizer, device='cuda', write_file=None, include_trimmed_mean=False):
     perplexities = []
@@ -1072,6 +1071,7 @@ def avg_num_instances(generations_df, output_file, cls_token='<s>', sep_token='.
     return np.nanmean(num_instances)
 
 
+
 def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset='lconvqa', shot_num=5):
 
     params = dict(
@@ -1083,6 +1083,7 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
             model=model_name,
             shot_num=shot_num,
             prediction_type='all_in_one',
+            reasoning_effort='medium'
         ),
         device='cuda' if torch.cuda.is_available() else 'cpu',
         batch_size=1,
@@ -1100,26 +1101,24 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
 
 
     def parse_question_answer(text, 
-                            pair_separator='(\d{1,2})\s*', 
-                            qa_separator=',',
-                            question_prefix='question: ',
-                            answer_prefix='answer: '):
+                            answer_pattern='The answer is[^\\.]*\\.', 
+                            answer_prefix='The answer is'):
 
-        qa_pairs = re.split(pair_separator, text)
-        qa_pairs = [qa for qa in qa_pairs if qa.strip() != '']
+        answers = re.findall(answer_pattern, text)
+        answers = [a.replace(answer_prefix, '').strip().rstrip('.') for a in answers]
         
-        parsed_qa_pairs = []
-        for qa in qa_pairs:
-            try:
-                question, answer = qa.split(qa_separator)
-            except ValueError:
-                logger.info(f"Failed to parse question-answer pair: {qa}")
-                raise
-            question = question.strip()[len(question_prefix):].strip()
-            answer = answer.strip()[len(answer_prefix):].strip()
-            if not question.endswith('?'):
-                question += '?'
-            parsed_qa_pairs.append((question, answer, None))
+        questions = re.split(answer_pattern, text)[:-1] # last element is ''
+        if len(answers) != len(questions):
+            logger.error(f"================")
+            logger.error(f"The length of answers ({len(answers)}) and questions ({len(questions)}) are not equal.")
+            logger.error(f"answers: {answers}")
+            logger.error(f"questions: {questions}")
+            logger.error(f"================")
+            raise
+        questions = [q.strip() for q in questions][:len(answers)]
+        questions = [q + '?' if q.endswith('?') == False else q for q in questions]
+        
+        parsed_qa_pairs = [(q, a, None) for (q, a) in zip(questions, answers)]
         
         return parsed_qa_pairs
 
@@ -1128,42 +1127,42 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
         
         raw_data = pd.read_json(params['dataset_path'], lines=True)
         raw_texts = raw_data['generations'].apply(lambda x: x[0]['text']).tolist()
-        
-        pair_separator = '\\.'
-        qa_separator = '?'
-        question_prefix = ''
-        answer_prefix = 'The answer is'
-
+    
         test_dataset = []
         for _text in raw_texts:
-            logger.info(f"_text: {_text}")
-            parsed_qa_pairs = parse_question_answer(_text, pair_separator, qa_separator, question_prefix, answer_prefix)
+            # logger.info(f"_text: {_text}")
+            parsed_qa_pairs = parse_question_answer(_text)
+            # logger.info(f"parsed_qa_pairs: {parsed_qa_pairs}")
             test_dataset.append(parsed_qa_pairs)
+            
         test_dataset = l_convqa_fine_grained_dataset(test_dataset)
     
     elif params['dataset'] == 'set_nli':
         raise NotImplementedError
 
-    
     dataloader = lm_loader(test_dataset, params=params).get_loader()
     model = baseline_model(params, 'prediction')
-
-    results = {
-        'contradiction_probability': 0,
-        'raw_predictions': [],
-    }
     pred = [] # 0: consistent, 1: inconsistent
 
-    for i, pairs in enumerate(dataloader):
-        evaluate_result = model.predict(pairs)
+    f = open(output_file, 'w') if output_file != '' else None
+
+    for i, pairs in tqdm(enumerate(dataloader), total=len(dataloader)):
+        try:
+            evaluate_result = model.predict(pairs)
+        except Exception as e:
+            logger.warning(f"================")
+            logger.warning(f"Error in prediction for index {i}: {e}")
+            logger.warning(f"pairs: {pairs}")
+            logger.warning(f"================")
+            evaluate_result = {'pred': [torch.nan] * len(pairs)}
         pred.extend(evaluate_result['pred'])
+        if f is not None:
+            f.writelines([str(x)+'\n' for x in evaluate_result['pred']])
+            f.flush()
 
-    results['contradiction_probability'] = sum(pred) / len(pred)
-    results['raw_predictions'] = pred
-
-    # write set consistency score and class to output file
-    if output_file != '':
-        with open(output_file, 'w') as f:
-            f.writelines([str(x)+'\n' for x in results['raw_predictions']])
-
-    return results['contradiction_probability']
+    if f is not None:
+        f.close()
+    
+    contradiction_rate = sum(pred) / len(pred)
+    
+    return contradiction_rate   

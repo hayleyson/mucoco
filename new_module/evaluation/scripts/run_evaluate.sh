@@ -16,4 +16,4 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
 export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
-srun python new_module/evaluation/evaluate_wandb_post_run_file_based.py
+srun -n 1 -c 1 python new_module/evaluation/scripts/run_evaluate.py

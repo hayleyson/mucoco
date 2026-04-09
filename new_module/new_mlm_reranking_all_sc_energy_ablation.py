@@ -18,7 +18,7 @@ from transformers import AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokeniz
 import wandb
 
 import new_module.losses as lossbuilder
-from new_module.evaluation.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
 from new_module.new_decode_utils_sc_energy_ablation import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
@@ -250,8 +250,10 @@ def main(config):
                 ###########################################################
                 # Locate
                 ###########################################################
-                
-                masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                if model_config["locate"]["span"]["type"] == "ground_truth":
+                    masked_text, prediction_list = locator.locate_main_with_gt_span(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                else:
+                    masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
                 
                 if _iter == 0:
                     located_instance_list = prediction_list
@@ -424,7 +426,7 @@ def main(config):
         logger.info(f"nun_decoded_tokens: {num_decoded_tokens}")
         logger.info(f"toks_p_sec: {num_decoded_tokens/decode_time}")
     
-    evaluate_main(
+    run_generation_evaluation(
             "",
             outfile,
             "set-consistency,set-consistency-clsf,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
@@ -469,7 +471,7 @@ if __name__ == "__main__":
             'device': device,
             'target_label_ids': [1, 1],
             'consider_prompt_for_cand_gen': False,
-            'output_dir_prefix': f'outputs/sc_energy/{task}/',
+            'output_dir_prefix': f'outputs/sc_energy/{task}/ebm/',
             })
 
     ###########################################################

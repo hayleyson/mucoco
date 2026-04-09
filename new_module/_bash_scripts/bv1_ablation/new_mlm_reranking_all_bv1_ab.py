@@ -25,7 +25,7 @@ import wandb
 #     combi_rerank,
 # )
 from new_module.new_decode_utils_bv1_ab import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking_bv1_ab
-from new_module.evaluation.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
@@ -469,7 +469,7 @@ def main(config):
     if (not interrupted):
         if config["task"] == "toxicity":
             # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
-            evaluate_main(
+            run_generation_evaluation(
                 run.path,
                 outfile,
                 "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
@@ -479,7 +479,7 @@ def main(config):
                 source_file_path=config["source_data"]
             )  # 시간 문제로, perspective api 제외
         elif config["task"] == "formality":
-            evaluate_main(
+            run_generation_evaluation(
                 run.path,
                 outfile,
                 "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
@@ -488,7 +488,7 @@ def main(config):
                 source_file_path=config["source_data"]
             )
         elif config["task"] == "sentiment":
-            evaluate_main(
+            run_generation_evaluation(
                 run.path,
                 outfile,
                 "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
@@ -497,7 +497,7 @@ def main(config):
                 source_file_path=config["source_data"]
             )
         elif config["task"] == "sentiment-lewis-compr":
-            evaluate_main(
+            run_generation_evaluation(
                 run.path,
                 outfile,
                 "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",

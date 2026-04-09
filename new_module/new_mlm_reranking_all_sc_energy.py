@@ -18,10 +18,10 @@ from transformers import AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokeniz
 import wandb
 
 import new_module.losses as lossbuilder
-from new_module.evaluation.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
-from new_module.new_decode_utils import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
+from new_module.new_decode_utils import analyze_span_lengths_and_count, editing_4sce
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -65,40 +65,23 @@ def main(config):
     ###########################################################
     
     # 1) MLM
-    mlm = AutoModelForMaskedLM.from_pretrained('roberta-base')
+    mlm = AutoModelForMaskedLM.from_pretrained(config["mlm_path"])
     mlm.eval()
     mlm.to(device)
-    mlm_tokenizer = AutoTokenizer.from_pretrained('roberta-base')
+    mlm_tokenizer = AutoTokenizer.from_pretrained(config["mlm_path"])
 
     # 2) Causal LM
-    # causal_lm = AutoModelForCausalLM.from_pretrained('Qwen/Qwen2.5-7B-Instruct')
-    causal_lm = AutoModelForCausalLM.from_pretrained('gpt2-large')
+    causal_lm = AutoModelForCausalLM.from_pretrained(config["causal_lm_path"])
     causal_lm.eval()
     causal_lm.half()
     causal_lm.to(device)
-    # causal_lm_tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen2.5-7B-Instruct')
-    causal_lm_tokenizer = AutoTokenizer.from_pretrained('gpt2-large')
+    causal_lm_tokenizer = AutoTokenizer.from_pretrained(config["causal_lm_path"])
     causal_lm_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
 
     # 3) Energy Net
-
-    model_config = yaml.load(open('new_module/set_consistency_energy/params.yaml'), 
+    model_config = yaml.load(open(config["ebm_params_path"]), 
                                 Loader=yaml.FullLoader)
-    if task == 'nli':
-        
-        model_config['dataset'] = 'set_nli'
-        model_config['task'] = 'nli'
-        model_config['folder_path'] = 'new_module/set_consistency_energy/results/nli/set_nli/46853'
-        model_config['model_path'] = os.path.join(model_config['folder_path'], 'SetCon-roberta-no-triplet-False-fg_tot.pth')
-        model_config['time_key'] = '46853'
-
-    elif task == 'vqa':    
-        pass # params already set for vqa 
-
-    if config['locate_method'] == 'attention':
-        model_config['locate']['type'] = 'attention'
-    elif config['locate_method'] == 'grad_norm':
-        model_config['locate']['type'] = 'gradnorm'
+    model_config['device'] = device
 
     energy_net = energynet(params=model_config)
     energy_net.load_state_dict(torch.load(model_config["model_path"], 
@@ -116,6 +99,10 @@ def main(config):
     energy_net_tokenizer = energy_net.representation_model.tokenizer
     energy_net_tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
 
+    # log locate method to wandb
+    if not config["debug"]:
+        wandb.log({"locate_type_inst": model_config["locate"]["instance"]["type"]})
+        wandb.log({"locate_type_span": model_config["locate"]["span"]["type"]})
 
     ###########################################################
     # Wrap models into loss functions
@@ -150,6 +137,13 @@ def main(config):
             )
         )
 
+    ###########################################################
+    # Set up min_epsilons
+    ###########################################################
+
+    # if min_epsilon is -1, set it to the threshold of energy net (default: -1)
+    if config['min_epsilons'][0] == -1:
+        config['min_epsilons'][0] = lossfns[1].model.threshold
 
     ###########################################################
     # Set up LocateMachine4SCE
@@ -163,6 +157,7 @@ def main(config):
 
     with open(config['source_data_path'], 'r') as f:
         data = [json.loads(line.rstrip()) for line in f]
+
         
         
     ###########################################################
@@ -196,8 +191,8 @@ def main(config):
             curr_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
-
-        allsat = logging_loss[:,1] <= lossfns[1].model.threshold
+        
+        allsat = logging_loss[:,1] <= config['min_epsilons'][0]
         allsat_ix = allsat.nonzero().squeeze(0)
         if (not config["dont_skip_allsat"]):
             edit_yn[allsat_ix] = False
@@ -228,7 +223,7 @@ def main(config):
             num_edited += edit_yn.sum().item()
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
             num_decoded_tokens += sum([len(x) for x in causal_lm_tokenizer(running_text).input_ids])       
-                    
+            located_instance_list = []
         
             for _iter in range(config['n_iter']):
                 
@@ -237,9 +232,18 @@ def main(config):
                 ###########################################################
                 # Locate
                 ###########################################################
+                if model_config["locate"]["span"]["type"] == "ground_truth": # default: ground_truth
+                    masked_text, prediction_list = locator.locate_main_with_gt_span(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                else:
+                    masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
                 
-                masked_text = locator.locate_main(running_text, max_num_tokens=7, unit='word')
+                if _iter == 0:
+                    located_instance_list = prediction_list
+                else:
+                    for index, item in enumerate(located_instance_list):
+                        located_instance_list[index].extend(prediction_list[index])
                 
+
                 ###########################################################
                 # Edit
                 ###########################################################
@@ -263,11 +267,12 @@ def main(config):
                                     running_text[0], 
                                     masked_text[0], 
                                     span_lengths,
+                                    prediction_list[0][0],
                                     mlm, 
                                     mlm_tokenizer, 
                                     lossfns, 
                                     config, 
-                                    batch_size=32, 
+                                    batch_size=32,
                                     post_context_mode="original")
                                 
                     final_hypotheses_.extend(final_hypotheses_curr)
@@ -315,7 +320,8 @@ def main(config):
                         int_output[edit_ixes[sample_ix]].update({f"iter{_iter}_original_sentence": running_text[sample_ix],
                                                                 f"iter{_iter}_masked_sentence": masked_text[sample_ix],
                                                                 f"iter{_iter}_best_text": final_hypotheses[edit_ixes[sample_ix]],
-                                                                f"iter{_iter}_update": update[edit_ixes[sample_ix]].item()})    
+                                                                f"iter{_iter}_update": update[edit_ixes[sample_ix]].item(),
+                                                                f"iter{_iter}_located_instance": prediction_list[edit_ixes[sample_ix]][0]})    
                     
                     # update running_text, best_text, best_allsat, best_losses, best_weighted_loss
                     for update_index in update.nonzero().squeeze(-1).tolist():
@@ -357,6 +363,7 @@ def main(config):
                     "losses": best_losses[i,:].tolist(),
                     "weighted_loss": best_weighted_loss[i].item(),
                     "edited": edited_at_all_yn[i].tolist(),
+                    "located_instances": located_instance_list[i],
                 } for i in range(len(AR_prediction_all))
             ],
         }
@@ -398,10 +405,10 @@ def main(config):
         logger.info(f"nun_decoded_tokens: {num_decoded_tokens}")
         logger.info(f"toks_p_sec: {num_decoded_tokens/decode_time}")
     
-    evaluate_main(
-            run.path,
+    run_generation_evaluation(
+            "",
             outfile,
-            "set-consistency,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+            "set-consistency,set-consistency-gpt,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
             source_file_path=config["source_data_path"],
             task=task,
         )  
@@ -416,17 +423,21 @@ if __name__ == "__main__":
     parser.add_argument("--early_stopping_patience", type=int, default=0)
     parser.add_argument("--losses", nargs="+", type=str, default=['gpt2_no_prefix', 'sc_energy'])
     parser.add_argument("--min_epsilons", nargs="+", type=float, default=[-1], help="not used for sc_energy")
-    parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.0, 1.0])
+    parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.0, 10.0])
     parser.add_argument("--k_per_location", type=int, default=5)
     parser.add_argument("--beam_size", type=int, default=5)
     parser.add_argument("--n_iter", type=int, default=4)
     parser.add_argument("--selection_criteria", type=str, choices=["weighted_sum", "allsat_primary"], default="allsat_primary",)
-    parser.add_argument("--locate_method", type=str, choices=["attention", "grad_norm"], default="attention")
     parser.add_argument("--slurm_job_id", type=str)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_entity", type=str)
+    parser.add_argument("--ebm_params_path", type=str, help="Path to model-specific YAML configuration")
+    parser.add_argument("--causal_lm_path", type=str, default="gpt2-large")
+    parser.add_argument("--mlm_path", type=str, default="roberta-base")
     parser.add_argument("--dont_skip_allsat", action="store_true", help="if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints",)
+    parser.add_argument("--num_edit_tokens_per_step", type=int, default=2)
+    parser.add_argument("--max_tokens_per_span", type=int, default=2)
     args = parser.parse_args()
 
 
@@ -438,9 +449,7 @@ if __name__ == "__main__":
             'device': device,
             'target_label_ids': [1, 1],
             'consider_prompt_for_cand_gen': False,
-            'num_edit_tokens_per_step': 7,
-            'max_tokens_per_span': 3,
-            'output_dir_prefix': f'outputs/sc_energy/{task}/',
+            'output_dir_prefix': f'outputs/sc_energy/{task}/ebm/',
             })
 
     ###########################################################

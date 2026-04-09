@@ -1,13 +1,8 @@
 import argparse
 import logging
 import os
-import sys
 from pathlib import Path
 
-import json
-from openai import OpenAI
-import evaluate
-import numpy as np
 import pandas as pd
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -31,7 +26,8 @@ from evaluation.prompted_sampling.evaluate import (
     contents_preservation_metrics,
     save_qualitative_results,
     set_consistency_score,
-    set_consistency_score_gpt
+    set_consistency_score_gpt,
+    save_qualitative_results
 )
 
 ## logging-related
@@ -40,95 +36,6 @@ logger = logging.getLogger("le")
 logger.setLevel(logging.DEBUG)
 
 
-def unravel(outputs_df):
-    outputs_df=outputs_df.explode('generations',ignore_index=True)
-    outputs_df['prompt']=outputs_df['prompt'].apply(lambda x: x['text'])
-    outputs_df['generations']=outputs_df['generations'].apply(lambda x: x['text'] if isinstance(x, dict) else x)
-    outputs_df = outputs_df.dropna().reset_index(drop=True)
-    return outputs_df
-
-def unravel_nli(outputs_df):
-    outputs_df=outputs_df.explode('generations',ignore_index=True)
-    outputs_df['prompt']=outputs_df['prompt'].apply(lambda x: x['premise'])
-    outputs_df['source'] = outputs_df['prompt'].apply(lambda x: x['hypothesis'])
-    outputs_df['generations']=outputs_df['generations'].apply(lambda x: x['text'] if isinstance(x, dict) else x)
-    outputs_df = outputs_df.dropna().reset_index(drop=True)
-    return outputs_df
-
-def unravel_toxicity_data(df):
-    df['toxicity']=df['allresponses'].apply(lambda x: [x[0]['attributeScores']['TOXICITY']['summaryScore']['value'] for x in list(x.values())])
-    df=df.explode('toxicity',ignore_index=True)
-    return df
-
-def save_qualitative_results(task,
-                             source_file_path, 
-                             outputs_file_path, 
-                             ppl_results_path, 
-                             constraint_results_path, 
-                             contents_prsrv_results_path,
-                             qual_results_path):
-    
-    
-    # read files
-    if (task=='toxicity') or (task=='sentiment'):
-        source = pd.read_json(source_file_path, lines=True)
-    elif (task=='formality'):
-        with open(source_file_path, 'r') as f:
-            source = [_line.rstrip('\n') for _line in f.readlines()]
-
-    # elif (task =='nli'):
-    #     source = pd.read_json(outputs_file_path, lines=True)
-        
-    outputs = pd.read_json(outputs_file_path, lines=True)
-    ppl = pd.read_csv(ppl_results_path, header=None)
-
-    if (task=='toxicity') or (task=='sentiment'):
-        constraint_sat = pd.read_json(constraint_results_path, lines=True)
-    elif (task=='formality'):
-        constraint_sat = pd.read_csv(constraint_results_path, header=None)
-    
-    # elif (task=='nli'):
-    #     constraint_sat = pd.read_json(constraint_results_path, lines=True)
-    # contents_prsrv=pd.read_csv(contents_prsrv_results_path)
-
-
-    # preprocess files
-    ## key (row index), prompt, gen 
-    if (task=='toxicity'): 
-        source = unravel(source)
-    elif (task=='sentiment'):
-        source = unravel(source)
-        source = source[['prompt','generations']].copy()
-    elif (task=='formality'):
-        source = pd.DataFrame({'prompt': ["" for _ in range(len(source))], 'generations': source})
-
-    outputs = unravel(outputs)
-
-    # if (task=='nli'):
-    #     source = unravel_nli(source)[['prompt', 'source']].rename(columns={'source':'generations'})
-    #     outputs = unravel_nli(source)
-    ## key (row index), value
-    ppl = ppl.iloc[:, 0].copy()
-
-    if task == 'toxicity':
-        constraint_sat = unravel_toxicity_data(constraint_sat)
-        constraint_sat = constraint_sat[['toxicity']].copy()
-        constraint_sat['toxicity'] = 1-constraint_sat['toxicity']
-    elif task == 'sentiment': 
-        constraint_sat.loc[constraint_sat['label']=='NEGATIVE', 'score'] = constraint_sat.loc[constraint_sat['label']=='NEGATIVE', 'score'].apply(lambda x: 1-x)
-        constraint_sat = constraint_sat['score'].copy()
-    elif task == 'formality':
-        constraint_sat = constraint_sat.iloc[:, 0].copy()
-    #elif task == 'nli':
-        
-                                
-    contents_prsrv = contents_prsrv['sbert_score'].copy()
-
-    final_df=pd.concat([source,outputs[['generations']],ppl,constraint_sat,contents_prsrv],axis=1,ignore_index=True)
-
-    final_df.columns=['prompt','original','edited','ppl','constraint_sat','sbert_score']
-    final_df.to_excel(qual_results_path,index=False)
-
 def rename_df_for_nli(dataframe, col_name='premise'):
     # rename target column for evaluation
     result_df = dataframe.copy()
@@ -136,7 +43,7 @@ def rename_df_for_nli(dataframe, col_name='premise'):
     return result_df[['prompt', 'generations']]
 
 
-def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
+def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs):
     """
     kwargs: 
     - includes "formality_model_path", "formality_model_type" for formality-int score
@@ -160,8 +67,7 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
     if run_path != "": ## if wandb run path is provided.
         api = wandb.Api()
         run = api.run(run_path)
-        min_epsilon = run.config['min_epsilons'][0] if isinstance(run.config['min_epsilons'],list) else run.config['min_epsilons']
-        output_file = f"results_epsilon{min_epsilon}-test.txt"
+        output_file = f"{generations_file_path.split('/')[-1]}-results.txt"
         
         if run.config.get('task', None) is not None:
             task = run.config['task']
@@ -172,22 +78,8 @@ def evaluate_main(run_path, generations_file_path, metrics, **kwargs):
             model_path = run.config['model_paths'][1]
         else:
             model_path = run.config['model'].split(':')[1]
-        
-        # if run.state != 'finished':
-        #     try:
-        #         if task == 'toxicity':
-        #             assert len(generations_df) == 250
-        #         elif task == 'formality':
-        #             assert len(generations_df) == 1416
-        #         elif task == 'sentiment':
-        #             assert len(generations_df) == 15
-        #     except:
-        #         raise Exception(f"The number of generations is not correct. {len(generations_df)} while task is {task}")
-        #     ## if the run state is not finished but the number of generations are complete -> finish the run
-        #     run1 = wandb.init(project=run_path.split('/')[1], id=run_path.split('/')[-1], resume="must")
-        #     run1.finish()
-        #     del run1
-        ## update model_tag if it is not set
+
+        # update model_tag if it is not set
         model_tag = run.config.get('model_tag', None)
         if (model_tag is None) or (model_tag == ''):
             run.config['model_tag'] = 'em' if ('energy-training' in model_path) else 'clsf'
@@ -510,7 +402,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     
-    evaluate_main(args.generations_file_path, args.metrics, args.run_path, 
+    run_generation_evaluation(args.generations_file_path, args.metrics, args.run_path, 
              sentiment_model_path=args.sentiment_model_path, sentiment_model_type=args.sentiment_model_type,
              formality_model_path=args.formality_model_path, formality_model_type=args.formality_model_type,
              toxicity_model_path=args.toxicity_model_path, toxicity_model_type=args.toxicity_model_type)

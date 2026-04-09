@@ -25,7 +25,7 @@ import wandb
 #     combi_rerank,
 # )
 from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking, analyze_span_lengths_and_count, editing_with_delete_variable_replace
-from new_module.evaluation.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 from new_module.em_training.nli.models import EncoderModel
@@ -578,7 +578,7 @@ def main(config):
     if (not interrupted):
         for _iter in range(config['n_iter']):
             if config["task"] == "toxicity":
-                evaluate_main(
+                run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
                     "toxicity,toxicity-int,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
@@ -589,7 +589,7 @@ def main(config):
                     target_style=config["target_style"]
                 )  # 시간 문제로, perspective api 제외
             elif config["task"] == "formality":
-                evaluate_main(
+                run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
                     "formality-int,formality-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1", 
@@ -600,7 +600,7 @@ def main(config):
                     target_style=config["target_style"]
                 )
             elif config["task"] == "sentiment":
-                evaluate_main(
+                run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
                     "sentiment-int,sentiment-ext,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",
@@ -611,7 +611,7 @@ def main(config):
                     target_style=config["target_style"]
                 )
             elif config["task"] == "nli":
-                evaluate_main(
+                run_generation_evaluation(
                     "",
                     outfile+f".{_iter}",
                     "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation,h1",

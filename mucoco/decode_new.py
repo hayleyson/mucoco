@@ -26,7 +26,7 @@ import mucoco.options as options
 import mucoco.utils as utils
 import torch.nn.functional as F
 
-from new_module.evaluation.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 
 # To control logging level for various modules used in the application:
 # from here: https://github.com/huggingface/transformers/issues/3050
@@ -1545,7 +1545,7 @@ def main(args):
     if (not interrupted):
         if (args.task == "toxicity") or (lossabbr[1] == "toxicity"):
             # evaluate(run.path, outfile, 'toxicity,toxicity-energy,toxicity-mucola,ppl-big,dist-n')
-            evaluate_main(
+            run_generation_evaluation(
                 run.path,
                 outfile,
                 # "toxicity,toxicity-int,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
@@ -1555,7 +1555,7 @@ def main(args):
                 source_file_path=data_paths[0]
             )  # 시간 문제로, perspective api 제외
         elif (args.task == "formality") or (lossabbr[1] == "formality"):
-            evaluate_main(
+            run_generation_evaluation(
                 run.path,
                 outfile,
                 "formality-int,formality-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
@@ -1564,7 +1564,7 @@ def main(args):
                 source_file_path=data_paths[0]
             )
         elif (args.task == "sentiment") or (lossabbr[1] == "sentiment"):
-            evaluate_main(
+            run_generation_evaluation(
                 run.path,
                 outfile,
                 "sentiment-int,sentiment-ext,ppl-big,dist-n,repetition,fluency,contents-preservation,qual",
