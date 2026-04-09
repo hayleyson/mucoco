@@ -18,10 +18,10 @@ from transformers import AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokeniz
 import wandb
 
 import new_module.losses as lossbuilder
-from new_module.evaluation.evaluate_wandb import evaluate_main
+from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
-from new_module.new_decode_utils_v1_3_2 import analyze_span_lengths_and_count, editing_4sce, editing_with_delete_variable_replace
+from new_module.new_decode_utils import analyze_span_lengths_and_count, editing_4sce
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ def main(config):
     # Set up min_epsilons
     ###########################################################
 
-    # if min_epsilon is -1, set it to the threshold of energy net
+    # if min_epsilon is -1, set it to the threshold of energy net (default: -1)
     if config['min_epsilons'][0] == -1:
         config['min_epsilons'][0] = lossfns[1].model.threshold
 
@@ -176,6 +176,7 @@ def main(config):
 
         source_text = data[i]['prompt']['text']
         AR_prediction_all = [data[i]['generations'][0]['text']]
+        gt_indices = [data[i]['generations'][0]['locate_labels']]
         
         curr_loss = torch.zeros(len(AR_prediction_all)).to(config['device'])
         logging_loss = torch.zeros((len(AR_prediction_all),len(config["losses"]))).to(config['device'])
@@ -223,25 +224,20 @@ def main(config):
             num_edited += edit_yn.sum().item()
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
             num_decoded_tokens += sum([len(x) for x in causal_lm_tokenizer(running_text).input_ids])       
-            located_instance_list = []
+            located_instance_list = gt_indices
         
-            for _iter in range(config['n_iter']):
+            for _iter, _idx in enumerate(gt_indices[0]):
                 
-                logger.debug(f"!!! {_iter}th iteration !!!")
+                logger.debug(f"!!! Editing {_idx}th instance !!!")
                 
                 ###########################################################
                 # Locate
                 ###########################################################
                 
-                masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                # masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                prediction_list = [[_idx]]
+                masked_text = locator.locate_with_gt(prediction=running_text, gt_indices = prediction_list[0])
                 
-                if _iter == 0:
-                    located_instance_list = prediction_list
-                else:
-                    for index, item in enumerate(located_instance_list):
-                        located_instance_list[index].extend(prediction_list[index])
-                
-
                 ###########################################################
                 # Edit
                 ###########################################################
@@ -328,12 +324,13 @@ def main(config):
                     best_losses[update] = new_best_logging_loss[update]
                     best_weighted_loss[update] = new_best_weighted_loss[update]
 
-                    es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
+                    ## turn off early stopping
+                    # es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1 
 
-                    if (config["early_stopping_patience"] != -1):
-                        edit_yn[es_patience_count > config['early_stopping_patience']] = False
-                    if edit_yn.sum() == 0:
-                        break
+                    # if (config["early_stopping_patience"] != -1):
+                    #     edit_yn[es_patience_count > config['early_stopping_patience']] = False
+                    # if edit_yn.sum() == 0:
+                    #     break
                     
                 
                     running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
@@ -403,10 +400,10 @@ def main(config):
         logger.info(f"nun_decoded_tokens: {num_decoded_tokens}")
         logger.info(f"toks_p_sec: {num_decoded_tokens/decode_time}")
     
-    evaluate_main(
+    run_generation_evaluation(
             "",
             outfile,
-            "set-consistency,set-consistency-clsf,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+            "set-consistency,set-consistency-gpt,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
             source_file_path=config["source_data_path"],
             task=task,
         )  
@@ -447,7 +444,7 @@ if __name__ == "__main__":
             'device': device,
             'target_label_ids': [1, 1],
             'consider_prompt_for_cand_gen': False,
-            'output_dir_prefix': f'outputs/sc_energy/{task}/',
+            'output_dir_prefix': f'outputs/sc_energy/{task}/ebm/',
             })
 
     ###########################################################
