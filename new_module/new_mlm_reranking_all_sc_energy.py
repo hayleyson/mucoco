@@ -223,26 +223,48 @@ def main(config):
             num_edited += edit_yn.sum().item()
             num_skipped += (len(AR_prediction_all) - edit_yn.sum().item())
             num_decoded_tokens += sum([len(x) for x in causal_lm_tokenizer(running_text).input_ids])       
-            located_instance_list = []
-        
-            for _iter in range(config['n_iter']):
-                
-                logger.debug(f"!!! {_iter}th iteration !!!")
-                
+            if config["locate_mode"] == "ground_truth":
+                gen0 = data[i]["generations"][0]
+                if "locate_labels" not in gen0:
+                    raise KeyError(
+                        "locate_mode=ground_truth requires generations[0]['locate_labels'] on each JSONL record."
+                    )
+                gt_indices = [gen0["locate_labels"]]
+                located_instance_list = gt_indices
+                edit_steps = list(enumerate(gt_indices[0]))
+            else:
+                located_instance_list = []
+                edit_steps = [(j, None) for j in range(config["n_iter"])]
+
+            for _iter, gt_instance_idx in edit_steps:
                 ###########################################################
                 # Locate
                 ###########################################################
-                if model_config["locate"]["span"]["type"] == "ground_truth": # default: ground_truth
-                    masked_text, prediction_list = locator.locate_main_with_gt_span(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
+                if config["locate_mode"] == "ebm":
+                    logger.debug(f"!!! {_iter}th iteration !!!")
+                    if model_config["locate"]["span"]["type"] == "ground_truth":
+                        masked_text, prediction_list = locator.locate_main_with_gt_span(
+                            running_text,
+                            max_num_tokens=config["num_edit_tokens_per_step"],
+                            unit="word",
+                        )
+                    else:
+                        masked_text, prediction_list = locator.locate_main(
+                            running_text,
+                            max_num_tokens=config["num_edit_tokens_per_step"],
+                            unit="word",
+                        )
+                    if _iter == 0:
+                        located_instance_list = prediction_list
+                    else:
+                        for index, item in enumerate(located_instance_list):
+                            located_instance_list[index].extend(prediction_list[index])
                 else:
-                    masked_text, prediction_list = locator.locate_main(running_text, max_num_tokens=config["num_edit_tokens_per_step"], unit='word')
-                
-                if _iter == 0:
-                    located_instance_list = prediction_list
-                else:
-                    for index, item in enumerate(located_instance_list):
-                        located_instance_list[index].extend(prediction_list[index])
-                
+                    logger.debug(f"!!! Editing {gt_instance_idx}th instance !!!")
+                    prediction_list = [[gt_instance_idx]]
+                    masked_text = locator.locate_with_gt(
+                        prediction=running_text, gt_indices=prediction_list[0]
+                    )
 
                 ###########################################################
                 # Edit
@@ -330,14 +352,13 @@ def main(config):
                     best_losses[update] = new_best_logging_loss[update]
                     best_weighted_loss[update] = new_best_weighted_loss[update]
 
-                    es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
+                    if config["locate_mode"] == "ebm":
+                        es_patience_count[(best_allsat & edit_yn).nonzero().squeeze(-1)] += 1
+                        if config["early_stopping_patience"] != -1:
+                            edit_yn[es_patience_count > config["early_stopping_patience"]] = False
+                        if edit_yn.sum() == 0:
+                            break
 
-                    if (config["early_stopping_patience"] != -1):
-                        edit_yn[es_patience_count > config['early_stopping_patience']] = False
-                    if edit_yn.sum() == 0:
-                        break
-                    
-                
                     running_text = [x for i, x in enumerate(final_hypotheses) if edit_yn[i]]
             
 
@@ -427,6 +448,14 @@ if __name__ == "__main__":
     parser.add_argument("--k_per_location", type=int, default=5)
     parser.add_argument("--beam_size", type=int, default=5)
     parser.add_argument("--n_iter", type=int, default=4)
+    parser.add_argument(
+        "--locate_mode",
+        type=str,
+        choices=["ebm", "ground_truth"],
+        default="ebm",
+        help="ebm: conduct ebm-based inconsistent instance localization; "
+        "ground_truth: use ground truth inconsistent instance indices from input data.",
+    )
     parser.add_argument("--selection_criteria", type=str, choices=["weighted_sum", "allsat_primary"], default="allsat_primary",)
     parser.add_argument("--slurm_job_id", type=str)
     parser.add_argument("--debug", action="store_true")

@@ -27,7 +27,7 @@ export LOGGING_LEVEL=INFO
 # '/home/hyeryung/data/mucoco/new_module/data/convqa/processed_data/lconvqa_test1_edited_only.jsonl'
 # new_module/set_consistency_energy/params_set_lconvqa.yaml
 
-# srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
+# srun python new_module/new_mlm_reranking_all_sc_energy.py \
 # set_lconvqa /home/hyeryung/data/mucoco/new_module/data/convqa/processed_data/lconvqa_test1_edited_only.jsonl \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -44,7 +44,7 @@ export LOGGING_LEVEL=INFO
 # --params_path new_module/set_consistency_energy/params_set_lconvqa.yaml
 
 
-# srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
+# srun python new_module/new_mlm_reranking_all_sc_energy.py \
 # set_snli /home/hyeryung/data/mucoco/new_module/data/set_nli/processed_data/set_nli_test1_edited_only.jsonl \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -60,7 +60,7 @@ export LOGGING_LEVEL=INFO
 # --wandb_entity hayleyson \
 # --params_path new_module/set_consistency_energy/params_set_snli.yaml
 
-# srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
+# srun python new_module/new_mlm_reranking_all_sc_energy.py \
 # set_lconvqa /home/hyeryung/data/mucoco/new_module/data/convqa/processed_data/lconvqa_test1_edited_only.jsonl \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -76,7 +76,7 @@ export LOGGING_LEVEL=INFO
 # --wandb_entity hayleyson \
 # --params_path new_module/set_consistency_energy/params_set_lconvqa_clsf.yaml
 
-# srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
+# srun python new_module/new_mlm_reranking_all_sc_energy.py \
 # set_snli /home/hyeryung/data/mucoco/new_module/data/set_nli/processed_data/set_nli_test1_edited_only.jsonl \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -92,7 +92,7 @@ export LOGGING_LEVEL=INFO
 # --wandb_entity hayleyson \
 # --params_path new_module/set_consistency_energy/params_set_snli_clsf.yaml
 
-# srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
+# srun python new_module/new_mlm_reranking_all_sc_energy.py \
 # set_lconvqa new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -110,7 +110,7 @@ export LOGGING_LEVEL=INFO
 # --causal_lm_path gpt2-large \
 # --mlm_path roberta-base
 
-srun python new_module/new_mlm_reranking_all_sc_energy_v1_3_gt.py \
+srun python new_module/new_mlm_reranking_all_sc_energy.py \
 set_lconvqa new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
@@ -126,4 +126,5 @@ set_lconvqa new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_inco
 --wandb_entity hayleyson \
 --ebm_params_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
 --causal_lm_path gpt2-large \
---mlm_path roberta-base
+--mlm_path roberta-base \
+--locate_mode ground_truth
