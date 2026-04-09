@@ -39,7 +39,6 @@ export LOGGING_LEVEL=INFO
 # --n_iter 8 \
 # --dont_skip_allsat \
 # --selection_criteria allsat_primary \
-# --locate_method attention \
 # --wandb_project sc_energy \
 # --wandb_entity hayleyson \
 # --params_path new_module/set_consistency_energy/params_set_lconvqa.yaml
@@ -57,7 +56,6 @@ export LOGGING_LEVEL=INFO
 # --n_iter 8 \
 # --dont_skip_allsat \
 # --selection_criteria allsat_primary \
-# --locate_method attention \
 # --wandb_project sc_energy \
 # --wandb_entity hayleyson \
 # --params_path new_module/set_consistency_energy/params_set_snli.yaml
@@ -74,13 +72,46 @@ export LOGGING_LEVEL=INFO
 # --n_iter 8 \
 # --dont_skip_allsat \
 # --selection_criteria allsat_primary \
-# --locate_method attention \
 # --wandb_project sc_energy \
 # --wandb_entity hayleyson \
 # --params_path new_module/set_consistency_energy/params_set_lconvqa_clsf.yaml
 
-srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
-set_snli /home/hyeryung/data/mucoco/new_module/data/set_nli/processed_data/set_nli_test1_edited_only.jsonl \
+# srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
+# set_snli /home/hyeryung/data/mucoco/new_module/data/set_nli/processed_data/set_nli_test1_edited_only.jsonl \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --losses gpt2_no_prefix sc_energy \
+# --min_epsilons -1 \
+# --loss_weights 1 10 \
+# --k_per_location 5 \
+# --beam_size 5 \
+# --n_iter 8 \
+# --dont_skip_allsat \
+# --selection_criteria allsat_primary \
+# --wandb_project sc_energy \
+# --wandb_entity hayleyson \
+# --params_path new_module/set_consistency_energy/params_set_snli_clsf.yaml
+
+# srun python new_module/new_mlm_reranking_all_sc_energy_v1_3.py \
+# set_lconvqa new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --losses gpt2_no_prefix sc_energy \
+# --min_epsilons -1 \
+# --loss_weights 1 10 \
+# --k_per_location 5 \
+# --beam_size 5 \
+# --n_iter 8 \
+# --dont_skip_allsat \
+# --selection_criteria allsat_primary \
+# --wandb_project sc_energy \
+# --wandb_entity hayleyson \
+# --ebm_params_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
+# --causal_lm_path gpt2-large \
+# --mlm_path roberta-base
+
+srun python new_module/new_mlm_reranking_all_sc_energy_v1_3_gt.py \
+set_lconvqa new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --losses gpt2_no_prefix sc_energy \
@@ -91,7 +122,8 @@ set_snli /home/hyeryung/data/mucoco/new_module/data/set_nli/processed_data/set_n
 --n_iter 8 \
 --dont_skip_allsat \
 --selection_criteria allsat_primary \
---locate_method attention \
 --wandb_project sc_energy \
 --wandb_entity hayleyson \
---params_path new_module/set_consistency_energy/params_set_snli_clsf.yaml
+--ebm_params_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
+--causal_lm_path gpt2-large \
+--mlm_path roberta-base
