@@ -254,3 +254,30 @@ def load_eval2_dataset(dataset_name):
     canonical_eval2_dataset.dataset = eval2_samples
 
     return canonical_eval2_dataset
+
+def remove_prompt(row):
+    if row['prompt'] in row['text']:
+        return row['text'].replace(row['prompt'], '')
+    else:
+        return row['text']
+    
+def check_prompt(row):
+    
+    if row['prompt'] in row['text']:
+        return 'exact_match'
+    if ' '.join(row['prompt'].split(' ')[:3]) in row['text']:
+        return 'partial_match'
+    else:
+        return 'no_match'
+    
+def postprocess_prompted_generations(output_path):
+    
+    outputs = read_outputs(output_path)
+    
+    print('Number of cases where the prompt is repeated:')
+    print(outputs.apply(check_prompt, axis=1).value_counts().sort_index())
+    
+    outputs['text'] = outputs.apply(remove_prompt, axis=1)
+    outputs = ravel(outputs)
+    
+    return outputs

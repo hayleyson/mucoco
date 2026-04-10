@@ -2,15 +2,20 @@ import os
 import pprint
 import json
 import argparse
+import time
+import logging
+
 import openai
 from openai import OpenAI
 
 from new_module.llm_experiments.generate_with_llm.prompts import get_prompt
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def generate_and_save_result(args):
     
-    
+    start_time = time.time()
     client = OpenAI(api_key=args.openai_api_key)
 
     with open(args.input_file_path,'r') as f:
@@ -21,8 +26,8 @@ def generate_and_save_result(args):
         prompts = [line.rstrip() for line in raw_data]
         
     system_prompt, user_prompt = get_prompt(args)
-    print(f"system_prompt: {system_prompt}")
-    print(f"user_prompt: {user_prompt}")
+    logger.info(f"system_prompt: {system_prompt}")
+    logger.info(f"user_prompt: {user_prompt}")
     
     ## generate responses
     responses = []
@@ -49,6 +54,8 @@ def generate_and_save_result(args):
         f.write(json.dumps(formatted_generated_text) + '\n')
         f.flush() 
     f.close()
+    end_time = time.time()
+    print(f"Total time taken (minutes): {(end_time - start_time) / 60}")
 
 if __name__ == "__main__":
     
