@@ -19,20 +19,16 @@ export TRANSFORMERS_CACHE=/data/hyeryung/.cache
 export LOGGING_LEVEL=INFO
 
 JOB_ID=$SLURM_JOB_ID
-DIRECTORY="outputs/llmedit/results_2025"
+DIRECTORY="/data/hyeryung/mucoco/outputs/llmedit/results_2025"
 
-EXP_LABEL="set_nli_both_v1"
-# EXP_LABEL="set_vqa_masked_v1"
-# EXP_LABEL="set_vqa_masked_v2-1"
-# EXP_LABEL="set_nli_masked_v2-1"
-TOTAL_ITERATION=8
+EXP_LABEL="6_nli"
+TOTAL_ITERATION=1
 
-INPUT_FILE_PATH="new_module/data/set_nli/processed_data/set_nli_test_edited_only.jsonl"
-ORIG_TEXT_PATH="new_module/data/set_nli/processed_data/set_nli_test_edited_only.jsonl"
-# INPUT_FILE_PATH="new_module/data/convqa/processed_data/lconvqa_test_edited_only.jsonl"
-# ORIG_TEXT_PATH="new_module/data/convqa/processed_data/lconvqa_test_edited_only.jsonl"
+INPUT_FILE_PATH="/data/hyeryung/mucoco/new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
+ORIG_TEXT_PATH="/data/hyeryung/mucoco/new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
 
-PRETRAINED_MODEL_PATH="placeholder"
+# PRETRAINED_MODEL_PATH="/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/"
+PRETRAINED_MODEL_PATH="/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/"
 
 HF_MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" #"microsoft/Phi-3.5-mini-instruct"
 PROMPT_TYPE="set_consistency_both"
