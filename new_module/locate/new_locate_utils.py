@@ -4,12 +4,9 @@ import random
 from typing import List, Tuple
 from copy import deepcopy
 from itertools import repeat
-from copy import deepcopy
-from itertools import repeat
 import logging
 
 import pandas as pd
-import transformers
 import transformers
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
@@ -69,8 +66,6 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
     # 같은 word 안에 있는 token 끼리 묶음.
     words_raw = current_sent.strip().split()
     words = words_raw
-    words_raw = current_sent.strip().split()
-    words = words_raw
     if task == "nli": 
         # For nli, simple spliting might not have split cases like "<s>hello" or "hello</s>world" or "world</s>"
         # So post-process to split those cases.
@@ -84,7 +79,6 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
         SEP = EOS*2 if EOS*2 in current_sent else EOS
         words = []
         for w in words_raw:
-        for w in words_raw:
             if w.strip() == "":
                 continue
             if w.strip() == BOS or w.strip() == EOS or w.strip() == SEP:
@@ -92,9 +86,7 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
                 continue
             
             starts_with_BOS = w.startswith(BOS)
-            starts_with_BOS = w.startswith(BOS)
             ends_with_EOS = w.endswith(EOS)
-            contains_SEP = SEP in w.rstrip(EOS)  # have to do w.rstrip(EOS) because it can be that SEP == EOS
             contains_SEP = SEP in w.rstrip(EOS)  # have to do w.rstrip(EOS) because it can be that SEP == EOS
 
             tmp_words = []
@@ -122,17 +114,12 @@ def get_word_level_locate_indices(current_sent:str,prediction:list,length:int, t
     
     top_masks_final.sort()
     word_indices = []
-    word_indices = []
     for index in top_masks_final:
-        if index not in word_indices:
         if index not in word_indices:
             word_index = tok2word.get(index, None)
             if word_index is not None:
                 word_indices.extend(grouped_tokens[word_index])
-                word_indices.extend(grouped_tokens[word_index])
             else:
-                word_indices.append(index)    
-    return list(set(word_indices))
                 word_indices.append(index)    
     return list(set(word_indices))
 
@@ -231,9 +218,6 @@ class LocateMachine:
                     logger.warning(f"no sep token found in prediction: {prediction[i]}")
                     logger.warning(prediction[i])
                     logger.warning(batch.input_ids[i])
-                    logger.warning(f"no sep token found in prediction: {prediction[i]}")
-                    logger.warning(prediction[i])
-                    logger.warning(batch.input_ids[i])
                 first_occurence = all_occurences[0, 1]
                 premise_mask[i, :first_occurence] = True
             exclude_mask |= premise_mask
@@ -250,9 +234,6 @@ class LocateMachine:
                     logger.warning(f"no sep token found in prediction: {prediction[i]}")
                     logger.warning(prediction[i])
                     logger.warning(batch.input_ids[i])
-                    logger.warning(f"no sep token found in prediction: {prediction[i]}")
-                    logger.warning(prediction[i])
-                    logger.warning(batch.input_ids[i])
                 second_occurence = all_occurences[1, 1]
                 label_mask[i, second_occurence:] = True
             exclude_mask |= label_mask            
@@ -263,11 +244,8 @@ class LocateMachine:
         token_wise_scores = token_wise_scores.softmax(dim=-1)
         # calculate average among non-excluded tokens
         avg_values = token_wise_scores.sum(dim=-1) / (~exclude_mask).sum(dim=-1)
-        avg_values = token_wise_scores.sum(dim=-1) / (~exclude_mask).sum(dim=-1)
 
         # find number of above average tokens
-        # unsqueeze to allow implicit broadcasting : (N) -> (N, 1) -> (N, L)
-        top_masks = (token_wise_scores >= avg_values.unsqueeze(1))
         # unsqueeze to allow implicit broadcasting : (N) -> (N, 1) -> (N, L)
         top_masks = (token_wise_scores >= avg_values.unsqueeze(1))
         num_above_average_tokens = top_masks.sum(dim=-1)
@@ -362,7 +340,6 @@ class LocateMachine4SCE:
         self.stopwords_ids = self.tokenizer.batch_encode_plus(stopwords, return_tensors="pt",add_special_tokens=False)['input_ids'].squeeze().to(self.params['device'])
 
     def _get_word2tok(self, row: pd.Series) -> dict:
-    def _get_word2tok(self, row: pd.Series) -> dict:
         """
         A function that take a list of words and a corresponding list of tokens 
         into a mapping between each word's index and its corresponding token indexes.
@@ -389,7 +366,6 @@ class LocateMachine4SCE:
         while jr <= len(row['tokens'])+1 and k < len(row['words']):
             
             if self.tokenizer.decode(row['tokens'][jl:jr]).strip() == row['words'][k]:
-            if self.tokenizer.decode(row['tokens'][jl:jr]).strip() == row['words'][k]:
                 grouped_tokens.append(list(range(jl,jr)))
                 for ix in range(jl,jr):
                     tok2word[ix] = k
@@ -402,7 +378,6 @@ class LocateMachine4SCE:
         return tok2word, grouped_tokens
 
     def _get_word_level_locate_indices(self, current_sent:str,prediction:list,length:int, top_masks_final:list) -> List:
-    def _get_word_level_locate_indices(self, current_sent:str,prediction:list,length:int, top_masks_final:list) -> List:
         """
         # word의 일부만 locate 한 경우, word 전체를 locate 한다.
         # 같은 word 안에 있는 token 끼리 묶음.
@@ -410,24 +385,18 @@ class LocateMachine4SCE:
         words = current_sent.strip().split()
         prediction = prediction[:length]
         tok2word, grouped_tokens = self._get_word2tok(pd.Series({'words':words, 'tokens':prediction}))
-        tok2word, grouped_tokens = self._get_word2tok(pd.Series({'words':words, 'tokens':prediction}))
         
         top_masks_final.sort()
         word_indices = []
-        word_indices = []
         for index in top_masks_final:
-            if index not in word_indices:
             if index not in word_indices:
                 word_index = tok2word.get(index, None)
                 if word_index is not None:
                     word_indices.extend(grouped_tokens[word_index])
-                    word_indices.extend(grouped_tokens[word_index])
                 else:
                     word_indices.append(index)    
         return list(set(word_indices))
-                    word_indices.append(index)    
-        return list(set(word_indices))
-    
+        
     def _calculate_token_scores(self, outputs: dict) -> Tuple[torch.Tensor, torch.Tensor]:
 
         token_scores_for_inst_loc = None
@@ -525,8 +494,6 @@ class LocateMachine4SCE:
             locate_ixes_all = []
             for i, arguments in enumerate(zip(prediction,input_tokens.tolist(), lengths.tolist(), top_masks_final)):
                 locate_ixes = self._get_word_level_locate_indices(*arguments)
-            for i, arguments in enumerate(zip(prediction,input_tokens.tolist(), lengths.tolist(), top_masks_final)):
-                locate_ixes = self._get_word_level_locate_indices(*arguments)
                 input_tokens[i, locate_ixes] = self.tokenizer.mask_token_id
                 locate_ixes_all.append(locate_ixes)
             
@@ -552,10 +519,6 @@ class LocateMachine4SCE:
                     token_scores[b][start:end].max().item() 
                     for start, end in instance_locations[b]
                 ])
-                instance_scores.append([
-                    token_scores[b][start:end].max().item() 
-                    for start, end in instance_locations[b]
-                ])
         
         elif self.params['locate']['instance']['agg_method'] == 'avg':
             # calculate average of token scores within each instance
@@ -574,11 +537,6 @@ class LocateMachine4SCE:
         elif self.params['locate']['instance']['agg_method'] == 'median':
             # calculate median of token scores within each instance
             for b in range(batch_size):
-                instance_scores.append([
-                    token_scores[b][start:end].median().item() 
-                    for start, end in instance_locations[b]
-                ])
-
                 instance_scores.append([
                     token_scores[b][start:end].median().item() 
                     for start, end in instance_locations[b]
