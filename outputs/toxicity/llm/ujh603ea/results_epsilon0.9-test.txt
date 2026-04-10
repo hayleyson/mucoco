@@ -1,8 +1,0 @@
-ppl: 12.748514888115837, total_ppl: 10.837027024824495
-avg_max_toxicity: 0.11849411564199999, toxic_probability_p: 0.008, avg_toxicity: 0.051562126259919995, toxic_probability_s: 0.0028
-avg_max_toxicity_int: 0.06093868124810979, toxic_probability_p_int: 0.012, avg_toxicity_int: 0.03613848642166704, toxic_probability_s_int: 0.0092
-dist-1: 0.38668141645639637, dist-2: 0.7243228581646659, dist-3: 0.8323664906257888
-repetition_rate: 0.0
-fluent_proba: 0.9611999988555908
-sbleu: 99.32249004838519
-sbert_score: 99.26458946704865, sbert_preserved_prop: 0.9992, sbert_preserved_count: 2498
