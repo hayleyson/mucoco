@@ -3,6 +3,8 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from typing import List
 import transformers
+from typing import List
+import transformers
 
 def seed_worker(worker_id=0):
     worker_seed = torch.initial_seed() % 2**32

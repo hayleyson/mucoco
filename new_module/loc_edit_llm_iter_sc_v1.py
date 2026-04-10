@@ -181,7 +181,7 @@ def locate_texts(model, model_config, input_file, output_file, task, label_id, l
             # generations 내의 각 text에 대해 LocateMachine 적용
             for gen_idx, generation in enumerate(generations):
                 if locate_edit_idx[line_idx][gen_idx]:
-                    text = f"<s>{prompt}</s>{generation['text']}</s>" if task == "nli" else generation['text']
+                    text = generation['text']
                     # locate_main 적용
                     masked_text = locator.locate_main([text],  
                                                         max_num_tokens=max_num_tokens, 
@@ -254,6 +254,7 @@ def evaluate_toxicity_losses(source_text: str, hypotheses: list, config: dict, t
 
     build_loss_args = dummyArgs(**config["build_loss_dict"])
     build_loss_args.task = config["task"]
+    build_loss_args.device = config["device"]
 
     loss_fn = lossbuilder.build_loss(
         "sc_energy", model, tokenizer, build_loss_args
@@ -277,9 +278,7 @@ def evaluate_toxicity_losses(source_text: str, hypotheses: list, config: dict, t
                 torch.cuda.empty_cache()
 
         # Calculate mean loss and check threshold satisfaction
-        print(f"curr_loss: {curr_loss}")
         mean_loss = torch.tensor(curr_loss).mean().item()
-        print(f"mean_loss: {mean_loss}")
         losses.append(mean_loss)
         satisfies_threshold.append(mean_loss < threshold)
 
@@ -462,11 +461,6 @@ for iter_idx in range(total_iteration):
     #             text = generation['text']
     #             source_texts.append(text)
                 
-    if tokenizer.bos_token is not None:
-        source_texts = [tokenizer.bos_token] * len(locate_edit_idx)
-    else:
-        source_texts = [" "] * len(locate_edit_idx)
-                
 
     # L&E text (this iteration)
     l_e_texts = []
@@ -474,6 +468,12 @@ for iter_idx in range(total_iteration):
         for line in hyps_file:
             data = json.loads(line)
             l_e_texts.extend([g['text'] for g in data['generations']])
+
+    if tokenizer.bos_token is not None:
+        source_texts = [tokenizer.bos_token] * len(l_e_texts)
+    else:
+        source_texts = [" "] * len(l_e_texts)
+
 
     row_idx = 0
     col_idx = 0
