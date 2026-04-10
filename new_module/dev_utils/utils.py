@@ -56,6 +56,14 @@ def unravel_toxicity_data(df):
     df=df.explode('toxicity',ignore_index=True)
     return df
 
+def unravel_nli(outputs_df):
+    outputs_df=outputs_df.explode('generations',ignore_index=True)
+    outputs_df['prompt']=outputs_df['prompt'].apply(lambda x: x['premise'])
+    outputs_df['source'] = outputs_df['prompt'].apply(lambda x: x['hypothesis'])
+    outputs_df['generations']=outputs_df['generations'].apply(lambda x: x['text'] if isinstance(x, dict) else x)
+    outputs_df = outputs_df.dropna().reset_index(drop=True)
+    return outputs_df
+
 def read_metric_file(result_file, metric) -> Union[np.array, pd.DataFrame]:
         
     if metric == 'ppl-big-qwen':

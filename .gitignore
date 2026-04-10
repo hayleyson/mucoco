@@ -163,3 +163,7 @@ outputs/
 *.jsonl*
 *.ipynb
 new_module/set_consistency_energy/results/*
+*.time
+.DS_Store
+*.pth
+**/set-consistency-demo/**
