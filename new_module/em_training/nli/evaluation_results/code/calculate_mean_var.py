@@ -1,7 +1,7 @@
 import pandas as pd
 
-# fpath = '/data/hyeryung/mucoco/new_module/em_training/nli/evaluation_results/exp_results_20241127_locate_added.csv'
-fpath = '/data/hyeryung/mucoco/new_module/em_training/nli/evaluation_results/exp_results_20241127_locate_epr_added.csv'
+# fpath = '/home/hyeryung/data/mucoco/new_module/em_training/nli/evaluation_results/exp_results_20241127_locate_added.csv'
+fpath = '/home/hyeryung/data/mucoco/new_module/em_training/nli/evaluation_results/exp_results_20241127_locate_epr_added.csv'
 data = pd.read_csv(fpath, index_col=None)
 print(data.head())
 
@@ -26,7 +26,7 @@ data_tmean['stats'] = 'trimmed_mean'
 
 data_all = pd.concat([data_mean, data_std, data_min, data_max, data_tmean], axis=0)
 
-data_all.to_csv('/data/hyeryung/mucoco/new_module/em_training/nli/evaluation_results/exp_results_20241127_locate_epr_added_stats.csv', index=False)
+data_all.to_csv('/home/hyeryung/data/mucoco/new_module/em_training/nli/evaluation_results/exp_results_20241127_locate_epr_added_stats.csv', index=False)
 
 
 

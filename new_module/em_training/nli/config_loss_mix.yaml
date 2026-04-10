@@ -26,7 +26,7 @@ energynet:
     min_delta: 0.0
     patience: 5
   binary_loader: balanced
-  ckpt_save_path: /data/hyeryung/loc_edit/models/nli
+  ckpt_save_path: /home/hyeryung/data/loc_edit/models/nli
   dataset_path: data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl
 
 locate:

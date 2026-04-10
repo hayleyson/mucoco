@@ -52,7 +52,7 @@ def formality_score_ext(texts, device):
     
     return np.nanmean(formality_scores), formal_counts/len(texts)
 
-with open('/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal', 'r') as f:
+with open('/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal', 'r') as f:
     data = [x.rstrip() for x in f.readlines()]
     
 # dataset = Dataset.from_pandas(pd.DataFrame({'text': data}))

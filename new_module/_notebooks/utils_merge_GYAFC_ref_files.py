@@ -1,13 +1,13 @@
 from glob import glob
 
-in_filepaths = glob("/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal.ref*")
-# in_filepaths = glob("/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal.ref*")
+in_filepaths = glob("/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal.ref*")
+# in_filepaths = glob("/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal.ref*")
 
 
 print(f"in_filepaths: {in_filepaths}")
 
-out_fp = open("/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal.ref.merged", "w")
-# out_fp = open("/data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal.ref.merged", "w")
+out_fp = open("/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal.ref.merged", "w")
+# out_fp = open("/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal.ref.merged", "w")
 
 print(f"out_fp: {out_fp}")
 

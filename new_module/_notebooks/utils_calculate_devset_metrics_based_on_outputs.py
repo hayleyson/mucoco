@@ -2,16 +2,16 @@ import numpy as np
 import sys
 
 ## load devset indices
-with open('/data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set_index.txt', 'r') as f:
+with open('/home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/dev_set_index.txt', 'r') as f:
     dev_set_index = [int(x.strip()) for x in f.readlines()]
     
 ## load full eval results
 # run_id = '4kp4ti6s'
 run_id = sys.argv[1]
-outputs_path = f'/data/hyeryung/mucoco/outputs/toxicity/final/{run_id}/outputs_epsilon0.9.txt'
-results_prefix = f'/data/hyeryung/mucoco/outputs/toxicity/final/{run_id}/results_epsilon0.9-test.txt'
+outputs_path = f'/home/hyeryung/data/mucoco/outputs/toxicity/final/{run_id}/outputs_epsilon0.9.txt'
+results_prefix = f'/home/hyeryung/data/mucoco/outputs/toxicity/final/{run_id}/results_epsilon0.9-test.txt'
 
-res_fp = open(f'/data/hyeryung/mucoco/outputs/toxicity/final/{run_id}/results_epsilon0.9-test-devset.txt', 'w')
+res_fp = open(f'/home/hyeryung/data/mucoco/outputs/toxicity/final/{run_id}/results_epsilon0.9-test-devset.txt', 'w')
 
 # fluency
 with open(results_prefix + '.fluency', 'r') as f:

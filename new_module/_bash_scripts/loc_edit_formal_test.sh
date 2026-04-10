@@ -13,9 +13,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun python new_module/new_mlm_reranking_all_sweep_n_iter_copy.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
@@ -26,20 +26,20 @@ srun python new_module/new_mlm_reranking_all_sweep_n_iter_copy.py --method mlm-b
 --n_iter 10 \
 --loss_weights 1 1 \
 --selection_criteria allsat_primary \
---cache_dir '/data/hyeryung/hf_cache' \
+--cache_dir '/home/hyeryung/data/hf_cache' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --dont_skip_allsat \
 --task formality \
 --output_dir_prefix 'outputs/formality/formal/' \
---source_data '/data/hyeryung/mucoco/new_module/data/formality/informal_sweep_test' \
+--source_data '/home/hyeryung/data/mucoco/new_module/data/formality/informal_sweep_test' \
 --source_style 'informal' \
 --target_style 'formal' \
 --target_label_ids 1 1 \
 --min_epsilons 0.74 \
 --wandb_project 'formality-decoding' \
---model_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
---tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
+--model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
+--tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 --locate_method 'grad_norm' \
 --losses gpt2 classification_no_prefix_logprobloss \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification

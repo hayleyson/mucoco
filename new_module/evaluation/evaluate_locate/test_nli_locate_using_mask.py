@@ -83,7 +83,7 @@ class NLIDataset(Dataset):
 def collate_fn(examples):
     return [(x['premise'], x['hypothesis']) for x in examples]
 
-train_dev_data = load_nli_data(output_file_path="/data/hyeryung/mucoco/data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl")
+train_dev_data = load_nli_data(output_file_path="/home/hyeryung/data/mucoco/data/nli/snli_mnli_anli_train_dev_with_finegrained.jsonl")
 dev_data = train_dev_data.loc[train_dev_data['split'] == 'dev']
 nli_dataset = dev_data.to_dict(orient="records")
 

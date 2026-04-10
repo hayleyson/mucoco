@@ -13,9 +13,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5  \
@@ -25,7 +25,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --loss_weights 0.1 1.0 \
 --selection_criteria allsat_primary \
 --task nli \
---source_data '/data/hyeryung/mucoco/data/nli/snli_1.0/snli_1.0_test.jsonl' \
+--source_data '/home/hyeryung/data/mucoco/data/nli/snli_1.0/snli_1.0_test.jsonl' \
 --source_style 'contradict' \
 --target_style 'entail' \
 --target_label_ids 0 0 \

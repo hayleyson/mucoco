@@ -1,10 +1,10 @@
 # import json 
     
-# with open('/data/hyeryung/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uh00cjd4/outputs_epsilon0.9.txt', 'r') as f:
+# with open('/home/hyeryung/data/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uh00cjd4/outputs_epsilon0.9.txt', 'r') as f:
 #     res_uh00 = f.readlines()    
 # res_uh00_json = [json.loads(x) for x in res_uh00]
 
-# with open('/data/hyeryung/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uubgx657/outputs_epsilon0.9.txt', 'r') as f:
+# with open('/home/hyeryung/data/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uubgx657/outputs_epsilon0.9.txt', 'r') as f:
 #     res_uubg = f.readlines()    
 # res_uubg = res_uubg[::-1]
 # res_uubg_json  = [json.loads(x) for x in res_uubg]
@@ -14,13 +14,13 @@
 
 # res_merged = [json.dumps(x) for x in res_merged]
 
-# with open('/data/hyeryung/mucoco/new_module/_notebooks/utils_merge_uubg_uh00.txt', 'w') as f:
+# with open('/home/hyeryung/data/mucoco/new_module/_notebooks/utils_merge_uubg_uh00.txt', 'w') as f:
 #     f.writelines([x + '\n' for x in res_merged])
 
 # import pandas as pd
 
-# res_merged = pd.read_json('/data/hyeryung/mucoco/new_module/_notebooks/utils_merge_uubg_uh00.txt', lines=True)
-# devset = pd.read_json('/data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl', lines=True)
+# res_merged = pd.read_json('/home/hyeryung/data/mucoco/new_module/_notebooks/utils_merge_uubg_uh00.txt', lines=True)
+# devset = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl', lines=True)
 
 # res_merged['prompt_text'] = res_merged['prompt'].apply(lambda x: x['text'])
 # devset['prompt_text'] = devset['prompt'].apply(lambda x: x['text']) 
@@ -34,15 +34,15 @@
 import json
 import pandas as pd
 
-res_uh00 = pd.read_json('/data/hyeryung/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uh00cjd4/outputs_epsilon0.9.txt', lines=True)
+res_uh00 = pd.read_json('/home/hyeryung/data/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uh00cjd4/outputs_epsilon0.9.txt', lines=True)
 res_uh00.columns = ['prompt', 'generations_uh00']
 res_uh00['prompt'] = res_uh00['prompt'].apply(lambda x: x['text'])
 
-res_uubg = pd.read_json('/data/hyeryung/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uubgx657/outputs_epsilon0.9.txt', lines=True)
+res_uubg = pd.read_json('/home/hyeryung/data/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/uubgx657/outputs_epsilon0.9.txt', lines=True)
 res_uubg.columns = ['prompt', 'generations_uubg']
 res_uubg['prompt'] = res_uubg['prompt'].apply(lambda x: x['text'])
 
-devset = pd.read_json('/data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl', lines=True)
+devset = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl', lines=True)
 devset['prompt_raw'] = devset['prompt']
 devset['prompt'] = devset['prompt'].apply(lambda x: x['text'])
 
@@ -61,5 +61,5 @@ devset_merged['generations'] = devset_merged['generations_merged']
 del devset_merged['generations_merged']
 del devset_merged['generations_uubg']
 del devset_merged['generations_uh00']
-devset_merged.to_json('/data/hyeryung/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/outputs_epsilon0.9.txt', lines=True, orient='records')
-devset_merged.to_excel('/data/hyeryung/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/outputs_epsilon0.9.xlsx', index=False)
+devset_merged.to_json('/home/hyeryung/data/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/outputs_epsilon0.9.txt', lines=True, orient='records')
+devset_merged.to_excel('/home/hyeryung/data/mucoco/outputs/toxicity/devset/uubgx657_uh00cjd4/outputs_epsilon0.9.xlsx', index=False)

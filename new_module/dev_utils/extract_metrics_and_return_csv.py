@@ -1,7 +1,7 @@
 import pandas as pd 
 pd.set_option('display.max_columns', None)
 
-result_path='/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl-results.txt'
+result_path='/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl-results.txt'
 
 metrics = []
 with open(result_path, 'r') as f:

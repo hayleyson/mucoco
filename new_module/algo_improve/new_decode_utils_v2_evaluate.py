@@ -36,10 +36,10 @@ def is_english(text):
     
 
 
-with open('/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt', 'r') as f:
+with open('/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt', 'r') as f:
     indices = f.read().split()
 indices = [int(x) for x in indices]
-located_data = pd.read_json('/data/hyeryung/mucoco/new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_nontoxic_locate_max_7.jsonl', lines=True)
+located_data = pd.read_json('/home/hyeryung/data/mucoco/new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_nontoxic_locate_max_7.jsonl', lines=True)
 located_data = located_data.explode('generations').reset_index(drop=True)
 located_data = located_data.loc[located_data['generations'].apply(len) != 0].reset_index(drop=True)
 
@@ -94,7 +94,7 @@ for result_path, time_path in zip(result_list, time_list):
     fluency = fluency_classify(generations_df, None)
     print(fluency)
 
-    toxicity_model_path = '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/'
+    toxicity_model_path = '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/'
     toxicity_model_type = 'AutoModelForSequenceClassification'
     (avg_max_toxicity, toxic_probability_p, avg_toxicity, toxic_probability_s) = toxicity_score_int(generations_df, None, device,
                                                                                                 toxicity_model_path, toxicity_model_type)

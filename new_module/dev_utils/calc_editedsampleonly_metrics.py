@@ -1,7 +1,7 @@
 import pandas as pd
 from glob import glob
 import os
-os.chdir('/data/hyeryung/mucoco')
+os.chdir('/home/hyeryung/data/mucoco')
 from evaluation.prompted_sampling.evaluate import distinctness, repetition
 os.getcwd()
 import math
@@ -301,7 +301,7 @@ if task == "toxicity":
                 'dist-3':dist3_metrics,
                 'rep_rate':repetitions_metrics,
                 'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
-            }).to_csv('/data/hyeryung/mucoco/outputs/toxicity/llm/r7kykwge/results_epsilon0.9-test-editedonly.csv',index=False)
+            }).to_csv('/home/hyeryung/data/mucoco/outputs/toxicity/llm/r7kykwge/results_epsilon0.9-test-editedonly.csv',index=False)
 elif task == "toxicity":    
     pd.DataFrame({'run_ids':run_ids, 
                 'sbert': sbert_metrics,
@@ -316,4 +316,4 @@ elif task == "toxicity":
                 'dist-3':dist3_metrics,
                 'rep_rate':repetitions_metrics,
                 'num_edits': [len(edited_ixs[run_id]) for run_id in run_ids],
-            }).to_csv('/data/hyeryung/mucoco/outputs/toxicity/llm/r7kykwge/results_epsilon0.9-test-editedonly.csv',index=False)
+            }).to_csv('/home/hyeryung/data/mucoco/outputs/toxicity/llm/r7kykwge/results_epsilon0.9-test-editedonly.csv',index=False)

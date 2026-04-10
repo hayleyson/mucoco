@@ -13,9 +13,9 @@ conda init
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 # srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -50,21 +50,21 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens.jsonl' \
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project 'toxicity-decoding' \
-# --model_paths 'meta-llama/Meta-Llama-3-8B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
-# --tokenizer_paths 'meta-llama/Meta-Llama-3-8B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --model_paths 'meta-llama/Meta-Llama-3-8B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --tokenizer_paths 'meta-llama/Meta-Llama-3-8B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 # --output_dir_prefix 'outputs/toxicity/llm' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --locate_method 'grad_norm' \
 # --server_time_limit 12 \
 # --device 'cuda' \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
 # python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -77,14 +77,14 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl' \
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project 'toxicity-decoding' \
-# --model_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
-# --tokenizer_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --model_paths 'Qwen/Qwen2.5-7B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --tokenizer_paths 'Qwen/Qwen2.5-7B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 # --output_dir_prefix 'outputs/toxicity/llm' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -92,7 +92,7 @@ export LOGGING_LEVEL=INFO
 # --dont_skip_allsat \
 # --server_time_limit 12 \
 # --device 'cuda' \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
 # srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -105,14 +105,14 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl' \
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project 'toxicity-decoding' \
-# --model_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
-# --tokenizer_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --model_paths 'Qwen/Qwen2.5-7B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --tokenizer_paths 'Qwen/Qwen2.5-7B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 # --output_dir_prefix 'outputs/toxicity/llm' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -121,7 +121,7 @@ export LOGGING_LEVEL=INFO
 # --consider_prompt_for_cand_gen \
 # --device 'cuda' \
 # --max_tokens_per_span 3 \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
 # srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -134,14 +134,14 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl' \
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project 'toxicity-decoding' \
-# --model_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
-# --tokenizer_paths 'Qwen/Qwen2.5-7B' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --model_paths 'Qwen/Qwen2.5-7B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+# --tokenizer_paths 'Qwen/Qwen2.5-7B' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 # --output_dir_prefix 'outputs/toxicity/llm' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -150,7 +150,7 @@ export LOGGING_LEVEL=INFO
 # --consider_prompt_for_cand_gen \
 # --device 'cuda' \
 # --max_tokens_per_span 3 \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
 # python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -163,7 +163,7 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task sentiment \
 # --num_samples 10 \
-# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_noprompt_150.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_noprompt_150.jsonl' \
 # --source_style 'nan' \
 # --target_style 'negative' \
 # --target_label_ids 0 0 \
@@ -177,7 +177,7 @@ export LOGGING_LEVEL=INFO
 # --locate_method 'grad_norm' \
 # --server_time_limit 12 \
 # --device 'cuda' \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
 # srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -190,7 +190,7 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task sentiment \
 # --num_samples 10 \
-# --source_data '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_noprompt_150.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_noprompt_150.jsonl' \
 # --source_style 'nan' \
 # --target_style 'negative' \
 # --target_label_ids 0 0 \
@@ -204,7 +204,7 @@ export LOGGING_LEVEL=INFO
 # --locate_method 'grad_norm' \
 # --server_time_limit 12 \
 # --device 'cuda' \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --model_types 'AutoModelForCausalLM' 'AutoModelForSequenceClassification'
 
 # srun python new_module/new_mlm_reranking_all.py \
@@ -218,14 +218,14 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl \
+# --source_data /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_noprompt_150.jsonl \
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project toxicity-decoding \
-# --model_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
-# --tokenizer_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --model_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --tokenizer_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --output_dir_prefix outputs/toxicity/llm \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -234,7 +234,7 @@ export LOGGING_LEVEL=INFO
 # --consider_prompt_for_cand_gen \
 # --device cuda \
 # --max_tokens_per_span 3 \
-# --cache_dir /data/hyeryung/hf_cache \
+# --cache_dir /home/hyeryung/data/hf_cache \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 # -- multiattribute control failure experiment -- #
@@ -250,14 +250,14 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_150.jsonl \
+# --source_data /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_150.jsonl \
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project toxicity-decoding \
-# --model_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
-# --tokenizer_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --model_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --tokenizer_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --output_dir_prefix outputs/toxicity/llm \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -266,7 +266,7 @@ export LOGGING_LEVEL=INFO
 # --consider_prompt_for_cand_gen \
 # --device cuda \
 # --max_tokens_per_span 3 \
-# --cache_dir /data/hyeryung/hf_cache \
+# --cache_dir /home/hyeryung/data/hf_cache \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 
@@ -281,14 +281,14 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150.jsonl \
+# --source_data /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150.jsonl \
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project toxicity-decoding \
-# --model_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
-# --tokenizer_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --model_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --tokenizer_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --output_dir_prefix outputs/toxicity/llm \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -297,7 +297,7 @@ export LOGGING_LEVEL=INFO
 # --consider_prompt_for_cand_gen \
 # --device cuda \
 # --max_tokens_per_span 3 \
-# --cache_dir /data/hyeryung/hf_cache \
+# --cache_dir /home/hyeryung/data/hf_cache \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 # srun python new_module/new_mlm_reranking_all.py \
@@ -311,14 +311,14 @@ export LOGGING_LEVEL=INFO
 # --selection_criteria allsat_primary \
 # --task toxicity \
 # --num_samples 10 \
-# --source_data /data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150.jsonl \
+# --source_data /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150.jsonl \
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
 # --min_epsilons 0.9 \
 # --wandb_project toxicity-decoding \
-# --model_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
-# --tokenizer_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --model_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --tokenizer_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --output_dir_prefix outputs/toxicity/llm \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -327,7 +327,7 @@ export LOGGING_LEVEL=INFO
 # --consider_prompt_for_cand_gen \
 # --device cuda \
 # --max_tokens_per_span 3 \
-# --cache_dir /data/hyeryung/hf_cache \
+# --cache_dir /home/hyeryung/data/hf_cache \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
 # --wandb_run_id tymxk7th \
 # --wandb_project toxicity-decoding \
@@ -347,14 +347,14 @@ srun python new_module/new_mlm_reranking_all.py \
 --selection_criteria allsat_primary \
 --task toxicity \
 --num_samples 10 \
---source_data '/data/hyeryung/mucoco/new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_50_seed42.jsonl' \
+--source_data '/home/hyeryung/data/mucoco/new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_50_seed42.jsonl' \
 --source_style toxic \
 --target_style nontoxic \
 --target_label_ids 0 0 \
 --min_epsilons 0.9 \
 --wandb_project toxicity-decoding \
---model_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
---tokenizer_paths Qwen/Qwen2.5-7B /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+--model_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+--tokenizer_paths Qwen/Qwen2.5-7B /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 --output_dir_prefix outputs/toxicity/llm \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
@@ -363,5 +363,5 @@ srun python new_module/new_mlm_reranking_all.py \
 --device cuda \
 --max_tokens_per_span 3 \
 --dont_skip_allsat \
---cache_dir /data/hyeryung/hf_cache \
+--cache_dir /home/hyeryung/data/hf_cache \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification

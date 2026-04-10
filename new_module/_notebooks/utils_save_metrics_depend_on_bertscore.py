@@ -1,7 +1,7 @@
 from glob import glob
 import numpy as np
 import os
-os.chdir('/data/hyeryung/mucoco')
+os.chdir('/home/hyeryung/data/mucoco')
 import pandas as pd
 from evaluation.prompted_sampling.evaluate import distinctness, repetition
 from transformers import AutoTokenizer
@@ -54,8 +54,8 @@ wandb_path = ''
 ##    - cola_bg50_ro
 ##    - rep_bg50_ro
 
-neg_file = '/data/hyeryung/mixmatch/output_samples/form_em_1/merged/opt_samples' ## informal 
-pos_file = '/data/hyeryung/mixmatch/output_samples/form_em_0/disc_frm_new_data_form_em_test_sh8_len_b_sc_r_inf_max_iter_5_temp_1.0_shuffle_True_block_False_alpha_140.0_beta_1.0_delta_15.0_gamma_0.0_theta_300.0_date_16_04_2024_00_23_29/opt_samples' ## formal
+neg_file = '/home/hyeryung/data/mixmatch/output_samples/form_em_1/merged/opt_samples' ## informal 
+pos_file = '/home/hyeryung/data/mixmatch/output_samples/form_em_0/disc_frm_new_data_form_em_test_sh8_len_b_sc_r_inf_max_iter_5_temp_1.0_shuffle_True_block_False_alpha_140.0_beta_1.0_delta_15.0_gamma_0.0_theta_300.0_date_16_04_2024_00_23_29/opt_samples' ## formal
 tokenizer = AutoTokenizer.from_pretrained('gpt2-large')
 
 data = []

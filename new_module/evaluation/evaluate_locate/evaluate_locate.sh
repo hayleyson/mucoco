@@ -12,9 +12,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 # srun python new_module/locate/evaluate_locate.py \
 # --pred_file_path="new_module/locate/results/toxicity/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/testset_gpt2_2500_gn.jsonl" \

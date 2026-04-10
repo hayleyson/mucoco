@@ -12,9 +12,9 @@ source /home/hyeryung/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 # ## 일단은 skip 허용해서 실험 돌렸음 
@@ -38,8 +38,8 @@ export LOGGING_LEVEL=INFO
 # --target_label_ids 0 0 \
 # --min_epsilons 0.75 \
 # --wandb_project toxicity-decoding \
-# --model_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
-# --tokenizer_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
+# --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --output_dir_prefix outputs/toxicity/final \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
@@ -47,7 +47,7 @@ export LOGGING_LEVEL=INFO
 # --server_time_limit 48 \
 # --device cuda \
 # --consider_prompt_for_cand_gen \
-# --cache_dir /data/hyeryung/hf_cache \
+# --cache_dir /home/hyeryung/data/hf_cache \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 # ## 일단은 skip 허용해서 실험 돌렸음 
@@ -71,8 +71,8 @@ export LOGGING_LEVEL=INFO
 # --target_label_ids 1 1 \
 # --min_epsilons 1.0 \
 # --wandb_project sentiment-decoding \
-# --model_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
-# --tokenizer_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
+# --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
+# --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
 # --output_dir_prefix outputs/sentiment/final \
 # --slurm_job_id $SLURM_JOB_ID \
@@ -80,7 +80,7 @@ export LOGGING_LEVEL=INFO
 # --locate_method grad_norm \
 # --server_time_limit 48 \
 # --device 'cuda' \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --consider_prompt_for_cand_gen \
 # --sweep
 
@@ -105,8 +105,8 @@ srun python new_module/new_mlm_reranking_all_sweep_.py \
 --target_label_ids 0 0 \
 --min_epsilons 1.0 \
 --wandb_project sentiment-decoding \
---model_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
---tokenizer_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
+--model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
+--tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
 --output_dir_prefix outputs/sentiment/final \
 --slurm_job_id $SLURM_JOB_ID \
@@ -114,7 +114,7 @@ srun python new_module/new_mlm_reranking_all_sweep_.py \
 --locate_method grad_norm \
 --server_time_limit 48 \
 --device 'cuda' \
---cache_dir '/data/hyeryung/hf_cache' \
+--cache_dir '/home/hyeryung/data/hf_cache' \
 --consider_prompt_for_cand_gen \
 --sweep
 
@@ -136,8 +136,8 @@ srun python new_module/new_mlm_reranking_all_sweep_.py \
 # --target_label_ids 1 1 \
 # --min_epsilons 0.9 \
 # --wandb_project formality-decoding \
-# --model_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/ \
-# --tokenizer_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/ \
+# --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/ \
+# --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/ \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
 # --output_dir_prefix outputs/formality/final/ \
 # --slurm_job_id $SLURM_JOB_ID \

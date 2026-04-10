@@ -7,7 +7,7 @@ import pandas as pd
 import math
 from glob import glob
 import os
-os.chdir('/data/hyeryung/mucoco')
+os.chdir('/home/hyeryung/data/mucoco')
 from evaluation.prompted_sampling.evaluate import distinctness, repetition
 from new_module.dev_utils.utils import read_metric_file
 os.getcwd()
@@ -73,9 +73,9 @@ if __name__ == "__main__":
     # 24/12/18 수정: index가 이미 저장되어 있는 경우. "1 24 5 63 ..\n" 형태로 저장되어 있음.
     edited_ixs={}
     nicknames = args.nicknames
-    # index_files = ['/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt']
+    # index_files = ['/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt']
     # index_files = ['new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_to_0_9_index.txt']
-    # index_files = ['/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_9_index.txt']
+    # index_files = ['/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_9_index.txt']
     index_files = args.index_files
 
     with open(index_files[0], 'r') as f:
@@ -89,10 +89,10 @@ if __name__ == "__main__":
 
     # save only the rows corresponding to the edited_ixs in the original generations
     # example: 
-    # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
-    # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl"]
+    # output_files = ["/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
+    # output_files = ["/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl"]
     # output_files = ['saeheeeom/new_module/iter_loc_edit_qwen/edited/2_tox_edited_38592.jsonl_total_0']
     # output_files = ['saeheeeom/new_module/iter_loc_edit_qwen/final/5_tox_loc_edit_38576.jsonl']
     # output_files = ['new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl']
@@ -137,9 +137,9 @@ if __name__ == "__main__":
     # ppl_metrics=[]
     # total_ppl_metrics=[]
 
-    # # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.ppl-big", 
-    # #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.ppl-big",
-    # #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.ppl-big"]
+    # # result_files = ["/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.ppl-big", 
+    # #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.ppl-big",
+    # #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.ppl-big"]
 
     # result_files = [f"{output_files[0]}-results.txt.ppl-big"]
 
@@ -201,9 +201,9 @@ if __name__ == "__main__":
     ## fluency
     metric='fluency'
     fluency_metrics=[]
-    # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.fluency", 
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.fluency",
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.fluency"]
+    # result_files = ["/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.fluency", 
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.fluency",
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.fluency"]
 
     if 'saeheeeom' in output_files[0]:
         result_files = [result_file_prefix.replace('/final/', '/final_fluency/').replace('/edited/', '/edited_fluency/') + ".fluency"]
@@ -227,9 +227,9 @@ if __name__ == "__main__":
     ## repetitions
     metric='repetitions'
     repetitions_metrics=[]
-    # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.repetitions", 
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.repetitions",
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.repetitions"]
+    # result_files = ["/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned_results.txt.repetitions", 
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.repetitions",
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned_results.txt.repetitions"]
     result_files = [result_file_prefix + ".repetitions"]
 
 
@@ -254,9 +254,9 @@ if __name__ == "__main__":
 
     ## dist-3
     dist3_metrics= []
-    # output_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
-    #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
+    # output_files = ["/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_cleaned.jsonl", 
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned.jsonl",
+    #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_cleaned.jsonl"]
     output_files = output_files
 
     for i, suffix in enumerate(nicknames):
@@ -279,9 +279,9 @@ if __name__ == "__main__":
         toxic_proba_metrics=[]
         toxic_proba_75_metrics=[]
         avg_max_toxicity_metrics=[]
-        # result_files = ["/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_results.txt.toxicity", 
-        #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.toxicity",
-        #                 "/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_results.txt.toxicity"]
+        # result_files = ["/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct_gens_results.txt.toxicity", 
+        #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama2_13b_chat_gens_cleaned_results.txt.toxicity",
+        #                 "/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o_gens_results.txt.toxicity"]
         result_files = [result_file_prefix + ".toxicity"]
 
 

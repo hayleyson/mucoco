@@ -63,9 +63,9 @@ if __name__ == "__main__":
     config = {'task': 'toxicity',
         'device': 'cuda',
         'losses': ['gpt2', 'classification_no_prefix_logprobloss'],
-        'cache_dir': '/data/hyeryung/hf_cache',
+        'cache_dir': '/home/hyeryung/data/hf_cache',
         'model_paths': [args.fluency_em_path,
-                        '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint'],
+                        '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint'],
         'model_types': ['AutoModelForCausalLM', 'AutoModelForSequenceClassification'],
         'build_loss_dict': {'AR_top_k': 0,
                             'AR_top_p': 0.96,
@@ -76,7 +76,7 @@ if __name__ == "__main__":
                             'length_normalize': False,
                             'max_output_length': 20},
         'tokenizer_paths': [args.fluency_em_path,
-                        '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint'],
+                        '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint'],
         'max_tokens_per_span': 3,
         'consider_prompt_for_cand_gen': True,
         'k_per_location': 10,
@@ -158,10 +158,10 @@ if __name__ == "__main__":
 
     special_token_ids = mlm_tokenizer.convert_tokens_to_ids(mlm_tokenizer.all_special_tokens)
     
-    with open('/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt', 'r') as f:
+    with open('/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332_index.txt', 'r') as f:
         indices = f.read().split()
     indices = [int(x) for x in indices]
-    located_data = pd.read_json('/data/hyeryung/mucoco/new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_nontoxic_locate_max_7.jsonl', lines=True)
+    located_data = pd.read_json('/home/hyeryung/data/mucoco/new_module/locate/locate_num_tokens_eda/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_nontoxic_locate_max_7.jsonl', lines=True)
     located_data = located_data.explode('generations').reset_index(drop=True)
     located_data = located_data.loc[located_data['generations'].apply(len) != 0].reset_index(drop=True)
 

@@ -1,6 +1,6 @@
 """
 editing_with_delete_variable_replace 함수 업데이트를 위한 프로토타입,테스트 코드 
-(/data/hyeryung/mucoco/new_module/new_decode_utils_v2.py 을 돌려서 1번으로 확정하고 editing_with_delete_variable_replace 형태로 함수를 작성하여 진행)
+(/home/hyeryung/data/mucoco/new_module/new_decode_utils_v2.py 을 돌려서 1번으로 확정하고 editing_with_delete_variable_replace 형태로 함수를 작성하여 진행)
 """
 import math
 import random

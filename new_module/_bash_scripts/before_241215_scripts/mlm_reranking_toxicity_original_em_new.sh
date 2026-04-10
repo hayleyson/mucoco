@@ -12,9 +12,9 @@ source /home/hyeryung/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 srun python new_module/new_mlm_reranking_all.py --method mlm-reranking \
@@ -32,8 +32,8 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-reranking \
 --target_label_ids 0 0 \
 --min_epsilons 0.9 \
 --wandb_project 'toxicity-decoding' \
---model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
---tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+--model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
+--tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 --model_types "AutoModelForCausalLM" "AutoModelForSequenceClassification" \
 --output_dir_prefix 'outputs/toxicity/final' \
 --slurm_job_id $SLURM_JOB_ID \

@@ -296,7 +296,7 @@ config = {
     },
     "task": task,
     "device": "cuda",
-    "cache_dir": "/data/hyeryung/.cache", # Change to your huggingface cache directory
+    "cache_dir": "/home/hyeryung/data/.cache", # Change to your huggingface cache directory
     "batch_size": 64,
     "target_label_ids": [None, label_id],  # Example target labels
 }

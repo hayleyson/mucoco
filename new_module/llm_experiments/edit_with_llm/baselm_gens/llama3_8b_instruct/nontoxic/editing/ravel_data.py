@@ -36,7 +36,7 @@ def ravel(unraveled_df, prompts):
     # return_df['prompt'] = return_df['prompt'].apply(lambda x: {'text': x})
     return return_df
 
-file_save_path='/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/nontoxic/editing/llama3_8b_editing_gpt2_gens_all_nontoxic.jsonl'
+file_save_path='/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/nontoxic/editing/llama3_8b_editing_gpt2_gens_all_nontoxic.jsonl'
 data = pd.read_json(file_save_path, lines=True)
 
 

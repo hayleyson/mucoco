@@ -3,7 +3,7 @@ import os
 from transformers import AutoTokenizer
 
 
-# gendir = '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens'
+# gendir = '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens'
 # genfiles = os.listdir(gendir)
 
 # for fpath_ in genfiles:
@@ -31,17 +31,17 @@ from transformers import AutoTokenizer
 
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
-gendir = '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens'
+gendir = '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens'
 # genfiles = os.listdir(gendir)
-# genfiles = ['/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/llama3_8b_chat_prompting_gens_senti_0shot.jsonl',
-#             '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/llama3_8b_chat_prompting_gens_senti_3shot.jsonl']
-# genfiles = ['/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/nontoxic/editing/llama3_8b_editing_gpt2_gens_nontoxic.jsonl']
-genfiles = ['/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/nontoxic/editing/llama3_8b_editing_gpt2_gens_all_nontoxic.jsonl',
-           '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/negative/editing/llama3_8b_editing_gpt2_gens_neg.jsonl',
-           '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/editing/llama3_8b_editing_gpt2_gens_pos.jsonl']
+# genfiles = ['/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/llama3_8b_chat_prompting_gens_senti_0shot.jsonl',
+#             '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/llama3_8b_chat_prompting_gens_senti_3shot.jsonl']
+# genfiles = ['/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/nontoxic/editing/llama3_8b_editing_gpt2_gens_nontoxic.jsonl']
+genfiles = ['/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/nontoxic/editing/llama3_8b_editing_gpt2_gens_all_nontoxic.jsonl',
+           '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/negative/editing/llama3_8b_editing_gpt2_gens_neg.jsonl',
+           '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/editing/llama3_8b_editing_gpt2_gens_pos.jsonl']
 
 
-# input_file_path = '/data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl'
+# input_file_path = '/home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl'
 # with open(input_file_path,'r') as f:
 #     raw_data = f.readlines()
 # if input_file_path.endswith('jsonl'): ##toxic,senti

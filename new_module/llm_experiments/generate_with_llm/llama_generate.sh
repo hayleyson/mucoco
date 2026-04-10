@@ -19,58 +19,58 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_generate.py \
+srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_generate.py \
 --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
---file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_informal_3shot_ungrammar__time_check.jsonl \
---input_file_path /data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal \
+--file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_informal_3shot_ungrammar__time_check.jsonl \
+--input_file_path /home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal \
 --prompt_type informal_3shot_ungrammar \
 --num_return_sequences 1 \
 --max_tokens 60
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_generate.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_generate.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_informal_0shot_ungrammar.jsonl \
-# --input_file_path /data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_informal_0shot_ungrammar.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/formal \
 # --prompt_type informal_0shot_ungrammar \
 # --num_return_sequences 1 \
 # --max_tokens 60
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_generate.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_generate.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_formal_0shot.jsonl \
-# --input_file_path /data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_formal_0shot.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal \
 # --prompt_type formal_0shot \
 # --num_return_sequences 1 \
 # --max_tokens 60
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_generate.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_generate.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_formal_3shot__time_check.jsonl \
-# --input_file_path /data/hyeryung/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_formal_3shot__time_check.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal \
 # --prompt_type formal_3shot \
 # --num_return_sequences 1 \
 # --max_tokens 60
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_generate.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_generate.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_nontoxic_3shot.jsonl \
-# --input_file_path /data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_nontoxic_3shot.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
 # --prompt_type nontoxic_3shot \
 # --num_return_sequences 10 \
 # --max_tokens 30
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_generate.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_generate.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_nontoxic_0shot.jsonl \
-# --input_file_path /data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_nontoxic_0shot.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
 # --prompt_type nontoxic_0shot \
 # --num_return_sequences 10 \
 # --max_tokens 30
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_generate.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_generate.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_nontoxic_0shot.jsonl \
-# --input_file_path /data/hyeryung/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_chat_prompting_gens_nontoxic_0shot.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/dev_set.jsonl \
 # --prompt_type nontoxic_0shot \
 # --num_return_sequences 20 \
 # --max_tokens 12

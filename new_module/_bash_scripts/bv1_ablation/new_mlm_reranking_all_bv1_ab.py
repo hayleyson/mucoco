@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import time
-# os.chdir('/data/hyeryung/mucoco')
+# os.chdir('/home/hyeryung/data/mucoco')
 import numpy as np
 import pandas as pd
 import torch

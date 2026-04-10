@@ -101,7 +101,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-prefix-length=50\
  --metric='l2'\
  --min_epsilons='-3'\
- --model='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --model='gpt2-large:/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
  --num_edit_token_per_step=3\
@@ -131,7 +131,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --start-idx=0\
  --suffix-length=0\
  --target-type='embeds'\
- --tokenizer='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --tokenizer='gpt2-large:/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --topic-target='none'\
  --topic-word-lists='none'\
  --use_context='false'\

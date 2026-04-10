@@ -11,4 +11,4 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-python /data/hyeryung/mucoco/new_module/locate/test_nli_locate.py
+python /home/hyeryung/data/mucoco/new_module/locate/test_nli_locate.py

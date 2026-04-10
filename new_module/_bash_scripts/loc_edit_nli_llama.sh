@@ -13,9 +13,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
@@ -26,7 +26,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --n_iter 1 \
 --loss_weights 1 1 \
 --selection_criteria allsat_primary \
---cache_dir '/data/hyeryung/hf_cache' \
+--cache_dir '/home/hyeryung/data/hf_cache' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --dont_skip_allsat \
@@ -38,8 +38,8 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --target_label_ids 1 1 \
 --min_epsilons 0.99 \
 --wandb_project 'nli-decoding' \
---model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
---tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+--model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+--tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
 --locate_method 'grad_norm' \
 --losses gpt2_no_prefix classification \
 --model_types AutoModelForCausalLM EncoderModel
@@ -54,7 +54,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --n_iter 1 \
 # --loss_weights 1.0 0.01 \
 # --selection_criteria allsat_primary \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --dont_skip_allsat \
@@ -66,8 +66,8 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --target_label_ids 1 1 \
 # --min_epsilons 0.99 \
 # --wandb_project 'nli-decoding' \
-# --model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
-# --tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+# --model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+# --tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
 # --locate_method 'grad_norm' \
 # --losses gpt2_no_prefix classification \
 # --model_types AutoModelForCausalLM EncoderModel
@@ -82,7 +82,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --n_iter 1 \
 # --loss_weights 1.0 0.1 \
 # --selection_criteria allsat_primary \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --dont_skip_allsat \
@@ -94,8 +94,8 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --target_label_ids 1 1 \
 # --min_epsilons 0.9 \
 # --wandb_project 'nli-decoding' \
-# --model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
-# --tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+# --model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+# --tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
 # --locate_method 'grad_norm' \
 # --losses gpt2_no_prefix classification \
 # --model_types AutoModelForCausalLM EncoderModel

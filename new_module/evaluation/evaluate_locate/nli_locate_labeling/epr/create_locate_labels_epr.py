@@ -212,17 +212,17 @@ def handle_snli():
     print('Processing SNLI dataset...')
 
     print('1. Adding pairID and gold_label.')
-    data1 = pd.read_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator1_snli.jsonl', lines=True).reset_index(drop=True)
-    data2 = pd.read_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator2_snli.jsonl', lines=True).reset_index(drop=True)
-    data3 = pd.read_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator3_snli.jsonl', lines=True).reset_index(drop=True)
+    data1 = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator1_snli.jsonl', lines=True).reset_index(drop=True)
+    data2 = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator2_snli.jsonl', lines=True).reset_index(drop=True)
+    data3 = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator3_snli.jsonl', lines=True).reset_index(drop=True)
 
     assert set(data2['snli_id']) == set(data2['snli_id']) == set(data3['snli_id']), 'snli_id is not matched'
 
-    snli_test = pd.read_json('/data/hyeryung/mucoco/data/nli/snli_1.0/snli_1.0_test.jsonl', lines=True)
+    snli_test = pd.read_json('/home/hyeryung/data/mucoco/data/nli/snli_1.0/snli_1.0_test.jsonl', lines=True)
     snli_test['split'] = 'test'
-    snli_train = pd.read_json('/data/hyeryung/mucoco/data/nli/snli_1.0/snli_1.0_train.jsonl', lines=True)
+    snli_train = pd.read_json('/home/hyeryung/data/mucoco/data/nli/snli_1.0/snli_1.0_train.jsonl', lines=True)
     snli_train['split'] = 'train'
-    snli_dev = pd.read_json('/data/hyeryung/mucoco/data/nli/snli_1.0/snli_1.0_dev.jsonl', lines=True)
+    snli_dev = pd.read_json('/home/hyeryung/data/mucoco/data/nli/snli_1.0/snli_1.0_dev.jsonl', lines=True)
     snli_dev['split'] = 'dev'
     snli_all = pd.concat([snli_train, snli_dev, snli_test], ignore_index=True)
 
@@ -293,9 +293,9 @@ def handle_snli():
     assert set(data1['pairID']) == set(data2['pairID']) == set(data3['pairID']), 'pairID is not matched'
     assert data1.loc[data1['gold_label'] == 'contradiction', :].shape[0] == data2.loc[data2['gold_label'] == 'contradiction', :].shape[0] == data3.loc[data3['gold_label'] == 'contradiction', :].shape[0]
 
-    data1.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator1_snli_pairID.jsonl', orient='records', lines=True)
-    data2.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator2_snli_pairID.jsonl', orient='records', lines=True)
-    data3.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator3_snli_pairID.jsonl', orient='records', lines=True)
+    data1.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator1_snli_pairID.jsonl', orient='records', lines=True)
+    data2.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator2_snli_pairID.jsonl', orient='records', lines=True)
+    data3.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/snli_annotation/annotator3_snli_pairID.jsonl', orient='records', lines=True)
 
     # ------------------------------------------------------------------------------------------------
     print('2. Adding char, token, word-level labels')
@@ -353,18 +353,18 @@ def handle_snli():
         'premise_char_labels', 'premise_word_labels', 'premise_token_labels', 
         'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_word_labels_binary', 'hypothesis_token_labels', 'hypothesis_token_labels_binary']]
 
-    merged_labels.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/snli_annotation/snli_locate_labels.jsonl', orient='records', lines=True)
+    merged_labels.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/snli_annotation/snli_locate_labels.jsonl', orient='records', lines=True)
 
 def handle_mnli():
     print('Processing MNLI dataset...')
     print('1. Adding pairID and gold_label.')
-    data1 = pd.read_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator1_mnli_matched.jsonl', lines=True).reset_index(drop=True)
-    data2 = pd.read_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator2_mnli_matched.jsonl', lines=True).reset_index(drop=True)
-    data3 = pd.read_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator3_mnli_matched.jsonl', lines=True).reset_index(drop=True)
+    data1 = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator1_mnli_matched.jsonl', lines=True).reset_index(drop=True)
+    data2 = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator2_mnli_matched.jsonl', lines=True).reset_index(drop=True)
+    data3 = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator3_mnli_matched.jsonl', lines=True).reset_index(drop=True)
 
     assert set(data2['snli_id']) == set(data2['snli_id']) == set(data3['snli_id']), 'snli_id is not matched'
 
-    mnli_dev_matched = pd.read_json('/data/hyeryung/mucoco/data/nli/multinli_1.0/multinli_1.0_dev_matched.jsonl', lines=True)
+    mnli_dev_matched = pd.read_json('/home/hyeryung/data/mucoco/data/nli/multinli_1.0/multinli_1.0_dev_matched.jsonl', lines=True)
     snli_all = mnli_dev_matched
 
     for data in [data1, data2, data3]:
@@ -431,9 +431,9 @@ def handle_mnli():
     assert set(data1['pairID']) == set(data2['pairID']) == set(data3['pairID']), 'pairID is not matched'
     assert data1.loc[data1['gold_label'] == 'contradiction', :].shape[0] == data2.loc[data2['gold_label'] == 'contradiction', :].shape[0] == data3.loc[data3['gold_label'] == 'contradiction', :].shape[0]
 
-    data1.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator1_mnli_matched_pairID.jsonl', orient='records', lines=True)
-    data2.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator2_mnli_matched_pairID.jsonl', orient='records', lines=True)
-    data3.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator3_mnli_matched_pairID.jsonl', orient='records', lines=True)
+    data1.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator1_mnli_matched_pairID.jsonl', orient='records', lines=True)
+    data2.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator2_mnli_matched_pairID.jsonl', orient='records', lines=True)
+    data3.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/mnli_annotation/annotator3_mnli_matched_pairID.jsonl', orient='records', lines=True)
 
     # ------------------------------------------------------------------------------------------------
     print('2. Adding char, token, word-level labels')
@@ -545,7 +545,7 @@ def handle_mnli():
         'premise_char_labels', 'premise_word_labels', 'premise_token_labels', 
         'hypothesis_char_labels', 'hypothesis_word_labels', 'hypothesis_word_labels_binary', 'hypothesis_token_labels', 'hypothesis_token_labels_binary']]
 
-    merged_labels.to_json('/data/hyeryung/mucoco/new_module/data/EPR/text_file/mnli_annotation/mnli_matched_locate_labels.jsonl', orient='records', lines=True)
+    merged_labels.to_json('/home/hyeryung/data/mucoco/new_module/data/EPR/text_file/mnli_annotation/mnli_matched_locate_labels.jsonl', orient='records', lines=True)
 
 if __name__ == '__main__':
     handle_snli()

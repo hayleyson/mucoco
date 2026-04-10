@@ -4,8 +4,8 @@ import json
 import pandas as pd
 import numpy as np
 
-file_path = '/data/hyeryung/mucoco/outputs/toxicity/llm/ip4tt24k/outputs_epsilon0.9.txt'
-# file_path = '/data/hyeryung/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_noprompt_150.jsonl'
+file_path = '/home/hyeryung/data/mucoco/outputs/toxicity/llm/ip4tt24k/outputs_epsilon0.9.txt'
+# file_path = '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/sentiment/gpt-3.5-turbo-0125_pplm_prompts_noprompt_150.jsonl'
 
 api_key = os.environ['OPENAI_API_KEY']
 client = OpenAI(api_key=api_key)

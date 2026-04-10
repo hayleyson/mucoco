@@ -1,6 +1,6 @@
 import argparse
 import os
-os.chdir('/data/hyeryung/mucoco')
+os.chdir('/home/hyeryung/data/mucoco')
 import yaml
 import datetime
 

@@ -11,9 +11,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 srun python new_module/decode_new_for_testset_iter.py \
@@ -30,7 +30,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --beam-size=1\
  --betas='0.8:0.2'\
  --bos\
- --cache_dir='/data/hyeryung/hf_cache'\
+ --cache_dir='/home/hyeryung/data/hf_cache'\
  --coeff-pattern='constant'\
  --coeff-steps=200\
  --custom-epsilons='none'\
@@ -99,7 +99,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-prefix-length=50\
  --metric='l2'\
  --min_epsilons='-1.15'\
- --model='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --model='gpt2-large:/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
  --num_edit_token_per_step=-1\
@@ -129,7 +129,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --start-idx=0\
  --suffix-length=0\
  --target-type='embeds'\
- --tokenizer='gpt2-large:/data/hyeryung/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
+ --tokenizer='gpt2-large:/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --topic-target='none'\
  --topic-word-lists='none'\
  --use_context='false'\

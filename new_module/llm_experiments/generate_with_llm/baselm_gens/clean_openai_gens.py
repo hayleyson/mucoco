@@ -3,14 +3,14 @@ import os
 from transformers import AutoTokenizer
 
 
-gendir = '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens'
+gendir = '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens'
 # genfiles = os.listdir(gendir)
 
 
-# genfiles = ['/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o/gpt4o_prompting_gens_nontoxic_3shot.jsonl',
-#             '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o/gpt4o_prompting_gens_nontoxic_0shot.jsonl']
+# genfiles = ['/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o/gpt4o_prompting_gens_nontoxic_3shot.jsonl',
+#             '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o/gpt4o_prompting_gens_nontoxic_0shot.jsonl']
 
-genfiles = ['/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/gpt4o/nontoxic/gpt4o_gens.jsonl']
+genfiles = ['/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/gpt4o/nontoxic/gpt4o_gens.jsonl']
 for fpath_ in genfiles:
     
 

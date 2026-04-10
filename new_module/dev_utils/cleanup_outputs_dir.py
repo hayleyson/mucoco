@@ -8,7 +8,7 @@ import pandas as pd
 # ------ toxicity ------ # 
 
 ### rename folder to wandb id
-# for path in glob.glob('/data/hyeryung/mucoco/outputs/toxicity/**/**/'):
+# for path in glob.glob('/home/hyeryung/data/mucoco/outputs/toxicity/**/**/'):
 #     print(path)
     
 #     if len(path.split('/')[-2]) != 8:
@@ -18,7 +18,7 @@ import pandas as pd
 #         os.rename(path, new_path)
 
 ### check outputs length and delete folders with strange lengths
-# for path in glob.glob('/data/hyeryung/mucoco/outputs/toxicity/**/**/outputs*.txt'):
+# for path in glob.glob('/home/hyeryung/data/mucoco/outputs/toxicity/**/**/outputs*.txt'):
 #     print(path)
     
 #     try:
@@ -57,13 +57,13 @@ import pandas as pd
 
 
 ### manual deletion
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/toxicity/devset/zsm80jfz
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/toxicity/devset/5x65yj1u
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/toxicity/devset/h39o0pa2
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/toxicity/devset/zsm80jfz
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/toxicity/devset/5x65yj1u
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/toxicity/devset/h39o0pa2
 
 # ------ sentiment ------ # 
 ### rename folder to wandb id
-# for path in glob.glob('/data/hyeryung/mucoco/outputs/sentiment/**/**/'):
+# for path in glob.glob('/home/hyeryung/data/mucoco/outputs/sentiment/**/**/'):
 #     print(path)
     
 #     if len(path.split('/')[-2]) != 8:
@@ -73,8 +73,8 @@ import pandas as pd
 #         # os.rename(path, new_path)
 
 # ### check outputs length and delete folders with strange lengths
-# for path in glob.glob('/data/hyeryung/mucoco/outputs/sentiment/**/**/outputs*[0-9].txt'):
-# # for path in glob.glob('/data/hyeryung/mucoco/outputs/sentiment/**/**/**/outputs*[0-9].txt'):
+# for path in glob.glob('/home/hyeryung/data/mucoco/outputs/sentiment/**/**/outputs*[0-9].txt'):
+# # for path in glob.glob('/home/hyeryung/data/mucoco/outputs/sentiment/**/**/**/outputs*[0-9].txt'):
 #     print(path)
     
 #     try:
@@ -109,15 +109,15 @@ import pandas as pd
 #             # shutil.rmtree(os.path.dirname(path))
   
 ### manual deletion
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/sentiment/mucola/vqteup8r
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/sentiment/final/mmbcjvlo
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/sentiment/final/xhvtb06k
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/sentiment/final/wi0n3ebk
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/sentiment/final/64hldp6d
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/sentiment/mucola/vqteup8r
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/sentiment/final/mmbcjvlo
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/sentiment/final/xhvtb06k
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/sentiment/final/wi0n3ebk
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/sentiment/final/64hldp6d
 
 # ------ formality ------ # 
 ### rename folder to wandb id
-# for path in glob.glob('/data/hyeryung/mucoco/outputs/formality/**/**/'):
+# for path in glob.glob('/home/hyeryung/data/mucoco/outputs/formality/**/**/'):
 #     print(path)
     
 #     if len(path.split('/')[-2]) != 8:
@@ -126,7 +126,7 @@ import pandas as pd
 #         print(new_path)
 #         # os.rename(path, new_path)
 
-# for path in glob.glob('/data/hyeryung/mucoco/outputs/formality/**/rescale/**/'):
+# for path in glob.glob('/home/hyeryung/data/mucoco/outputs/formality/**/rescale/**/'):
 #     print(path)
     
 #     if len(path.split('/')[-2]) != 8:
@@ -137,8 +137,8 @@ import pandas as pd
 
 
 # ### check outputs length and delete folders with strange lengths
-for path in glob.glob('/data/hyeryung/mucoco/outputs/formality/**/**/outputs*[0-9].txt'):
-# for path in glob.glob('/data/hyeryung/mucoco/outputs/formality/mlm-reranking/**/outputs*[0-9].txt'):
+for path in glob.glob('/home/hyeryung/data/mucoco/outputs/formality/**/**/outputs*[0-9].txt'):
+# for path in glob.glob('/home/hyeryung/data/mucoco/outputs/formality/mlm-reranking/**/outputs*[0-9].txt'):
     print(path)
     
     try:
@@ -171,4 +171,4 @@ for path in glob.glob('/data/hyeryung/mucoco/outputs/formality/**/**/outputs*[0-
             # shutil.rmtree(os.path.dirname(path))
   
 ### manual deletion
-# (loc-edit) (base) hyeryung@master:/data/hyeryung/mucoco$ rm -rf /data/hyeryung/mucoco/outputs/formality/final/p7m1vo04
+# (loc-edit) (base) hyeryung@master:/home/hyeryung/data/mucoco$ rm -rf /home/hyeryung/data/mucoco/outputs/formality/final/p7m1vo04

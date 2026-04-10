@@ -3,7 +3,7 @@ import os
 from transformers import AutoTokenizer
 
 
-gendir = '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens'
+gendir = '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens'
 genfiles = os.listdir(gendir)
 
 for fpath_ in genfiles:
@@ -31,7 +31,7 @@ for fpath_ in genfiles:
 
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
-gendir = '/data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens'
+gendir = '/home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens'
 genfiles = os.listdir(gendir)
 
 for fpath_ in genfiles:

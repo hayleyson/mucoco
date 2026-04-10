@@ -19,34 +19,34 @@ export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_editing_gpt2_gens_nontoxic.jsonl \
-# --input_file_path /data/hyeryung/mucoco/new_module/data/toxicity-avoidance/testset_gpt2_2500_locate.jsonl \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_editing_gpt2_gens_nontoxic.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/testset_gpt2_2500_locate.jsonl \
 # --prompt_type nontoxic_gpt2_gen_edit \
 # --num_return_sequences 1 \
 # --max_tokens 50
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_editing_gpt2_gens_all_nontoxic.jsonl \
-# --input_file_path /data/hyeryung/mucoco/new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_editing_gpt2_gens_all_nontoxic.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/testset_gpt2_2500.jsonl \
 # --prompt_type nontoxic_gpt2_gen_edit_3shot \
 # --num_return_sequences 1 \
 # --max_tokens 50
 
-srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
+srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
 --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
---file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/editing/llama3_8b_editing_gpt2_gens_pos.jsonl \
---input_file_path /data/hyeryung/mucoco/new_module/data/sentiment/dev_set.jsonl \
+--file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/positive/editing/llama3_8b_editing_gpt2_gens_pos.jsonl \
+--input_file_path /home/hyeryung/data/mucoco/new_module/data/sentiment/dev_set.jsonl \
 --prompt_type senti_pos_gpt2_gen_edit_3shot \
 --num_return_sequences 1 \
 --max_tokens 50
 
-# srun python /data/hyeryung/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
+# srun python /home/hyeryung/data/mucoco/new_module/llm_experiments/llama_edit_prompted_generation.py \
 # --hf_model_name meta-llama/Meta-Llama-3-8B-Instruct \
-# --file_save_path /data/hyeryung/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/negative/editing/llama3_8b_editing_gpt2_gens_neg.jsonl \
-# --input_file_path /data/hyeryung/mucoco/new_module/data/sentiment/dev_set.jsonl \
+# --file_save_path /home/hyeryung/data/mucoco/new_module/llm_experiments/baselm_gens/llama3_8b_instruct/negative/editing/llama3_8b_editing_gpt2_gens_neg.jsonl \
+# --input_file_path /home/hyeryung/data/mucoco/new_module/data/sentiment/dev_set.jsonl \
 # --prompt_type senti_neg_gpt2_gen_edit_3shot \
 # --num_return_sequences 1 \
 # --max_tokens 50

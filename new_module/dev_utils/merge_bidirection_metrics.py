@@ -1,7 +1,7 @@
 from glob import glob
 import numpy as np
 import os
-os.chdir('/data/hyeryung/mucoco')
+os.chdir('/home/hyeryung/data/mucoco')
 import pandas as pd
 from evaluation.prompted_sampling.evaluate import distinctness, repetition
 

@@ -9,7 +9,7 @@ parser.add_argument('--expected_nlines', type=int, required=False)
 args = parser.parse_args()
 
 orig_fpath = args.prompt_fpath
-# orig_fpath = '/data/hyeryung/mixmatch/data/detoxic/dev_set_prompts.jsonl'
+# orig_fpath = '/home/hyeryung/data/mixmatch/data/detoxic/dev_set_prompts.jsonl'
     
 if orig_fpath != "":
     prompts = pd.read_json(orig_fpath, lines=True)
@@ -17,7 +17,7 @@ else:
     prompts = pd.DataFrame({'prompt': ['' for _ in range(args.expected_nlines)]})
 
 fpath = args.gen_fpath
-# fpath = '/data/hyeryung/mixmatch/output_samples/detoxic/mask_disc_max_len_12_jigsaw_clsf_data_detoxic_em_max_iter_5_temp_1.0_shuffle_True_block_False_alpha_140.0_beta_1.0_delta_15.0_gamma_0.0_theta_100.0_date_24_04_2024_15_45_58/opt_samples.txt'
+# fpath = '/home/hyeryung/data/mixmatch/output_samples/detoxic/mask_disc_max_len_12_jigsaw_clsf_data_detoxic_em_max_iter_5_temp_1.0_shuffle_True_block_False_alpha_140.0_beta_1.0_delta_15.0_gamma_0.0_theta_100.0_date_24_04_2024_15_45_58/opt_samples.txt'
 with open(fpath, 'r') as f:
     data = f.readlines()
 

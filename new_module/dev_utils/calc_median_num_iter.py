@@ -10,7 +10,7 @@
 
 # for wid in pos_wids:
 #     print(wid)
-#     fpath = glob.glob(f'/data/hyeryung/mucoco/outputs/sentiment/final/{wid}/outputs_*.txt.intermediate')
+#     fpath = glob.glob(f'/home/hyeryung/data/mucoco/outputs/sentiment/final/{wid}/outputs_*.txt.intermediate')
 #     if len(fpath) == 1:
 #         fpath = fpath[0]
 #     else:
@@ -42,7 +42,7 @@
     
 # for wid in neg_wids:
 #     print(wid)
-#     fpath = glob.glob(f'/data/hyeryung/mucoco/outputs/sentiment/final/{wid}/outputs_*.txt.intermediate')
+#     fpath = glob.glob(f'/home/hyeryung/data/mucoco/outputs/sentiment/final/{wid}/outputs_*.txt.intermediate')
 #     if len(fpath) == 1:
 #         fpath = fpath[0]
 #     else:
@@ -83,7 +83,7 @@
 
 # for wid in pos_wids:
 #     print(wid)
-#     fpath = glob.glob(f'/data/hyeryung/mucoco/outputs/toxicity/final/{wid}/outputs_*.txt.intermediate')
+#     fpath = glob.glob(f'/home/hyeryung/data/mucoco/outputs/toxicity/final/{wid}/outputs_*.txt.intermediate')
 #     if len(fpath) == 1:
 #         fpath = fpath[0]
 #     else:
@@ -124,7 +124,7 @@ neg_wids = ['17oyxgsn', 'pe45pmd4', 'l65c0nw2']
 
 for wid in pos_wids:
     print(wid)
-    fpath = glob.glob(f'/data/hyeryung/mucoco/outputs/formality/final/{wid}/outputs_*.txt.intermediate')
+    fpath = glob.glob(f'/home/hyeryung/data/mucoco/outputs/formality/final/{wid}/outputs_*.txt.intermediate')
     if len(fpath) == 1:
         fpath = fpath[0]
     else:
@@ -156,7 +156,7 @@ for wid in pos_wids:
     
 for wid in neg_wids:
     print(wid)
-    fpath = glob.glob(f'/data/hyeryung/mucoco/outputs/formality/final/{wid}/outputs_*.txt.intermediate')
+    fpath = glob.glob(f'/home/hyeryung/data/mucoco/outputs/formality/final/{wid}/outputs_*.txt.intermediate')
     if len(fpath) == 1:
         fpath = fpath[0]
     else:

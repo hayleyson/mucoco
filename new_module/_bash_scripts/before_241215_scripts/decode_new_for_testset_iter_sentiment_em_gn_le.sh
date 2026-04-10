@@ -36,7 +36,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --coeff-steps=200\
  --custom-epsilons='none'\
  --dampness=0.1\
- --data='/data/hyeryung/mucoco/new_module/data/sentiment/dev_set.jsonl'\
+ --data='/home/hyeryung/data/mucoco/new_module/data/sentiment/dev_set.jsonl'\
  --datastyle='jsonl'\
  --debug-gradients='false'\
  --decay-steps=1\
@@ -165,7 +165,7 @@ srun python new_module/decode_new_for_testset_iter.py \
 #  --coeff-steps=200\
 #  --custom-epsilons='none'\
 #  --dampness=0.1\
-#  --data='/data/hyeryung/mucoco/new_module/data/sentiment/dev_set.jsonl'\
+#  --data='/home/hyeryung/data/mucoco/new_module/data/sentiment/dev_set.jsonl'\
 #  --datastyle='jsonl'\
 #  --debug-gradients='false'\
 #  --decay-steps=1\

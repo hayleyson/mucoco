@@ -12,9 +12,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun accelerate launch --num_processes=2 new_module/em_training/train_energy_model_v2_resume.py \
 --model=roberta-base-custom \
@@ -23,7 +23,7 @@ srun accelerate launch --num_processes=2 new_module/em_training/train_energy_mod
 --num_epochs=20 \
 --max_lr=5e-5 \
 --weight_decay=0.01 \
---checkpoint_path=/data/hyeryung/loc_edit/models/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training \
+--checkpoint_path=/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training \
 --max_save_num=3 \
 --training_loss_type=cross_entropy \
 --val_loss_type=mse_loss \
@@ -131,7 +131,7 @@ srun accelerate launch --num_processes=2 new_module/em_training/train_energy_mod
 # --num_epochs=20 \
 # --max_lr=5e-5 \
 # --weight_decay=0.01 \
-# --checkpoint_path=/data/hyeryung/roberta-base-pt16-formality-classifier-energy-training \
+# --checkpoint_path=/home/hyeryung/data/roberta-base-pt16-formality-classifier-energy-training \
 # --max_save_num=3 \
 # --training_loss_type=cross_entropy \
 # --val_loss_type=mse_loss \

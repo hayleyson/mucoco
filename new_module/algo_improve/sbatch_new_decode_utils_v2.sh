@@ -19,6 +19,6 @@ export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
 export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-python /data/hyeryung/mucoco/new_module/new_decode_utils_v2_comparing_v0_v1.py --method 0 --num_test_samples 50 --fluency_em_path Qwen/Qwen2.5-1.5B
-python /data/hyeryung/mucoco/new_module/new_decode_utils_v2_comparing_v0_v1.py --method 1 --num_test_samples 50 --fluency_em_path Qwen/Qwen2.5-1.5B
-# python /data/hyeryung/mucoco/new_module/new_decode_utils_v2_final.py --method final_gemma
+python /home/hyeryung/data/mucoco/new_module/new_decode_utils_v2_comparing_v0_v1.py --method 0 --num_test_samples 50 --fluency_em_path Qwen/Qwen2.5-1.5B
+python /home/hyeryung/data/mucoco/new_module/new_decode_utils_v2_comparing_v0_v1.py --method 1 --num_test_samples 50 --fluency_em_path Qwen/Qwen2.5-1.5B
+# python /home/hyeryung/data/mucoco/new_module/new_decode_utils_v2_final.py --method final_gemma

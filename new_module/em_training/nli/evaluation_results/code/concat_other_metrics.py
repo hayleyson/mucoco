@@ -1,5 +1,5 @@
 import os
-os.chdir('/data/hyeryung/loc_edit/models/nli')
+os.chdir('/home/hyeryung/data/loc_edit/models/nli')
 
 import pandas as pd
 import json
@@ -51,7 +51,7 @@ for result_dir in result_dirs:
 results_all_time_keys = pd.concat(results_all_time_keys)
 results_all_time_keys = results_all_time_keys.sort_values(['time_key','criterion'])
 
-os.chdir('/data/hyeryung/mucoco/') # come back to mucoco dir
+os.chdir('/home/hyeryung/data/mucoco/') # come back to mucoco dir
 results_all_time_keys.to_excel(f"new_module/em_training/nli/evaluation_results/exp_results_{datetime.datetime.strftime(datetime.datetime.today(), '%Y%m%d')}.xlsx", index=False)
     
 
@@ -67,7 +67,7 @@ results_all_time_keys.to_excel(f"new_module/em_training/nli/evaluation_results/e
 
 # results_all_time_keys = []
 # for time_key in time_keys:
-#     result_dir = f'/data/hyeryung/mucoco/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy/{time_key}'
+#     result_dir = f'/home/hyeryung/data/mucoco/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy/{time_key}'
 #     result_files = glob(f'{result_dir}/*info.txt')
 #     result_contents = []
 #     for file in result_files:

@@ -3,11 +3,11 @@ import datetime
 from io import StringIO
 import pandas as pd
 
-input_root_dir = '/data/hyeryung/loc_edit/models/nli/'
+input_root_dir = '/home/hyeryung/data/loc_edit/models/nli/'
 # metrics_file_name = 'epr_snli_locate_metrics.csv'
 metrics_file_name = 'nli_contra_300_locate_metrics.csv'
 output_save_name = f"{metrics_file_name.split('.csv')[0]}_{datetime.datetime.strftime(datetime.datetime.today(), '%Y%m%d')}.csv"
-output_save_dir = '/data/hyeryung/mucoco/new_module/em_training/nli/evaluation_results'
+output_save_dir = '/home/hyeryung/data/mucoco/new_module/em_training/nli/evaluation_results'
 
 data_all = []
 file_count = 0

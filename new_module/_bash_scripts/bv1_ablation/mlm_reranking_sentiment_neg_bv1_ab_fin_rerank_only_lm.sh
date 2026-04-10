@@ -23,7 +23,7 @@ export LOGGING_LEVEL=INFO
 # history: 원래는 LM 만 고려해서 update 여부까지 결정했는데, 그렇게 하니까 아예 update 자체가 안되어서 
 # update 여부 결정 시에는 EM 과 LM 을 모두 고려하도록 코드를 수정. (수정방법: final_reranking에서 weighted sum도 제대로 계산하고 다만 그 함수 안에서의 best 결정 때만 fluency score만 고려하도록 수정)
 
-srun python /data/hyeryung/mucoco/new_module/new_mlm_reranking_all_bv1_ab.py \
+srun python /home/hyeryung/data/mucoco/new_module/new_mlm_reranking_all_bv1_ab.py \
 --method mlm-beamsearch-v1 \
 --num_edit_token_per_step 5 \
 --locate_unit word \
@@ -40,8 +40,8 @@ srun python /data/hyeryung/mucoco/new_module/new_mlm_reranking_all_bv1_ab.py \
 --target_label_ids 1 0 \
 --min_epsilons 0.9 \
 --wandb_project sentiment-decoding \
---model_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
---tokenizer_paths gpt2-large /data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
+--model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
+--tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
 --output_dir_prefix outputs/sentiment/final \
 --slurm_job_id $SLURM_JOB_ID \

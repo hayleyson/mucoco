@@ -66,7 +66,7 @@ def generate_and_save_result(args):
     if args.input_file_path.endswith('testset_gpt2_2500_locate.jsonl'):
         prompts = [json.loads(line)['prompt'] for line in raw_data]
         gens = [json.loads(line)['gen'] for line in raw_data]
-    if args.input_file_path.endswith('testset_gpt2_2500.jsonl') or args.input_file_path.endswith('/data/hyeryung/mucoco/new_module/data/sentiment/dev_set.jsonl'):
+    if args.input_file_path.endswith('testset_gpt2_2500.jsonl') or args.input_file_path.endswith('/home/hyeryung/data/mucoco/new_module/data/sentiment/dev_set.jsonl'):
         prompts_raw = [json.loads(line)['prompt']['text'] for line in raw_data]
         gens_raw = [json.loads(line)['generations'] for line in raw_data]
         gens = [] 

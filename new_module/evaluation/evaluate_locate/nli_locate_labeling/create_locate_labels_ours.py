@@ -6,7 +6,7 @@ For mnli & anli, I conducted stratified sampling based on the genre distribution
 """
 
 import os
-os.chdir('/data/hyeryung/mucoco')
+os.chdir('/home/hyeryung/data/mucoco')
 
 
 import random
