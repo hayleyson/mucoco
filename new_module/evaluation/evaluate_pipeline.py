@@ -146,7 +146,7 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         # generations_df2 = rename_df_for_nli(generations_df, 'premise')
         generations_df2 = generations_df.copy()
         print(generations_df2.head())
-        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contradiction_proba, entail_proba, neutral_proba) = nli_score(generations_df2, write_file=output_dir / (output_file+".nli"), device='cuda')
+        (avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contradiction_proba, entail_proba, neutral_proba) = nli_score(generations_df2, task=task, write_file=output_dir / (output_file+".nli"), device='cuda')
         if run_path != "":
             run.summary.update({'avg_nli_entail': avg_nli_entail, 'avg_nli_neutral': avg_nli_neutral,
                 'avg_nli_contradiction': avg_nli_contradiction, 'contradiction_proba': contradiction_proba, 'entail_proba': entail_proba, 'neutral_proba': neutral_proba})
@@ -269,10 +269,10 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
             config_path = 'new_module/set_consistency_energy/params_set_lconvqa.yaml'
         
-        avg_sc_score, cons_prop = set_consistency_score(generations_df, output_dir / (output_file+".sc"), device, config_path)
+        avg_sc_score, contradiction_rate = set_consistency_score(generations_df, output_dir / (output_file+".sc"), device, config_path)
         if run_path != "":
-            run.summary.update({'avg_sc_score': avg_sc_score, 'consistent_proba': cons_prop})
-        fp.write(f'avg_sc_score: {avg_sc_score}, consistent_proba: {cons_prop}\n')
+            run.summary.update({'avg_sc_score': avg_sc_score, 'consistent_proba': 1 - contradiction_rate})
+        fp.write(f'avg_sc_score: {avg_sc_score}, consistent_proba: {1 - contradiction_rate}\n')
 
     if "set-consistency-clsf" in metricset:
         logger.debug("set-consistency-clsf")
@@ -285,10 +285,10 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
             config_path = 'new_module/set_consistency_energy/params_set_lconvqa_clsf.yaml'
         
-        avg_sc_score, cons_prop = set_consistency_score(generations_df, output_dir / (output_file+".sc_clsf"), device, config_path)
+        avg_sc_score, contradiction_rate = set_consistency_score(generations_df, output_dir / (output_file+".sc_clsf"), device, config_path)
         if run_path != "":
-            run.summary.update({'avg_sc_score_clsf': avg_sc_score, 'consistent_proba_clsf': cons_prop})
-        fp.write(f'avg_sc_score_clsf: {avg_sc_score}, consistent_proba_clsf: {cons_prop}\n')
+            run.summary.update({'avg_sc_score_clsf': avg_sc_score, 'consistent_proba_clsf': 1 - contradiction_rate})
+        fp.write(f'avg_sc_score_clsf: {avg_sc_score}, consistent_proba_clsf: {1 - contradiction_rate}\n')
     
     if "set-consistency-gpt" in metricset:
         logger.debug("set-consistency-gpt")
@@ -331,7 +331,7 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
             )
         fp.write(f"sbleu: {sbleu_score}\n")
         fp.write(f"sbert_score: {sbert_score}, sbert_preserved_prop: {sbert_preserved_prop}, sbert_preserved_count: {sbert_preserved_count}\n")
-            
+    
     if "h1" in metricset:
         logger.debug("h1")
         ## metric for sweep

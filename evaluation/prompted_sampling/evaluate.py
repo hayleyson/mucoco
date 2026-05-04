@@ -8,7 +8,7 @@ import scipy, torch, evaluate
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset as DatasetRaw
+from torch.utils.data import Dataset as TorchDataset
 from datasets import Dataset
 from tqdm import tqdm
 
@@ -507,7 +507,7 @@ def toxicity_score_int(generations_df, toxicity_file, device, checkpoint_path, m
     return (np.nanmean(avg_max_toxicity), sum(toxic_probability_p)/len(toxic_probability_p), \
             np.nanmean(avg_toxicity), sum(toxic_probability_s)/len(toxic_probability_s))
     
-def nli_score(generations_df, write_file, device='cuda'):
+def nli_score(generations_df, task, write_file, device='cuda'):
     model_paths = [
     "ynie/roberta-large-snli_mnli_fever_anli_R1_R2_R3-nli",
     "cross-encoder/nli-roberta-base",
@@ -533,7 +533,7 @@ def nli_score(generations_df, write_file, device='cuda'):
     results = []
     # 각 row에 대해 NLI 점수 계산
     for _, row in tqdm(generations_df.iterrows(), total=len(generations_df), desc='NLI classifying...', mininterval=5):
-        premise = row['prompt']['text']
+        premise = row['prompt']['text'] if task != "comment" else row['prompt']['article_excerpt']
         hypotheses = [gen['text'] for gen in row['generations']]
 
         # 각 hypothesis에 대해 NLI 평가
@@ -1023,7 +1023,7 @@ def set_consistency_score(generations_df, output_file, device,
     
     # calculate set consistency score
     sc_scores = []
-    cons_counts = 0
+    sc_preds = []
     for batch in dataloader:
         with torch.no_grad():
              # set consistency verification
@@ -1037,15 +1037,18 @@ def set_consistency_score(generations_df, output_file, device,
             else:
                 raise ValueError(f"Unsupported output form: {model.output_form}")
             sc_scores.extend(probs.tolist())
-            #  classify
-            cons_counts += torch.sum(torch.where(probs <= model.threshold,1,0)).item()
+            sc_preds.extend(torch.where(probs <= model.threshold,0,1).tolist())
     
     # write set consistency score and class to output file
     with open(output_file, 'w') as f:
-        f.writelines([str(x)+'\n' for x in sc_scores])
+        
+        for score, pred in zip(sc_scores, sc_preds):
+            f.write(f"{score},{pred}\n")
     
     # return empirical set consistent probability and average set consistent score
-    return np.nanmean(sc_scores), cons_counts/len(dataset)
+    avg_sc_score = np.nanmean(sc_scores)
+    contradiction_rate = np.nanmean(sc_preds)
+    return avg_sc_score, contradiction_rate
     
 
 def detect_span(set_text, cls_token, sep_token):
@@ -1089,7 +1092,7 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
         batch_size=1,
     )
 
-    class l_convqa_fine_grained_dataset(DatasetRaw):
+    class l_convqa_fine_grained_dataset(TorchDataset):
         def __init__(self, dataset_list:List[List[Tuple[str, str, bool]]]):
             self.dataset = dataset_list
         
@@ -1146,15 +1149,22 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
 
     f = open(output_file, 'w') if output_file != '' else None
 
+    fail = False
     for i, pairs in tqdm(enumerate(dataloader), total=len(dataloader)):
-        try:
-            evaluate_result = model.predict(pairs)
-        except Exception as e:
-            logger.warning(f"================")
-            logger.warning(f"Error in prediction for index {i}: {e}")
-            logger.warning(f"pairs: {pairs}")
-            logger.warning(f"================")
+        for try_num in range(3): # max 3 tries
+            try:
+                evaluate_result = model.predict(pairs)
+                fail = False
+                break
+            except Exception as e:
+                logger.warning(f"================")
+                logger.warning(f"Error in prediction for index {i} during {try_num}th try: {e}")
+                logger.warning(f"pairs: {pairs}")
+                logger.warning(f"================")
+                fail = True
+        if fail:
             evaluate_result = {'pred': [torch.nan] * len(pairs)}
+                
         pred.extend(evaluate_result['pred'])
         if f is not None:
             f.writelines([str(x)+'\n' for x in evaluate_result['pred']])
