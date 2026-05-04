@@ -220,7 +220,10 @@ if __name__ == "__main__":
             result=pd.read_csv(result_file[0],header=None)
         
         result=result.loc[edited_ixs[suffix]]
-        metric_value=result.loc[result[0]=='LABEL_1'].shape[0]/result.shape[0]
+        if 'LABEL_1' in result[0].unique():
+            metric_value=result.loc[result[0]=='LABEL_1'].shape[0]/result.shape[0]
+        else:
+            metric_value=result.loc[result[0]==1].shape[0]/result.shape[0]
         fluency_metrics.append(metric_value)
         
 
