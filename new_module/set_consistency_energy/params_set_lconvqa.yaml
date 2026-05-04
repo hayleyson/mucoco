@@ -19,7 +19,7 @@ energynet:
     weight_incon_incon_ordering: 0.1
     weight_subset_ordering: 0.01
 dataset: 'lconvqa'
-model_path: 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068/SetCon-roberta-no-triplet-False-fg_tot.pth'
+model_path: '/home/hyeryung/data/mucoco/new_module/set_consistency_energy/results/vqa/lconvqa/1225068/SetCon-roberta-no-triplet-False-fg_tot.pth'
 batch_size: 1
 eval:
     batch_size: 1

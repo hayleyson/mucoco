@@ -12,7 +12,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 import numpy as np
 
-from new_module.em_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.models import EncoderModel
 torch.set_printoptions(precision=10)
 
 
@@ -436,7 +436,9 @@ class LocateMachine4SCE:
             e_val.sum().backward()
         elif self.energynet.output_form == '2dim_vec':
             probs_for_incon = self.softmax(outputs["predictions"])[:, 1]
-            probs_for_incon.backward()
+            logger.debug(f"[calculate_token_scores_by_gradnorm] probs_for_incon: {probs_for_incon}")
+            # probs_for_incon.backward()
+            probs_for_incon.sum().backward()
         
         # additional_tensor.grad dimension: (batch_size, seq_len, hidden_size) 
         # => norm dimension: (batch_size, seq_len)
@@ -757,12 +759,14 @@ class LocateMachine4SCE:
 
         with torch.no_grad():
             # set consistency verification
-            batch_text = ['<s> ' + text]
+            batch_text = ['<s> ' + text.lstrip('<s>').lstrip(' ')]
             outputs = self.energynet.energy_model(batch_text, pair_only = True)
             output = outputs["predictions"]
             
             if (self.energynet.output_form == 'real_num'):
                 probs = output.reshape(-1)
+            elif (self.energynet.output_form == '2dim_vec'):
+                probs = output.softmax(dim=-1)[:,1].reshape(-1)
             else:
                 raise ValueError(f"Unsupported output form: {self.energynet.output_form}")
         
@@ -777,7 +781,10 @@ class LocateMachine4SCE:
     def locate_multiple_instances_at_once(self, text):
         predicted_indexes = []
         remaining_index_list = list(range(len(self._extract_instances(text))))
-
+        print('--------------------------------')
+        print(f"Text: {text}")
+        print(f"Initial consistency verification result: {self.verify_consistency(text)}")
+        print('--------------------------------')
         while ((self.verify_consistency(text) == 'incon') and len(text) > 0):
             
             (text,_), index_list = self.locate_main([text], mode="instance")
@@ -919,7 +926,7 @@ if __name__ == "__main__":
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
     import torch
     
-    from new_module.em_training.nli.models import EncoderModel
+    from new_module.ebm_training.nli.models import EncoderModel
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrained_model_path", type=str)

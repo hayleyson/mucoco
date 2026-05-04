@@ -251,7 +251,7 @@ def main():
         model_name += f"_{args.reasoning_effort}"
 
     # Initialize model
-    if args.model_id == 'ebm':
+    if (args.model_id == 'ebm') or (args.model_id == 'classifier'):
         energynet = load_sc_energy_model(args.ebm_config_path, device)
         params_ebm = yaml.load(open(args.ebm_config_path, 'r'), Loader=yaml.FullLoader)
         params_ebm['device'] = device
@@ -278,7 +278,8 @@ def main():
         data_name = test_steps_names[es_idx]
 
         print(f"=========== {es_idx+1} - {data_name} ===========")
-        if args.model_id == "ebm":
+        print(f"dataset count: {len(data_loader)}")
+        if (args.model_id == "ebm") or (args.model_id == "classifier"):
             start = time.time()
             locate_result = locate_ebm(model, data_loader, device=params['device'], params=params)
             end = time.time()

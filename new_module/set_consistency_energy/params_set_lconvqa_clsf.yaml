@@ -39,7 +39,7 @@ set_nli:
   stepwise_dataset_test_num: 200
 pairwise: arbitrary_pairs
 seed: 1014
-batch_size: 4
+batch_size: 1
 time_key: ''
 eval:
   batch_size: 1
@@ -53,14 +53,14 @@ job_id: 1213354
 finetune_job_id: 0
 device: cuda
 folder_path: results/vqa/lconvqa/1213354
-model_path: new_module/set_consistency_energy/results/vqa/lconvqa/lcon_set_sup_2-1213354/SetSup-roberta-no-supervised.pth
+model_path: /home/hyeryung/data/mucoco/new_module/set_consistency_energy/results/vqa/lconvqa/lcon_set_sup_2-1213354/SetSup-roberta-no-supervised.pth
 threshold_path: results/vqa/lconvqa/1213354/thresholds.json
 locate:
   instance:
-    type: gradnorm
-    attentions_num_layer: -1
+    type: attention
+    attentions_num_layer: 8
     agg_method: avg
     select_method: recursive_max
   span:
-    type: gradnorm
+    type: ground_truth
     attentions_num_layer: -1
