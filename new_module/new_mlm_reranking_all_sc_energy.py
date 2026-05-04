@@ -429,7 +429,7 @@ def main(config):
     run_generation_evaluation(
             "",
             outfile,
-            "set-consistency,set-consistency-gpt,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+            "set-consistency,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
             source_file_path=config["source_data_path"],
             task=task,
         )  
@@ -478,7 +478,7 @@ if __name__ == "__main__":
             'device': device,
             'target_label_ids': [1, 1],
             'consider_prompt_for_cand_gen': False,
-            'output_dir_prefix': f'outputs/sc_energy/{task}/ebm/',
+            'output_dir_prefix': f'outputs/sc_energy/{task}/classifier/',
             })
 
     ###########################################################

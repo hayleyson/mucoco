@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import time
-# os.chdir('/data/hyeryung/mucoco')
+# os.chdir('/home/hyeryung/data/mucoco')
 import numpy as np
 import pandas as pd
 import torch
@@ -29,7 +29,7 @@ from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypothe
 from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
-from new_module.em_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.models import EncoderModel
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -174,6 +174,7 @@ def main(config):
                             model_path,
                             config=name2config[model_path],
                             cache_dir=config["cache_dir"],
+                            use_safetensors=True,
                         )
                     )
                 name2model[model_path].eval()
@@ -641,7 +642,7 @@ if __name__ == "__main__":
         help="target type (embeds, simplex, probability) from prior work's code",
     )
     parser.add_argument(
-        "--cache_dir", type=str, default="/data/hyeryung/hf_cache", help="cache directory"
+        "--cache_dir", type=str, default="/home/hyeryung/data/hf_cache", help="cache directory"
     )
     parser.add_argument(
         "--jsonl_primary_key", type=str, default="prompt", help="jsonl primary key"
