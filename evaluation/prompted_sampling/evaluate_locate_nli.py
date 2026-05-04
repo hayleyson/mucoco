@@ -24,7 +24,7 @@ from sklearn.metrics import (
 from scipy import stats
 
 from new_module.locate.new_locate_utils import LocateMachine
-from new_module.em_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.models import EncoderModel
 
 # Define dataset and dataloader
 class NLIDataset(Dataset):
@@ -260,29 +260,29 @@ if __name__ == "__main__":
     
     runpath2modelpath = \
         {
-        # 'hayleyson/nli_energynet/9s1fli5s': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_3class_finegrained_labels_cross_entropy_n_a/9s1fli5s/'}
-        # {'hayleyson/nli_energynet/u6tu4o9t': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731247397', 
-        # 'hayleyson/nli_energynet/msv6wq04': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731569657',
-        # 'hayleyson/nli_energynet/wxer9zw3': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731654805',
-        # 'hayleyson/nli_energynet/svk3b64y': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/svk3b64y',
-        # 'hayleyson/nli_energynet/2qbql1br': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/2qbql1br',
-        'hayleyson/nli_energynet/wdw0y1qp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443',
-        # 'hayleyson/nli_energynet/c4ll3opi': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731654539',
-        # 'hayleyson/nli_energynet/nznwxbaw': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/nznwxbaw', 
-        # 'hayleyson/nli_energynet/07m5lce9': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/07m5lce9',
-        # 'hayleyson/nli_energynet/lkavms6l': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/lkavms6l',
-        # 'hayleyson/nli_energynet/ni8cu2nw': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731247881',
-        # 'hayleyson/nli_energynet/eiqzuowj': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731651193',
-        # 'hayleyson/nli_energynet/w6hmipfb': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/w6hmipfb', 
-        # 'hayleyson/nli_energynet/id06pp5n': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/id06pp5n',
-        # 'hayleyson/nli_energynet/mev8cuhp': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/mev8cuhp',
-        # 'hayleyson/nli_energynet/e8cse9ni': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731247889',
-        # 'hayleyson/nli_energynet/qhhowe3e': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731568014',
-        # 'hayleyson/nli_energynet/xie6veic': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731651194',
-        # 'hayleyson/nli_energynet/auxxqz22': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/auxxqz22',
-        # 'hayleyson/nli_energynet/ub4nku33': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/ub4nku33',
-        'hayleyson/nli_energynet/zgs9e2sr': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/',
-        # 'hayleyson/nli_energynet/gyzuycek': '/data/hyeryung/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/gyzuycek'
+        # 'hayleyson/nli_energynet/9s1fli5s': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_3class_finegrained_labels_cross_entropy_n_a/9s1fli5s/'}
+        # {'hayleyson/nli_energynet/u6tu4o9t': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731247397', 
+        # 'hayleyson/nli_energynet/msv6wq04': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731569657',
+        # 'hayleyson/nli_energynet/wxer9zw3': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/1731654805',
+        # 'hayleyson/nli_energynet/svk3b64y': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/svk3b64y',
+        # 'hayleyson/nli_energynet/2qbql1br': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_margin_ranking/2qbql1br',
+        'hayleyson/nli_energynet/wdw0y1qp': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443',
+        # 'hayleyson/nli_energynet/c4ll3opi': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731654539',
+        # 'hayleyson/nli_energynet/nznwxbaw': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/nznwxbaw', 
+        # 'hayleyson/nli_energynet/07m5lce9': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/07m5lce9',
+        # 'hayleyson/nli_energynet/lkavms6l': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/lkavms6l',
+        # 'hayleyson/nli_energynet/ni8cu2nw': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731247881',
+        # 'hayleyson/nli_energynet/eiqzuowj': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/1731651193',
+        # 'hayleyson/nli_energynet/w6hmipfb': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/w6hmipfb', 
+        # 'hayleyson/nli_energynet/id06pp5n': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/id06pp5n',
+        # 'hayleyson/nli_energynet/mev8cuhp': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_margin_ranking/mev8cuhp',
+        # 'hayleyson/nli_energynet/e8cse9ni': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731247889',
+        # 'hayleyson/nli_energynet/qhhowe3e': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731568014',
+        # 'hayleyson/nli_energynet/xie6veic': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/1731651194',
+        # 'hayleyson/nli_energynet/auxxqz22': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/auxxqz22',
+        # 'hayleyson/nli_energynet/ub4nku33': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_original_labels_cross_entropy_n_a/ub4nku33',
+        'hayleyson/nli_energynet/zgs9e2sr': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/',
+        # 'hayleyson/nli_energynet/gyzuycek': '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/gyzuycek'
         }
         
         
