@@ -519,7 +519,7 @@ def editing_4sce(source_text:str, test_sent_orig:str, test_sent:str, test_sent_s
         curr_queue_size = len(queue)
         
         # Try all possible numbers of mask tokens from 1 up to max_mask_cnt_per_span
-        mask_counts = [k for k in range(1, max_mask_cnt_per_span[i] + 1)]
+        mask_counts = [k for k in range(max_mask_cnt_per_span[i], max_mask_cnt_per_span[i] + 1)]
         # logger.debug(f"mask_counts: {mask_counts}")
         curr_full_text_hyp = []
         for k in mask_counts:
