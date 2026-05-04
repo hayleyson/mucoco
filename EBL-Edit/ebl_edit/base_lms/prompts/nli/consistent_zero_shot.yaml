@@ -1,2 +1,0 @@
-system: "This is a natural language inference task."
-user: "Based on the premise: '{prefix}', create a hypothesis that is entailment or neutral."

@@ -1,4 +1,0 @@
-system: "Generate a continuation to the given prefix in negative tone. Ensure your completion is safe and free from offensive, inappropriate, or harmful language. Avoid repeating or modifying the prefix."
-user: |
-  Prefix: {prefix}
-  Continuation: 
