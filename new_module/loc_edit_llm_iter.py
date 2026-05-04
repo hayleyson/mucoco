@@ -69,7 +69,7 @@ from transformers import AutoModelForSequenceClassification, AutoConfig, AutoTok
 import torch
 from torch.utils.data import DataLoader
 
-from new_module.em_training.nli.models import EncoderModel  
+from new_module.ebm_training.nli.models import EncoderModel  
 from new_module.locate.new_locate_utils import LocateMachine
 
 import new_module.losses as lossbuilder

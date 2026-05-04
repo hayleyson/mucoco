@@ -15,7 +15,7 @@ parser_main.add_argument("--exp_label", type=str,  required=True, help="Experime
 parser_main.add_argument("--directory", type=str, required=True, help="Base directory for input and output files.")
 parser_main.add_argument("--input_file_path", type=str, required=True, help="Path to the input JSONL file.")
 parser_main.add_argument("--orig_text_path", type=str, required=True, help="Path to the original text JSONL file.")
-parser_main.add_argument("--pretrained_model_path", type=str, required=True, help="Path to the pretrained model.")
+parser_main.add_argument("--pretrained_model_path", type=str, required=True, help="Path to the pretrained model. (Path to config yaml file if the task is set_lconvqa or set_snli.)")
 parser_main.add_argument("--hf_model_name", type=str, required=True, help="Name of the Hugging Face model.")
 parser_main.add_argument("--prompt_type", type=str,  required=True, help="Type of the prompt.")
 parser_main.add_argument("--task", type=str,  required=True, help="Task type.")
@@ -52,7 +52,6 @@ eval_output_file_path = directory + f'/losses/{exp_label}_losses_{job_id}.txt'
 final_output_file_path = directory + f'/final/{exp_label}_loc_edit_{job_id}.jsonl'
 energy_model_path = pretrained_model_path + '/'
 
-
 print("printing args")
 print('-------------------------------------')
 print("input_file_path:", input_file_path)
@@ -87,7 +86,8 @@ from transformers import AutoModelForSequenceClassification, AutoConfig, AutoTok
 import torch
 from torch.utils.data import DataLoader
 
-from new_module.em_training.nli.models import EncoderModel  
+from new_module.dev_utils.utils import load_sc_energy_model
+from new_module.ebm_training.nli.models import EncoderModel  
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.set_consistency_energy.energynets.energynet import energynet
 
@@ -101,31 +101,6 @@ import re
 import yaml
 import os
 
-
-def load_sc_energy_model(config_path, folder_path, model_path, time_key, task, device):
-    
-    model_config = yaml.load(open(config_path), 
-                                Loader=yaml.FullLoader)
-    dataset = 'set_nli' if task == 'nli' else 'lconvqa'
-    
-    model_config['dataset'] = dataset
-    model_config['task'] = task
-    model_config['folder_path'] = folder_path
-    model_config['model_path'] = model_path
-    model_config['time_key'] = time_key
-
-    energy_net = energynet(params=model_config)
-    model_object = torch.load(model_config["model_path"], 
-                                map_location=device,
-                                weights_only=True)
-    energy_net.load_state_dict(model_object['state_dict'], strict=False)
-    if 'threshold' in model_object:
-        energy_net.threshold = model_object['threshold']
-    
-    energy_net.eval()
-    energy_net.to(device)
-    
-    return energy_net
 
 ###############################################################################
 ###############################################################################
@@ -156,24 +131,9 @@ if task == "nli":
 
     tokenizer = model.tokenizer
     
-elif task in ["set_nli", "set-nli", "set_snli", "set-snli"]:
+elif task in ["set_snli", "set_lconvqa"]:
     
-    config_path = 'new_module/set_consistency_energy/params.yaml'
-    folder_path = 'new_module/set_consistency_energy/results/nli/set_nli/46853'
-    model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
-    time_key = '46853'
-    
-    model = load_sc_energy_model(config_path, folder_path, model_path, time_key, "nli", device)
-    tokenizer = model.representation_model.tokenizer
-
-elif task in ["vqa", "lconvqa", "convqa", "set-lconvqa", "set_lconvqa"]:
-    
-    config_path = 'new_module/set_consistency_energy/params.yaml'
-    folder_path = 'new_module/set_consistency_energy/results/vqa/lconvqa/1225068'
-    model_path = os.path.join(folder_path, 'SetCon-roberta-no-triplet-False-fg_tot.pth')
-    time_key = '1225068'
-
-    model = load_sc_energy_model(config_path, folder_path, model_path, time_key, "vqa", device)
+    model = load_sc_energy_model(pretrained_model_path, device)
     tokenizer = model.representation_model.tokenizer
     
 else:
@@ -232,31 +192,7 @@ def evaluate_toxicity_losses(source_text: str, hypotheses: list, config: dict, t
 
     # Load tokenizer, model, and define loss
     # use only [1] bc [0] is not used for early stopping
-    if task == 'nli':
-        with open(os.path.join(energy_model_path, 'config.json')) as f:
-            config_m = json.load(f)
-        config_m['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-        model_path = os.path.join(energy_model_path, 'best_model_pearsonr.pth')
-        config_m['model_path'] = model_path
-
-        ## load model
-        model = EncoderModel(config_m)
-        model = model.to(config_m['device'])
-        model.load_state_dict(torch.load(model_path,weights_only=True),strict=False)
-        model.eval()
-        tokenizer = model.tokenizer
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(
-            energy_model_path, cache_dir=config["cache_dir"], use_fast=True
-        )
-        model_config = AutoConfig.from_pretrained(energy_model_path, cache_dir=config["cache_dir"])
-        model = lossbuilder.ModelWrapper(
-            AutoModelForSequenceClassification.from_pretrained(
-                energy_model_path, config=model_config, cache_dir=config["cache_dir"]
-            )
-        )
-        model.eval().to(config["device"])
+    global model, tokenizer
 
     # Build losses
     class dummyArgs:
@@ -271,6 +207,10 @@ def evaluate_toxicity_losses(source_text: str, hypotheses: list, config: dict, t
         loss_fn = lossbuilder.build_loss(
             "classification", model, tokenizer, build_loss_args
         )
+    elif task in ['set_lconvqa', 'set_snli']:
+        loss_fn = lossbuilder.build_loss(
+            "sc_energy", model, tokenizer, build_loss_args
+        )
     else:
         loss_fn = lossbuilder.build_loss(
             config["losses"][1], model, tokenizer, build_loss_args
@@ -279,7 +219,10 @@ def evaluate_toxicity_losses(source_text: str, hypotheses: list, config: dict, t
     # Compute losses for each hypothesis
     losses = []
     satisfies_threshold = []
-    threshold_log = -math.log(threshold)  # Convert threshold to log scale
+    if task in ['set_lconvqa', 'set_snli']:
+        threshold_log = threshold
+    else:
+        threshold_log = -math.log(threshold)  # Convert threshold to log scale
 
     for hypothesis in hypotheses:
         curr_loss = []
@@ -297,7 +240,10 @@ def evaluate_toxicity_losses(source_text: str, hypotheses: list, config: dict, t
         # Calculate mean loss and check threshold satisfaction
         mean_loss = torch.tensor(curr_loss).mean().item()
         losses.append(mean_loss)
-        satisfies_threshold.append(mean_loss < threshold_log)
+        if task in ['set_lconvqa', 'set_snli']:
+            satisfies_threshold.append(mean_loss <= threshold_log)
+        else:
+            satisfies_threshold.append(mean_loss < threshold_log)
 
     return losses, satisfies_threshold
 
@@ -324,7 +270,7 @@ config = {
     },
     "task": task,
     "device": "cuda",
-    "cache_dir": "/data/hyeryung/.cache", # Change it to your huggingface cache directory 
+    "cache_dir": "/home/hyeryung/data/.cache", # Change it to your huggingface cache directory 
     "batch_size": 64,
     "target_label_ids": [None, label_id],  # Example target labels
 }
@@ -354,7 +300,8 @@ args_dict = {
 'locate_edit_idx': [],  # 리스트 그대로 전달
 'prompt_type': prompt_type,
 'num_return_sequences': 1,
-'max_tokens': 150,
+'max_tokens': 32768 if 'qwen3' in hf_model_name.lower() else 150,
+'enable_thinking': True if 'qwen3' in hf_model_name.lower() else False,
 }
 
 args = Namespace(**args_dict)
