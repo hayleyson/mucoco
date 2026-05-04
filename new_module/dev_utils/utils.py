@@ -4,22 +4,34 @@ import pandas as pd
 import yaml, torch, pickle, sys
 from pathlib import Path
 
-sys.path.append("new_module/set_consistency_energy")
+sys.path.append("/home/hyeryung/data/mucoco/new_module/set_consistency_energy")
 from energynets.energynet import energynet
 from tasks.dataset_loader import concat_arbitrary_pairs
 
 def read_outputs(file_path):
     outputs = pd.read_json(file_path, lines=True)
     outputs = outputs.explode('generations',ignore_index=True)
+    
+    prompt_keys = [set(x.keys()) if isinstance(x, dict) else set() for x in outputs['prompt'].values]
+    prompt_key = set()
+    for prompt_key_i in prompt_keys:
+        prompt_key |= prompt_key_i
+    prompt_key -= {'text'}
+    
+    for col in prompt_key:
+        outputs['_'.join(['prompt', col])] = outputs['prompt'].apply(lambda x: x.get(col, None))
+    
     outputs['prompt']=outputs['prompt'].apply(lambda x: x['text'])
     
-    gen_keys = [set(x.keys()) for x in outputs['generations'].values]
+    gen_keys = [set(x.keys()) if isinstance(x, dict) else set() for x in outputs['generations'].values]
     gen_key = set()
     for gen_key_i in gen_keys:
         gen_key |= gen_key_i
     
     for col in gen_key:
-        outputs[col] = outputs['generations'].apply(lambda x: x.get(col,None))
+        outputs['_'.join(['gen', col])] = outputs['generations'].apply(
+            lambda x, c=col: x.get(c, None) if isinstance(x, dict) else None
+        )
         
     outputs.drop(columns=['generations'],inplace=True)
     return outputs
@@ -27,20 +39,48 @@ def read_outputs(file_path):
 
 def ravel(unraveled_df):
 
-    gen_keys = list(set(unraveled_df.columns) - {'prompt'})
+    all_keys = list(set(unraveled_df.columns) - {'prompt'})
+    prompt_keys = [k for k in all_keys if k.startswith('prompt_')]
+    gen_keys = [k for k in all_keys if k.startswith('gen_')]
 
     # assumption: prompts would be all empty if the dataset is not a prompt-continuation dataset.
     if all([x=="" for x in unraveled_df['prompt'].tolist()]):
         
         df_temp = unraveled_df.copy()
         df_temp['generations'] = df_temp.apply(lambda x: [{k: x[k] for k in gen_keys}], axis=1)
-        df_temp['prompt'] = df_temp['prompt'].apply(lambda _: {"text": ""})
+        
+        if len(prompt_keys) > 0:
+            df_temp['prompt'] = df_temp.apply(lambda x: {"text": ""} | {k.replace('prompt_', ''): x[k] for k in prompt_keys}, axis=1)
+        else:
+            df_temp['prompt'] = df_temp['prompt'].apply(lambda _: {"text": ""})
         return df_temp[['prompt', 'generations']]
     else:
         df_temp = unraveled_df.copy()
-        df_temp['gen_dict'] = df_temp.apply(lambda x: {k: x[k] for k in gen_keys}, axis=1)
-        result = df_temp.groupby('prompt', sort=False)['gen_dict'].apply(list).reset_index()
-        result['prompt'] = result['prompt'].apply(lambda x: {'text': x})
+        df_temp['gen_dict'] = df_temp.apply(lambda x: {k.replace('gen_', ''): x[k] for k in gen_keys}, axis=1)
+
+        # 'prompt_full_prompt' exists if it is an output file from nli_ifeval task.
+        # use it if available.
+        group_cols = (
+            ['prompt_full_prompt']
+            if 'prompt_full_prompt' in df_temp.columns
+            else ['prompt']
+        )
+        agg: dict = {'gen_dict': list}
+        if 'prompt' not in group_cols:
+            agg['prompt'] = 'first'
+        for pk in prompt_keys:
+            if pk not in group_cols:
+                agg[pk] = 'first'
+        result = df_temp.groupby(group_cols, sort=False).agg(agg).reset_index()
+
+        if len(prompt_keys) > 0:
+            result['prompt'] = result.apply(
+                lambda x: {"text": x['prompt']}
+                | {k.replace('prompt_', ''): x[k] for k in prompt_keys},
+                axis=1,
+            )
+        else:
+            result['prompt'] = result['prompt'].apply(lambda x: {"text": x})
         result = result.rename(columns={'gen_dict': 'generations'})
         return result[['prompt', 'generations']]
 
