@@ -134,7 +134,7 @@ def generate_and_save_result(args):
                 if tmp_list:
                     orig_text_lists.append(tmp_list)
 
-    
+    enable_thinking = args.enable_thinking
 
     # these 'prompt's are the strings that are formatted into the prompt
     prompts = []
@@ -221,14 +221,27 @@ def generate_and_save_result(args):
         nontoxic_prompt = nontoxic_prompt.replace('<mask>', '[BLANK]')
         prompts = [apply_ph(p, '[BLANK]') for p in prompts]
     
-    elif 'qwen' in args.hf_model_name.lower():
+    elif 'qwen2.5' in args.hf_model_name.lower():
         sp = """<|im_start|>system
 You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your responses must be in English.<|im_end|>
 <|im_start|>user\n"""
         nontoxic_prompt = sp + nontoxic_prompt + "<|im_end|>\n<|im_start|>assistant\n"
         prompts = [apply_ph(p, "___") for p in prompts]
         nontoxic_prompt = nontoxic_prompt.replace('<mask>', '___')
-
+        
+    elif 'qwen3' in args.hf_model_name.lower():
+        prompts = [apply_ph(p, "___") for p in prompts]
+        nontoxic_prompt = nontoxic_prompt.replace('<mask>', '___')
+        messages = [
+            {"role": "user", "content": nontoxic_prompt}
+        ]
+        nontoxic_prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=enable_thinking # Switches between thinking and non-thinking modes. Default is True.
+        )
+        
     elif 'gemma' in args.hf_model_name.lower():
         nontoxic_prompt_splits = nontoxic_prompt.split("\nEdited Text: ")
         sp = "<bos><start_of_turn>user\n"
@@ -240,6 +253,29 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
 
     print("nontoxic_prompt:\n", nontoxic_prompt)
 
+    # set decoding params
+    if 'qwen3' in args.hf_model_name.lower() and enable_thinking:
+        decoding_params = {
+            "do_sample": True,
+            "top_p": 0.95,
+            "temperature": 0.6,
+            "top_k": 20,
+            "min_p": 0
+        }
+    elif 'qwen3' in args.hf_model_name.lower() and not enable_thinking:
+        decoding_params = {
+            "do_sample": True,
+            "top_p": 0.8,
+            "temperature": 0.7,
+            "top_k": 20,
+            "min_p": 0
+        }
+    else:
+        decoding_params = {
+            "do_sample": True,
+            "top_p": 0.96,
+            "temperature": 1.0,
+        }
     
     # start generation
     print("=========== start generation! =============")
@@ -261,18 +297,24 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
         generated_result = model.generate(**batch, 
                                         max_length=batch.input_ids.shape[-1] + args.max_tokens,
                                         num_return_sequences=args.num_return_sequences,
-                                        do_sample=True,
-                                        top_p=0.96, 
-                                        temperature=1.0)
+                                        **decoding_params)
         
         input_length = batch.input_ids.shape[-1]
         
         generated_tokens = generated_result[:, input_length:]
         # print("raw result: \n", tokenizer.convert_ids_to_tokens(generated_result[0]))
-
-        total_generated_text = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
-        
-
+        if 'qwen3' in args.hf_model_name.lower():
+            try:
+                print(f"generated_tokens: {generated_tokens}")
+                index = [len(seq) - seq[::-1].index(151668) for seq in generated_tokens]
+                print(f"index: {index}")
+            except Exception as e:
+                print(f"Error: {e}")
+                index = [0 for _ in range(args.num_return_sequences)]
+            thinking_content = [tokenizer.decode(seq[:ix], skip_special_tokens=True).strip('\n') for seq, ix in zip(generated_tokens, index)]
+            total_generated_text = [tokenizer.decode(seq[ix:], skip_special_tokens=True).strip('\n') for seq, ix in zip(generated_tokens, index)]
+        else:
+            total_generated_text = [tokenizer.decode(seq, skip_special_tokens=True).strip('\n') for seq in generated_tokens]
         edited_text.append(total_generated_text[0])
         if len(edited_text) == num_generations_per_prompt[prompt_idx]:
             formatted_generated_text = {
@@ -428,6 +470,7 @@ if __name__ == "__main__":
     parser.add_argument('--prompt_type', type=str)
     parser.add_argument('--num_return_sequences', type=int, default=10)
     parser.add_argument('--max_tokens', type=int, default=30)
+    parser.add_argument('--enable_thinking', action='store_true')
     parser.add_argument('--run_type', type=str)
 
     args = parser.parse_args()

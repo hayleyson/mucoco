@@ -1,3 +1,15 @@
+from new_module.llm_experiments.refine_with_llm.prompt_template_loader import (
+    get_task_edit_prompt,
+)
+
+_EDIT_PROMPTS_FROM_JSON = frozenset({
+    "toxicity_refine_0shot",
+    "nli_refine_0shot",
+    "senti_pos_refine_0shot",
+    "set_lconvqa_refine_0shot",
+})
+
+
 def get_prompt(args):
 
     if args.prompt_type == "nontoxic_gpt2_gen_edit":
@@ -171,6 +183,18 @@ Output only the edited masked text and nothing else.
 Prompt: %s
 Edited Masked Text: """
 
+    elif args.prompt_type == "nontoxic_masked_v2":
+        prompt = """Given the prompt and the text, edit the text by replacing the <mask> tokens in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the complete edited text with all <mask> tokens filled in and nothing else. Do not output only the replacement text for the <mask> tokens.
+Prompt: %s
+Edited Text: """
+
+    elif args.prompt_type == "nontoxic_both_v2":
+        prompt = """Given the prompt, text and the masked text, edit the masked text by replacing the <mask> tokens in a way that maintains a polite and respectful tone, while ensuring it fits naturally with the prompt.
+Output only the complete edited masked text with all <mask> tokens filled in and nothing else. Do not output only the replacement text for the <mask> tokens.
+Prompt: %s
+Edited Masked Text: """
+
 
     elif args.prompt_type == "nli_masked":
         prompt = """Given the premise and the hypothesis, edit the hypothesis by replacing all the <mask> tokens in a way that does not contradict the premise.
@@ -184,10 +208,23 @@ Premise: %s
 Edited Hypothesis: """
 
     elif args.prompt_type == "nli_both":
-        prompt = """Given the premise, hypothesis and the masked hypothesis, edit the masked hypothesis by replacing the <mask> tokens in a way that does not contradicts the premise.
+        prompt = """Given the premise, hypothesis and the masked hypothesis, edit the masked hypothesis by replacing the <mask> tokens in a way that does not contradict the premise.
 Output only the edited hypothesis and nothing else.
 Premise: %s
 Edited Hypothesis: """
+
+    elif args.prompt_type == "nli_masked_v2":
+        prompt = """Given the premise and the hypothesis, edit the hypothesis by replacing all the <mask> tokens in a way that does not contradict the premise.
+Output only the complete edited hypothesis with all <mask> tokens filled in and nothing else. Do not output only the replacement text for the <mask> tokens.
+Premise: %s
+Edited Hypothesis: """
+
+    elif args.prompt_type == "nli_both_v2":
+        prompt = """Given the premise, hypothesis and the masked hypothesis, edit the masked hypothesis by replacing the <mask> tokens in a way that does not contradict the premise.
+Output only the complete edited masked hypothesis with all <mask> tokens filled in and nothing else. Do not output only the replacement text for the <mask> tokens.
+Premise: %s
+Edited Hypothesis: """
+
     elif args.prompt_type == "form_masked":
         prompt = """Edit the below sequence by replacing all the <mask> tokens to make it more formal. Make sure to preserve the original semantics other than formality.
 Output only the edited sequence and nothing else.
@@ -240,5 +277,11 @@ Edited Text: """
 Output only the edited masked text and nothing else.
 %s
 Edited Masked Text: """
+
+    elif args.prompt_type in _EDIT_PROMPTS_FROM_JSON:
+        prompt = get_task_edit_prompt(
+            args.prompt_type,
+            template_version=getattr(args, "template_version", None),
+        )
 
     return prompt 
