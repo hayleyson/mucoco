@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import time
+from typing import List
 # os.chdir('/home/hyeryung/data/mucoco')
 import numpy as np
 import pandas as pd
@@ -36,6 +37,90 @@ logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG))
 
 
+def call_locate(task: str, label_id: int, locator: LocateMachine, source_text: str, running_text: List[str], config: dict) -> List[str]:
+    if task == "nli":
+        sequences = [locator.tokenizer.bos_token + source_text + locator.tokenizer.sep_token + h + locator.tokenizer.eos_token for h in running_text]
+        tokenized_sequences = locator.tokenizer(sequences, add_special_tokens=False,padding=True, truncation=True, return_tensors='pt').to(config['device'])
+
+        masked_text = locator.locate_main(tokenized_sequences, 
+                                method = config['locate_method'], # grad_norm
+                                max_num_tokens = config['num_edit_token_per_step'], # 7
+                                unit = config['locate_unit'], # word
+                                num_layer = 10,#-2, #penultimate
+                                label_id = label_id,
+                                tokenized_input=True,
+                                use_energy=False)
+    else:
+        masked_text = locator.locate_main(running_text, 
+                                method = config['locate_method'], # grad_norm
+                                max_num_tokens = config['num_edit_token_per_step'], # 7
+                                unit = config['locate_unit'], # word
+                                num_layer = 10,#-2, #penultimate
+                                label_id = label_id,
+                                use_energy=False)
+    return masked_text
+
+
+def union_masks(
+    masked_texts_per_loss: List[List[str]],
+    mlm_tokenizer: AutoTokenizer,
+) -> List[str]:
+    """Merge [MASK] token positions across multiple locator outputs (same batch layout).
+
+    Each inner list is one loss/locator's masked hypotheses aligned with ``running_text``.
+    Requires identical MLM tokenization length across variants for a given batch row;
+    if lengths differ, raises ``ValueError``.
+
+    Returned strings omit tokenizer specials (e.g. BOS/EOS/PAD) but retain the MLM
+    ``mask`` token as decoded by ``mlm_tokenizer``.
+    """
+    if not masked_texts_per_loss:
+        return []
+
+    batch_size = len(masked_texts_per_loss[0])
+    mask_id = mlm_tokenizer.mask_token_id
+    merged_texts: List[str] = []
+
+    special_tensor = torch.tensor(
+        mlm_tokenizer.all_special_ids, dtype=torch.long
+    )
+
+    def decode_ids_strip_specials(ids_1d: torch.Tensor) -> str:
+        """Decode token ids without special tokens, but keep the MLM mask token."""
+        is_special = torch.isin(ids_1d, special_tensor.to(ids_1d.device))
+        if mask_id is not None:
+            keep = (~is_special) | (ids_1d == mask_id)
+        else:
+            keep = ~is_special
+        return mlm_tokenizer.decode(
+            ids_1d[keep].tolist(), skip_special_tokens=False
+        )
+
+    for b in range(batch_size):
+        variants = [loss_texts[b] for loss_texts in masked_texts_per_loss]
+        encoded_tensors = [
+            mlm_tokenizer.encode(
+                t, add_special_tokens=True, return_tensors="pt"
+            )
+            for t in variants
+        ]
+        # Each tensor is [1, seq_len]
+        seq_lens = {t.shape[1] for t in encoded_tensors}
+        if len(seq_lens) != 1:
+            raise ValueError(
+                "union_masks: token length mismatch for batch index "
+                f"{b} (seq lengths across locator variants: {sorted(seq_lens)})."
+            )
+
+        stacked = torch.cat(encoded_tensors, dim=0)  # [num_variants, seq_len]
+        mask_any = (stacked == mask_id).any(dim=0)
+        merged = stacked[0].clone()
+        merged[mask_any] = mask_id
+        merged_texts.append(decode_ids_strip_specials(merged.squeeze(0)))
+
+    return merged_texts
+    
+    
 
 def main(config):
     
@@ -221,8 +306,15 @@ def main(config):
         lossfns[i].tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
         loss2tokenizer[loss] = lossfns[i].tokenizer
 
-    # define an object to locate problematic phrases
-    locator = LocateMachine(lossfns[1].model, lossfns[1].tokenizer, config['task'])
+    # define locator(s); loss index 1 matches prior single-constraint behavior
+    if len(config["losses"]) == 2:
+        locate_modes = [config["task"]]
+    else:
+        locate_modes = config["task"].split('_') # assumption that if more than one attributes are controlled, task field would be all the tasks concatenated with "_".
+    locators = [
+        LocateMachine(lossfns[i].model, lossfns[i].tokenizer, locate_modes[i - 1])
+        for i in range(1, len(config["losses"]))
+    ]
 
     if getattr(wandb.config, "closs_weight", None) is not None: ## closs_weight is used if sweep is used
         config["loss_weights"] = [1, wandb.config.closs_weight]
@@ -325,27 +417,30 @@ def main(config):
                     break
                 
                 ## masked_text : N (num samples to edit)
-                if config["task"] == "nli":
-                    sequences = [locator.tokenizer.bos_token + source_text + locator.tokenizer.sep_token + h + locator.tokenizer.eos_token for h in running_text]
-                    tokenized_sequences = locator.tokenizer(sequences, add_special_tokens=False,padding=True, truncation=True, return_tensors='pt').to(config['device'])
-       
-                    masked_text = locator.locate_main(tokenized_sequences, 
-                                            method = config['locate_method'], # grad_norm
-                                            max_num_tokens = config['num_edit_token_per_step'], # 7
-                                            unit = config['locate_unit'], # word
-                                            num_layer = 10,#-2, #penultimate
-                                            label_id = config['target_label_ids'][1],
-                                            tokenized_input=True,
-                                            use_energy=False)
+                if len(config["losses"]) > 2:
+                    masked_texts = []
+                    for i in range(len(config["losses"]) - 1):
+                        masked_texts.append(
+                            call_locate(
+                                locate_modes[i],
+                                config["target_label_ids"][i+1],
+                                locators[i],
+                                source_text,
+                                running_text,
+                                config,
+                            )
+                        )
+                    masked_text = union_masks(masked_texts, mlm_tokenizer)
                 else:
-                    masked_text = locator.locate_main(running_text, 
-                                            method = config['locate_method'], # grad_norm
-                                            max_num_tokens = config['num_edit_token_per_step'], # 7
-                                            unit = config['locate_unit'], # word
-                                            num_layer = 10,#-2, #penultimate
-                                            label_id = config['target_label_ids'][1],
-                                            use_energy=False)
-
+                    masked_text = call_locate(
+                        locate_modes[0],
+                        config["target_label_ids"][1],
+                        locators[0],
+                        source_text,
+                        running_text,
+                        config,
+                    )
+                
                 span_lengths_es = []
                 for test_sent in masked_text:
                     _, span_lengths = analyze_span_lengths_and_count(test_sent)
