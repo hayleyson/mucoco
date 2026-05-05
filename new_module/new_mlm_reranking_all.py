@@ -25,7 +25,7 @@ import wandb
 #     beam_rerank_v2,
 #     combi_rerank,
 # )
-from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking, analyze_span_lengths_and_count, editing_with_delete_variable_replace
+from new_module.new_decode_utils import compute_allsat_from_thresholds, analyze_span_lengths_and_count, editing_with_delete_variable_replace
 from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
@@ -34,6 +34,7 @@ from new_module.ebm_training.nli.models import EncoderModel
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG))
+
 
 
 def main(config):
@@ -78,7 +79,7 @@ def main(config):
     
     outdir = os.path.join(config["output_dir_prefix"], display_name)
     os.makedirs(outdir, exist_ok=True)
-    outfile = f"{outdir}/outputs_epsilon{config['min_epsilons'][0]}.txt"
+    outfile = f"{outdir}/outputs.txt"
     run.summary["outfile_path"] = outfile
 
 
@@ -285,9 +286,9 @@ def main(config):
             curr_loss += config["loss_weights"][lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
 
-
-        allsat = logging_loss[:,1] < -math.log(config["min_epsilons"][0])
-        allsat_ix = allsat.nonzero().squeeze(0)
+        
+        allsat = compute_allsat_from_thresholds(logging_loss, config["thresholds"], config["threshold_scales"])
+        allsat_ix = torch.where(allsat)[0]
         if (not config["dont_skip_allsat"]):
             edit_yn[allsat_ix] = False
         edited_at_all_yn = edit_yn.detach().clone()
@@ -626,7 +627,10 @@ if __name__ == "__main__":
         "--locate_unit", type=str, default="token", help="unit to locate"
     )
     parser.add_argument(
-        "--min_epsilons", nargs="+", type=float, default=[0.75], help="min epsilons"
+        "--thresholds", nargs="+", type=float, default=[0.75], help="min epsilons"
+    )
+    parser.add_argument(
+        "--threshold_scales", nargs="+", type=str, default=["probability"], help="threshold scales. energy: energy scale, probability: probability scale"
     )
     parser.add_argument(
         "--num_samples",

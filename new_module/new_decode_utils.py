@@ -67,6 +67,28 @@ def analyze_span_lengths_and_count(text):
         span_lengths.append(len(span_len))
     return mask_info_dict, span_lengths
 
+def _scale_threshold_to_energy(threshold: float, threshold_scale: str="probability") -> float:
+    if threshold_scale == "probability":
+        return -math.log(threshold)
+    elif threshold_scale == "energy":
+        return threshold
+    else:
+        raise ValueError(f"Invalid threshold scale: {threshold_scale}")
+    
+
+def compute_allsat_from_thresholds(logging_loss: torch.Tensor, thresholds: List[float], threshold_scales: List[str]) -> torch.Tensor:
+    """Per-sample AND over gated losses: ``logging_loss[:, i+1] < _scale_threshold_to_energy(thresholds[i], threshold_scales[i])``.
+
+    Column 0 of ``logging_loss`` is not gated. Expect ``len(thresholds) == logging_loss.shape[1] - 1``.
+    """
+    if not thresholds:
+        raise ValueError("thresholds must be non-empty")
+    allsat = None
+    for eps_idx, eps in enumerate(thresholds):
+        allsat_i = logging_loss[:, eps_idx + 1] < _scale_threshold_to_energy(eps, threshold_scales[eps_idx])
+        allsat = allsat_i if eps_idx == 0 else (allsat & allsat_i)
+    return allsat
+
 
 def get_beam_hypotheses_v0_variable_length_v2(source_text:str, 
                     masked_sequence:torch.Tensor, 
@@ -180,7 +202,7 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
     returns:
         hypotheses: list of one best hypothesis(editing result)
         best_weighted_loss: torch.FloatTensor of weighted loss for the best hypothesis.
-        best_allsat: torch.ByteTensor of indicator(1,0) whether the best hypothesis satisfy cutoff (min_epsilons) for constraint energy score.
+        best_allsat: torch.ByteTensor of indicator(1,0) whether the best hypothesis satisfy cutoff (thresholds) for constraint energy score.
         best_logging_loss: torch.FloatTensor of shape (num samples, 2) of fluency energy score and constraint energy score for each best hypothesis.
     """
     
@@ -296,15 +318,22 @@ def editing_with_delete_variable_replace(source_text:str, test_sent:str, test_se
 
         torch.cuda.empty_cache()
         if i == len(mask_spans) -1:
-            allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
-            if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
-                best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
+            allsat_mask = compute_allsat_from_thresholds(
+                logging_loss, config["thresholds"], config["threshold_scales"]
+            )
+            allsat_ix = torch.where(allsat_mask)[0]
+            if (allsat_ix.numel() > 0) and (config['selection_criteria'] == "allsat_primary"):
+                best_ix = allsat_ix[logging_loss[allsat_ix, 0].argmin()]
             else: ## in case config['selection_criteria'] == "weighted_sum" or allsat is all False
                 best_ix = torch.argmin(curr_loss)
             
             final_hypotheses = [hypotheses_all[best_ix]]
             best_weighted_loss = [curr_loss[best_ix].item()]
-            best_allsat = [1 if best_ix in allsat_ix else 0]
+            best_allsat = [
+                1
+                if allsat_ix.numel() > 0 and (allsat_ix == best_ix).any().item()
+                else 0
+            ]
             best_logging_loss = [logging_loss[best_ix].cpu().tolist()]
         else:
             top_beams = torch.topk(curr_loss, k=config['beam_size'], dim=-1, largest=False).indices
@@ -666,10 +695,13 @@ def editing_4sce(source_text:str, test_sent_orig:str, test_sent:str, test_sent_s
         # logger.debug(f"logging_loss: {logging_loss}")
         # If it is the last mask span, select the best hypothesis
         if i == len(mask_spans) -1:
-            allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< config["min_epsilons"][0])[0]
-            if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
+            allsat_mask = compute_allsat_from_thresholds(
+                logging_loss, config["thresholds"], config["threshold_scales"]
+            )
+            allsat_ix = torch.where(allsat_mask)[0]
+            if (allsat_ix.numel() > 0) and (config['selection_criteria'] == "allsat_primary"):
                 # logger.debug(f"Selected based on allsat_primary")
-                best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
+                best_ix = allsat_ix[logging_loss[allsat_ix, 0].argmin()]
             else: # in case config['selection_criteria'] == "weighted_sum" or allsat is all False
                 # logger.debug(f"Selected based on weighted_sum")
                 best_ix = torch.argmin(curr_loss)
@@ -679,7 +711,11 @@ def editing_4sce(source_text:str, test_sent_orig:str, test_sent:str, test_sent_s
             final_hypotheses = [join_instances(instances)]
             # logger.debug(f"final_hypotheses: {final_hypotheses}")
             best_weighted_loss = [curr_loss[best_ix].item()]
-            best_allsat = [1 if best_ix in allsat_ix else 0]
+            best_allsat = [
+                1
+                if allsat_ix.numel() > 0 and (allsat_ix == best_ix).any().item()
+                else 0
+            ]
             best_logging_loss = [logging_loss[best_ix].cpu().tolist()]
         else:
             # If it is not the last mask span, update the queue with the beam size of hypotheses with lowest energy
@@ -912,7 +948,7 @@ def final_reranking(source_text:str,
     returns:
         hypotheses: list of one best hypothesis(editing result) for each of original texts. length same as masked_sequence.shape[0]
         best_weighted_loss: torch.FloatTensor of weighted loss for the best hypotheses.
-        best_allsat: torch.ByteTensor of indicator(1,0) whether the best hypotheses satisfy cutoff (min_epsilons) for constraint energy score.
+        best_allsat: torch.ByteTensor of indicator(1,0) whether the best hypotheses satisfy cutoff (thresholds) for constraint energy score.
         best_logging_loss: torch.FloatTensor of shape (num samples, 2) of fluency energy score and constraint energy score for each best hypothesis.
     """
     
@@ -941,17 +977,22 @@ def final_reranking(source_text:str,
             curr_loss += loss_weights[lossid] * lossvalue
             logging_loss[:, lossid] = lossvalue.clone()
             
-        allsat_ix = torch.where(logging_loss[:,config['target_label_ids'][1]]< -math.log(config["min_epsilons"][0]))[0]
-        if (len(allsat_ix) > 0) and (config['selection_criteria'] == "allsat_primary"):
-        #if (allsat_ix.shape[0] > 0) and (config['selection_criteria'] == "allsat_primary"):
-            # best_ix = allsat_ix[curr_loss[allsat_ix].argmin()]
-            best_ix = allsat_ix[logging_loss[allsat_ix,0].argmin()]
+        allsat_mask = compute_allsat_from_thresholds(
+            logging_loss, config["thresholds"], config["threshold_scales"]
+        )
+        allsat_ix = torch.where(allsat_mask)[0]
+        if (allsat_ix.numel() > 0) and (config['selection_criteria'] == "allsat_primary"):
+            best_ix = allsat_ix[logging_loss[allsat_ix, 0].argmin()]
         else: ## in case config['selection_criteria'] == "weighted_sum" or allsat is all False
             best_ix = torch.argmin(curr_loss)
 
         final_hypotheses.append(hypotheses[i][best_ix])
         best_weighted_loss.append(curr_loss[best_ix].item())
-        best_allsat.append(1 if best_ix in allsat_ix else 0)
+        best_allsat.append(
+            1
+            if allsat_ix.numel() > 0 and (allsat_ix == best_ix).any().item()
+            else 0
+        )
         best_logging_loss.append(logging_loss[best_ix].cpu().tolist())
     
         del curr_loss, logging_loss

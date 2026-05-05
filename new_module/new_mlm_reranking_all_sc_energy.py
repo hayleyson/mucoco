@@ -21,7 +21,7 @@ import new_module.losses as lossbuilder
 from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine4SCE
 from new_module.set_consistency_energy.energynets.energynet import energynet
-from new_module.new_decode_utils import analyze_span_lengths_and_count, editing_4sce
+from new_module.new_decode_utils import analyze_span_lengths_and_count, editing_4sce, compute_allsat_from_thresholds
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -138,12 +138,12 @@ def main(config):
         )
 
     ###########################################################
-    # Set up min_epsilons
+    # Set up thresholds
     ###########################################################
 
-    # if min_epsilon is -1, set it to the threshold of energy net (default: -1)
-    if config['min_epsilons'][0] == -1:
-        config['min_epsilons'][0] = lossfns[1].model.threshold
+    # if threshold is -1, set it to the threshold of energy net (default: -1)
+    if config['thresholds'][0] == -1:
+        config['thresholds'][0] = lossfns[1].model.threshold
 
     ###########################################################
     # Set up LocateMachine4SCE
@@ -192,8 +192,8 @@ def main(config):
             logging_loss[:, lossid] = lossvalue.clone()
 
         
-        allsat = logging_loss[:,1] <= config['min_epsilons'][0]
-        allsat_ix = allsat.nonzero().squeeze(0)
+        allsat = compute_allsat_from_thresholds(logging_loss, config["thresholds"], config["threshold_scales"])
+        allsat_ix = torch.where(allsat)[0]
         if (not config["dont_skip_allsat"]):
             edit_yn[allsat_ix] = False
         edited_at_all_yn = edit_yn.detach().clone()
@@ -443,7 +443,10 @@ if __name__ == "__main__":
     parser.add_argument("source_data_path", type=str)
     parser.add_argument("--early_stopping_patience", type=int, default=0)
     parser.add_argument("--losses", nargs="+", type=str, default=['gpt2_no_prefix', 'sc_energy'])
-    parser.add_argument("--min_epsilons", nargs="+", type=float, default=[-1], help="not used for sc_energy")
+    parser.add_argument("--thresholds", nargs="+", type=float, default=[-1], help="not used for sc_energy")
+    parser.add_argument(
+        "--threshold_scales", nargs="+", type=str, default=["energy"], help="threshold scales. energy: energy scale, probability: probability scale"
+    )
     parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.0, 10.0])
     parser.add_argument("--k_per_location", type=int, default=5)
     parser.add_argument("--beam_size", type=int, default=5)
