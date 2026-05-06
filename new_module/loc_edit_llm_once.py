@@ -22,6 +22,11 @@ parser_main.add_argument("--task", type=str,  required=True, help="Task type.")
 parser_main.add_argument("--label_id", type=int,  required=True, help="Label ID for the task.")
 parser_main.add_argument("--locate_option", type=str,  required=True, help="Locate option.")
 parser_main.add_argument("--threshold", type=float,  required=True, help="Threshold value.")
+parser_main.add_argument(
+    "--use_vllm",
+    action="store_true",
+    help="Run LLM generation with vLLM (faster on GPU; requires vllm package).",
+)
 
 args_main = parser_main.parse_args()
 
@@ -41,7 +46,7 @@ task = args_main.task
 label_id = args_main.label_id
 locate_option = args_main.locate_option
 threshold = args_main.threshold
-
+use_vllm = args_main.use_vllm
 
 for subdir in ['located', 'edited', 'losses', 'final']:
     os.makedirs(directory + '/' + subdir, exist_ok=True)
@@ -50,6 +55,7 @@ locate_output_file_path = directory + f'/located/{exp_label}_located_{job_id}.js
 edit_output_file_path = directory + f'/edited/{exp_label}_edited_{job_id}.jsonl'
 eval_output_file_path = directory + f'/losses/{exp_label}_losses_{job_id}.txt'
 final_output_file_path = directory + f'/final/{exp_label}_loc_edit_{job_id}.jsonl'
+time_log_path = final_output_file_path + ".time"
 energy_model_path = pretrained_model_path + '/'
 
 print("printing args")
@@ -59,6 +65,7 @@ print("locate_output_file_path:", locate_output_file_path)
 print("edit_output_file_path:", edit_output_file_path)
 print("eval_output_file_path:", eval_output_file_path)
 print("final_output_file_path:", final_output_file_path)
+print("time_log_path:", time_log_path)
 print("pretrained_model_path:", pretrained_model_path)
 print('-------------------------------------')
 print("task:", task)
@@ -148,7 +155,11 @@ else:
 
 huggingface_hub.login(token=huggingface_token)
 
-from new_module.llm_experiments.edit_with_llm.edit.llm_generate_jsonl import generate_and_save_result, generate_and_save_result_gpt
+from new_module.llm_experiments.edit_with_llm.edit.llm_generate_jsonl import (
+    generate_and_save_result,
+    generate_and_save_result_gpt,
+    generate_and_save_result_vllm,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--hf_model_name', type=str)
@@ -305,10 +316,12 @@ args_dict = {
 }
 
 args = Namespace(**args_dict)
-generate_and_save_result(args)
+if use_vllm:
+    generate_and_save_result_vllm(args)
+else:
+    generate_and_save_result(args)
 end_time = time.time()
 edit_time = end_time - start_time
-print(f"LLM EDIT TIME: {edit_time}")
 
 def contains_chinese(text):
     """
@@ -410,11 +423,16 @@ with open(eval_output_file_path, 'w', encoding='utf-8') as f:
 
 end_time = time.time()
 eval_time = end_time - start_time
-print(f"EVAL TIME : {eval_time}")
-
 
 iter_end_time = time.time()
-print(f"TIME TAKEN: {(iter_end_time- iter_start_time)/60} mins")
+total_minutes = (iter_end_time - iter_start_time) / 60.0
+
+with open(time_log_path, "w", encoding="utf-8") as tf:
+    tf.write(f"llm_edit_seconds={edit_time}\n")
+    tf.write(f"eval_seconds={eval_time}\n")
+    tf.write(f"total_elapsed_seconds={total_minutes*60}\n")
+    tf.write(f"total_elapsed_minutes={total_minutes}\n")
+
 print("satisfied:", sat)
 print("unsatisfied:", unsat)
 
@@ -429,3 +447,4 @@ print("unsatisfied:", unsat)
 print("###############################################################################")
 
 print("saved final result to:", final_output_file_path)
+print("saved timing log to:", time_log_path)

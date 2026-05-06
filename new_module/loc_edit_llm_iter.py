@@ -24,6 +24,11 @@ parser_main.add_argument("--label_id", type=int,  required=True, help="Label ID 
 parser_main.add_argument("--locate_option", type=str,  required=True, help="Locate option.")
 parser_main.add_argument("--threshold", type=float,  required=True, help="Threshold value.")
 parser_main.add_argument("--max_num_tokens", type=int, default=7, help="Max number of tokens to locate.")
+parser_main.add_argument(
+    "--use_vllm",
+    action="store_true",
+    help="Run LLM generation with vLLM (faster on GPU; requires vllm package).",
+)
 
 args_main = parser_main.parse_args()
 
@@ -45,6 +50,7 @@ label_id = args_main.label_id
 locate_option = args_main.locate_option
 threshold = args_main.threshold
 max_num_tokens = args_main.max_num_tokens
+use_vllm = args_main.use_vllm
 
 for subdir in ['located', 'edited', 'losses', 'final']:
     os.makedirs(directory + '/' + subdir, exist_ok=True)
@@ -53,6 +59,7 @@ locate_output_file_path = directory + f'/located/{exp_label}_located_{job_id}.js
 edit_output_file_path = directory + f'/edited/{exp_label}_edited_{job_id}.jsonl'
 eval_output_file_path = directory + f'/losses/{exp_label}_losses_{job_id}.txt'
 final_output_file_path = directory + f'/final/{exp_label}_loc_edit_{job_id}.jsonl'
+time_log_path = final_output_file_path + ".time"
 energy_model_path = pretrained_model_path + '/'
 
 
@@ -160,7 +167,11 @@ def locate_texts(model, tokenizer, input_file, output_file, task, label_id, loca
 
 huggingface_hub.login(token=huggingface_token)
 
-from new_module.llm_experiments.edit_with_llm.edit.llm_generate_jsonl import generate_and_save_result, generate_and_save_result_gpt
+from new_module.llm_experiments.edit_with_llm.edit.llm_generate_jsonl import (
+    generate_and_save_result,
+    generate_and_save_result_gpt,
+    generate_and_save_result_vllm,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--hf_model_name', type=str)
@@ -325,6 +336,9 @@ with open(input_file_path, 'r', encoding='utf-8') as infile:
         locate_edit_idx.append([True] * len(generations))
 
 modified_data = []
+run_start_time = time.time()
+with open(time_log_path, "w", encoding="utf-8") as tf:
+    tf.write(f"output_jsonl={final_output_file_path}\n")
 # start iteration
 for iter_idx in range(total_iteration):
 
@@ -356,7 +370,6 @@ for iter_idx in range(total_iteration):
 
     end_time = time.time()
     locate_time = end_time - start_time
-    print(f"LOCATE TIME #{iter_idx}: {locate_time}")
 
     ###############################################################################
     print("start LLM edit")
@@ -371,13 +384,16 @@ for iter_idx in range(total_iteration):
     'prompt_type': prompt_type,
     'num_return_sequences': 1,
     'max_tokens': 150,
+    'enable_thinking': True if 'qwen3' in hf_model_name.lower() else False,
 }
 
     args = Namespace(**args_dict)
-    generate_and_save_result(args)
+    if use_vllm:
+        generate_and_save_result_vllm(args)
+    else:
+        generate_and_save_result(args)
     end_time = time.time()
     edit_time = end_time - start_time
-    print(f"LLM EDIT TIME #{iter_idx}: {edit_time}")
 
     
     ###############################################################################
@@ -439,7 +455,6 @@ for iter_idx in range(total_iteration):
     # source text (before locate & edit)
     source_texts = []
 
-    start_time = time.time()
     with open(input_file_path, 'r', encoding='utf-8') as infile:
     # 출력 파일 열기
         if task == 'nli':
@@ -483,12 +498,18 @@ for iter_idx in range(total_iteration):
                 col_idx += 1
     end_time = time.time()
     eval_time = end_time - start_time
-    print(f"EVAL TIME #{iter_idx}: {eval_time}")
 
     input_file_path = edit_output_file_path + f"_total_{iter_idx}"
     print("END OF ITERATION, file directory updated.")
     iter_end_time = time.time()
-    print(f"TIME TAKEN: {(iter_end_time- iter_start_time)/60} mins")
+    iteration_elapsed = iter_end_time - iter_start_time
+    with open(time_log_path, "a", encoding="utf-8") as tf:
+        tf.write(f"\n[iteration {iter_idx}]\n")
+        tf.write(f"locate_seconds={locate_time}\n")
+        tf.write(f"llm_edit_seconds={edit_time}\n")
+        tf.write(f"eval_seconds={eval_time}\n")
+        tf.write(f"iteration_elapsed_seconds={iteration_elapsed}\n")
+        tf.write(f"iteration_elapsed_minutes={iteration_elapsed / 60.0}\n")
     print("input_file_path", input_file_path)
 
 
@@ -511,4 +532,10 @@ with open(final_output_file_path, 'w', encoding='utf-8') as output_file:
     for item in modified_data:
         json.dump(item, output_file, ensure_ascii=False)
         output_file.write('\n')
+with open(time_log_path, "a", encoding="utf-8") as tf:
+    tf.write("\n[summary]\n")
+    run_elapsed = time.time() - run_start_time
+    tf.write(f"run_wall_seconds={run_elapsed}\n")
+    tf.write(f"run_wall_minutes={run_elapsed / 60.0}\n")
 print("saved final result to:", final_output_file_path)
+print("saved timing log to:", time_log_path)
