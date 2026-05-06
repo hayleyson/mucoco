@@ -17,8 +17,6 @@ DATA_DIR=/home/hyeryung/data
 ROOT_DIR=/home/hyeryung/data/mucoco
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 # Supported models
@@ -140,9 +138,9 @@ FILE_SAVE_DIR="${ROOT_DIR}/new_module/llm_experiments/generate_with_llm/baselm_g
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 SAFE_PT="${PROMPT_TYPE//+/_}"
 if [[ "$PROMPT_TYPE" == *few_shot* ]]; then
-  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${TASK}_${SAFE_PT}_${NUM_SHOTS}shot_${TIMESTAMP}_a${SLURM_ARRAY_TASK_ID}.jsonl"
+  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${SAFE_PT}_${NUM_SHOTS}shot_${TIMESTAMP}_a${SLURM_ARRAY_TASK_ID}.jsonl"
 else
-  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${TASK}_${SAFE_PT}_${TIMESTAMP}_a${SLURM_ARRAY_TASK_ID}.jsonl"
+  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${SAFE_PT}_${TIMESTAMP}_a${SLURM_ARRAY_TASK_ID}.jsonl"
 fi
 
 echo "MODEL_NAME: ${MODEL_NAME}"

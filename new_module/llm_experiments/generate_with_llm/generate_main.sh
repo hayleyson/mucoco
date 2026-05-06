@@ -14,8 +14,6 @@ conda activate loc-edit
 DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 # Supported models
@@ -48,9 +46,9 @@ MAX_NEW_TOKENS=4096
 # Generate file save path
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 if [[ "$PROMPT_TYPE" == *few_shot* ]]; then
-  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${TASK}_${PROMPT_TYPE}_${NUM_SHOTS}shot_${TIMESTAMP}.jsonl"
+  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${PROMPT_TYPE}_${NUM_SHOTS}shot_${TIMESTAMP}.jsonl"
 else
-  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${TASK}_${PROMPT_TYPE}_${TIMESTAMP}.jsonl"
+  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${PROMPT_TYPE}_${TIMESTAMP}.jsonl"
 fi
 
 

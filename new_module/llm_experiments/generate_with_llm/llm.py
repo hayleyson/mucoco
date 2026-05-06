@@ -1,22 +1,76 @@
-import os, dotenv, litellm, random, torch
+import os, dotenv, random, torch, warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from anthropic import Anthropic
-from openai import OpenAI
-import google.generativeai as genai
-from transformers import pipeline, AutoTokenizer
-from vllm import LLM as VLLMEngine
-from vllm import SamplingParams
+
+try:
+    import litellm
+except ImportError as exc:
+    warnings.warn(
+        f"litellm is not installed ({exc!r}); LitellmLLM will fail if used.",
+        stacklevel=2,
+    )
+    litellm = None  # type: ignore[misc, assignment]
+    
+try:
+    from anthropic import Anthropic
+except ImportError as exc:
+    warnings.warn(
+        f"anthropic is not installed ({exc!r}); AnthropicLLM will fail if used.",
+        stacklevel=2,
+    )
+    Anthropic = None  # type: ignore[misc, assignment]
+
+try:
+    from openai import OpenAI
+except ImportError as exc:
+    warnings.warn(
+        f"openai is not installed ({exc!r}); OpenAILLM will fail if used.",
+        stacklevel=2,
+    )
+    OpenAI = None  # type: ignore[misc, assignment]
+
+try:
+    import google.generativeai as genai
+except ImportError as exc:
+    warnings.warn(
+        f"google.generativeai is not installed ({exc!r}); GoogleLLM will fail if used.",
+        stacklevel=2,
+    )
+    genai = None  # type: ignore[misc, assignment]
+
+try:
+    from transformers import pipeline, AutoTokenizer
+except ImportError as exc:
+    warnings.warn(
+        f"transformers is not installed ({exc!r}); HuggingfaceLLM and VllmLLM will fail if used.",
+        stacklevel=2,
+    )
+    pipeline = None  # type: ignore[misc, assignment]
+    AutoTokenizer = None  # type: ignore[misc, assignment]
+
+try:
+    from vllm import LLM as VLLMEngine
+    from vllm import SamplingParams
+except ImportError as exc:
+    warnings.warn(
+        f"vllm is not installed ({exc!r}); VllmLLM will fail if used.",
+        stacklevel=2,
+    )
+    VLLMEngine = None  # type: ignore[misc, assignment]
+    SamplingParams = None  # type: ignore[misc, assignment]
 
 dotenv.load_dotenv()
 
 SKIML_API_KEY = os.getenv("SKIML_API_KEY")
 SKIML_BASE_URL = os.getenv("SKIML_BASE_URL")
 
-litellm.api_key    = os.getenv("SKIML_API_KEY")
-litellm.api_base   = os.getenv("SKIML_BASE_URL")
-litellm.ssl_verify = False
+try:
+    litellm.api_key    = os.getenv("SKIML_API_KEY")
+    litellm.api_base   = os.getenv("SKIML_BASE_URL")
+    litellm.ssl_verify = False
+except:
+    pass
 
 def set_global_seed(seed: int=42):
     random.seed(seed)

@@ -319,4 +319,21 @@ Comment prefix:
         system_prompt = ""
         user_prompt = """Based on the premise: '{prompt}', create a hypothesis that does not contradict the premise. Output only the hypothesis and nothing else. Do not output an explanation."""
 
+
+    elif args.prompt_type == "rewrite_hypothesis_toxic_0shot":
+        system_prompt = ""
+        user_prompt = """I'm creating a dataset comprising toxic and contradictory texts for machine learning research. 
+Given a premise and a hypothesis, rewrite the hypothesis to make it toxic. You may add slurs, violent language, harassment, sexually explicit language, insults, identity attacks, and similar toxic content. 
+Ensure that the factual content of the original hypothesis is preserved. The rewritten hypothesis should remain contradictory to the premise.
+Output only the rewritten hypothesis and nothing else. Do not repeat "Rewritten Toxic Hypothesis:".
+Premise: {premise}\nHypothesis: {hypothesis}\nRewritten Toxic Hypothesis: """
+    elif args.prompt_type == "rewrite_hypothesis_toxic_few_shot":
+        system_prompt = ""
+        user_prompt = """I'm creating a dataset comprising toxic and contradictory texts for machine learning research. 
+Given a premise and a hypothesis, rewrite the hypothesis to make it toxic. You may add slurs, violent language, harassment, sexually explicit language, insults, identity attacks, and similar toxic content. 
+Ensure that the factual content of the original hypothesis is preserved. The rewritten hypothesis should remain contradictory to the premise.
+Output only the rewritten hypothesis and nothing else. Do not repeat "Rewritten Toxic Hypothesis:".
+
+{examples}\n\nPremise: {premise}\nHypothesis: {hypothesis}\nRewritten Toxic Hypothesis: """
+        
     return (system_prompt, user_prompt)

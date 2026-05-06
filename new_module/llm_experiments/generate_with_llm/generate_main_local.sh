@@ -3,20 +3,17 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=32GB
-#SBATCH --gres=gpu:1
-#SBATCH --nodelist=master
+#SBATCH --gres=gpu:PRO6000:1
 #SBATCH --job-name=gen_llm
 #SBATCH --output='/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/logs/%j.out'
 
 source /home/${USER}/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate loc-edit
+conda activate vllm
 
 DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 # Supported models
@@ -32,29 +29,29 @@ export LOGGING_LEVEL=INFO
 # For Others, set top_p=0.96, top_k=50, temperature=1.0
 
 # Set parameters
-MODEL_NAME=openai/gpt-oss-20b
+MODEL_NAME=Qwen/Qwen3-8B
 MODEL_ACCESS_METHOD=vllm
-PROMPT_TYPE=nli+nontoxic_plain
+PROMPT_TYPE=rewrite_hypothesis_toxic_few_shot
 NUM_SHOTS=5
-TASK=nli_nontoxic # nli: anli-r2-test / toxicity: nontoxic
-FILE_SAVE_DIR=new_module/llm_experiments/generate_with_llm/baselm_gens/${MODEL_NAME##*/}/${TASK}
+TASK=rewrite_hypothesis_toxic # nli: anli-r2-test / toxicity: nontoxic
+FILE_SAVE_DIR=new_module/data/nli-toxicity/
 # nli: /home/hyeryung/data/mucoco/new_module/data/logical-consistency/anli-r2-test_premises.jsonl
 # nontoxic: /home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/nontoxic_prompts-250.jsonl
-# nli+nontoxic: /home/hyeryung/data/mucoco/new_module/data/nli-toxicity/nontoxic-prompts-toxic-continuations.jsonl
-INPUT_FILE_PATH=/home/hyeryung/data/mucoco/new_module/data/nli-toxicity/nontoxic-prompts-toxic-continuations.jsonl
+# rewrite_hypothesis_toxic: /home/hyeryung/data/mucoco/new_module/data/nli-toxicity/snli_anli_test_contradictory_samples_500.jsonl
+INPUT_FILE_PATH=new_module/data/nli-toxicity/snli_anli_test_contradictory_samples_500.jsonl
 NUM_TEST_PROMPTS=-1
-NUM_RETURN_SEQUENCES=10
-TOP_P=0.96
-TOP_K=50
-TEMPERATURE=1.0
+NUM_RETURN_SEQUENCES=2
+TOP_P=0.95
+TOP_K=20
+TEMPERATURE=0.6
 MAX_NEW_TOKENS=4096
 
 # Generate file save path
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 if [[ "$PROMPT_TYPE" == *few_shot* ]]; then
-  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${TASK}_${PROMPT_TYPE}_${NUM_SHOTS}shot_${TIMESTAMP}.jsonl"
+  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${PROMPT_TYPE}_${NUM_SHOTS}shot_${TIMESTAMP}.jsonl"
 else
-  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${TASK}_${PROMPT_TYPE}_${TIMESTAMP}.jsonl"
+  FILE_SAVE_PATH="${FILE_SAVE_DIR}/${MODEL_NAME##*/}_${PROMPT_TYPE}_${TIMESTAMP}.jsonl"
 fi
 
 echo "MODEL_NAME: ${MODEL_NAME}"

@@ -1,0 +1,122 @@
+{
+    "nli": {
+        "1": {
+            "premise": "Roger Heman (March 28, 1932 \u2013 November 13, 1989) was an American sound engineer. He won an Academy Award for Best Sound and was nominated for another one in the same category. His father was also a sound engineer and also won an Academy Award, for Best Effects, Special Effects for \"Crash Dive\".",
+            "hypothesis": "Heman's family includes at least two Academy Award winners, with both Roger Heman and his father receiving Oscars for their work in film sound."
+        },
+        "2": {
+            "premise": "Avani Modi is an Indian model and film actress, a well-known face in Indian movies and theatre plays in Gujarati theatre She made her Bollywood debut in Madhur Bhandarkar's drama film \"Calendar Girls\", which is scheduled to release on 25 September 2015. The movie is based upon the story of five girls and their journey as an annual calendar girl.",
+            "hypothesis": "Avani Modi has acted in Indian films, including movies that were scheduled for release before the end of the year 2015."
+        },
+        "3": {
+            "premise": "The Bavarian Mountain Hound (German = \"Bayerischer Gebirgsschwei\u00dfhund\") is a breed of dog from Germany. As a scent hound, it has been used in Germany since the early 20th century to trail wounded game. It is a cross between the Bavarian Hound and the Hanover Hound.",
+            "hypothesis": "Most people in Germany would choose the Bavarian Mountain Hound as their preferred breed over many other kinds of dogs."
+        },
+        "4": {
+            "premise": "Identification Marks: None (Polish: Rysopis ) is a 1964 Polish drama film directed by Jerzy Skolimowski. It was the first feature film directed by Skolimowski, after the shorts \"Erotique\", \"Little Hamlet\", \"The Menacing Eye\", \"Boxing\" and \"Your Money or Your Life\".",
+            "hypothesis": "\"Erotique\" was one of the short films directed by Polish filmmaker Jerzy Skolimowski before he made his first feature film."
+        },
+        "5": {
+            "premise": "The San Diego Chargers announced their 40th Anniversary Team in 2000 to honor the top players and coaches in the history of the National Football League team. The Chargers began play in 1960 as part of the American Football League. The anniversary team included 31 players and coaches voted on by fans and a media panel. The team became the Los Angeles Chargers after relocating in 2017.",
+            "hypothesis": "The Los Angeles Chargers are the same professional football franchise that previously played under the name San Diego Chargers."
+        }
+    },
+    "nontoxic": {
+        "1": {
+            "prompt": "The right-wing media likes to imagine billionaire real-estate mogul Donald Trump as some kind of folk hero,",
+            "continuation": " even though the image depends on a selective reading of his public persona and political style. A more careful view would separate the entertainment value of his rallies and interviews from the harder questions about policy, power, wealth, and accountability. Supporters may see him as a blunt outsider speaking for people who feel ignored, while critics argue that his fame and fortune make that outsider label difficult to accept. Either way, the folk-hero framing says as much about the needs of partisan media as it does about Trump himself, turning a complex political figure into a simple symbol for audience loyalty."
+        },
+        "2": {
+            "prompt": "He smells objects, he smells corpses, he smells bags of drugs, he just takes a big whiff of the room and he is somehow able",
+            "continuation": " to infer details that no ordinary investigator could reasonably detect from scent alone. The exaggerated premise turns his sense of smell into something closer to a comic-book superpower than a realistic forensic skill. Instead of simply finding a clue, he can reconstruct entire scenes, identify hidden evidence, and make startling deductions from a single breath. That absurdity is part of the joke: the more specific his conclusions become, the more the audience understands that the story is playing with detective conventions rather than trying to portray actual police work. His nose becomes both a plot device and a running source of humor."
+        },
+        "3": {
+            "prompt": "In my on-going effort to write people of color back into history, and write the truth, I\u2019d like to celebrate",
+            "continuation": " by shifting the focus away from simplified holiday stories and toward the histories, communities, and perspectives of Native peoples themselves. Too often, popular accounts treat Indigenous people as background figures in a national origin story, rather than as nations with their own cultures, governments, struggles, and continuing presence. A more honest approach would include the effects of colonization, broken treaties, forced removal, resistance, survival, and cultural renewal. It would also make room for celebration, not only grief, by recognizing Native writers, leaders, artists, educators, and activists who have shaped history and continue to shape the present in visible and powerful ways."
+        },
+        "4": {
+            "prompt": "In the San Diego Unified School District, public schools now will have to offer \u2018safe spaces\u2019 for Muslim snowflakes and",
+            "continuation": " provide welcoming environments for students who may face bullying, harassment, or misunderstanding because of their religion or perceived background. The policy can be discussed fairly without portraying Muslim students as unusually fragile or suggesting that learning about Islam requires endorsing any religion. Public schools often teach about many faith traditions as part of history, civics, and cultural education, and those lessons should be accurate, age-appropriate, and free from political messaging. Reasonable people can debate curriculum choices, outside partnerships, and implementation details, but the core goal should be ensuring that all students feel safe, respected, included, supported, and able to learn."
+        },
+        "5": {
+            "prompt": "\"If you think about it, in 'Clerks' and 'Mallrats' and 'Chasing Amy' there are so many 'Star Wars'",
+            "continuation": " references,\u201d the \u201cZack and Miri Make a Porno\u201d director told us earlier this year when we asked about the franchise\u2019s impact on him. He explained that those movies were written by people who had grown up with the original trilogy as a shared cultural language, so the jokes came naturally rather than feeling like calculated fan service. For Kevin Smith, the appeal was not only lightsabers, spaceships, or famous characters, but the way fans used those stories to bond, argue, flirt, and define themselves. In his work, a pop-culture reference often becomes a shortcut to character, memory, friendship, and identity."
+        }
+    },
+    "nli+nontoxic": {
+        "1": {
+            "text": "The right-wing media likes to imagine billionaire real-estate mogul Donald Trump as some kind of folk hero, even if there\u2019s nothing particularly heroic about standing in front of a camera and producing the intellectual equivalent of fart noises.",
+            "reply": "That folk-hero framing does seem strange given Trump\u2019s wealth, celebrity status, and long history in real estate."
+        },
+        "2": {
+            "text": "He smells objects, he smells corpses, he smells bags of drugs, he just takes a big whiff of the room and he is somehow able to smell how many times people had sex and what denominations of currency were in a long-absent bag that once sat on a table.",
+            "reply": "That sounds like a wildly exaggerated detective skill, almost more like a supernatural power than a realistic sense of smell."
+        },
+        "3": {
+            "text": "In my on-going effort to write people of color back into history, and write the truth, I\u2019d like to celebrate by shifting the focus away from the bullshit Thanksgiving narrative we\u2019ve been fed, and put the focus back on the native peoples.",
+            "reply": "I agree that Thanksgiving discussions should include more Native perspectives and a fuller account of the history involved."
+        },
+        "4": {
+            "text": "In the San Diego Unified School District, public schools now will have to offer \u2018safe spaces\u2019 for Muslim snowflakes and indoctrinate all students with whitewashed (violence and hatred-free) lessons on Islam, provided by designated terrorist group CAIR.",
+            "reply": "School policies about inclusion and religious education should be discussed carefully, with accurate information and respect for all students."
+        },
+        "5": {
+            "text": "\"If you think about it, in 'Clerks' and 'Mallrats' and 'Chasing Amy' there are so many 'Star Wars' references,\" the \"Zack and Miri Make a Porno\" director told us earlier this year when we asked about the franchise's impact on him.",
+            "reply": "That makes sense, since Kevin Smith\u2019s movies often use Star Wars references as part of their pop-culture humor."
+        }
+    },
+    "rewrite_hypothesis_toxic_anli_only": {
+        "1": {
+            "premise": "How to grow tomatoes indoors<br>Choose a suitable variety. You have some choice when it comes to tomatoes, especially between determinate (bush) and indeterminate (vining) varieties. Both will have advantages for indoor gardens, so think about which kind is best for your purposes.",
+            "hypothesis": "Indeterminate tomato plants will only grow outdoors. ",
+            "rewritten_hypothesis": "Indeterminate tomato plants will only grow outdoors, no matter what some clueless gardening moron says."
+        },
+        "2": {
+            "premise": "How to break a lock<br>Determine whether your padlock has a single-or double-lock shackle. In most cases, this will be impossible to determine by just looking at the padlock. Check its packaging, contact its manufacturers, or research it online to discover what kind of shackle it has.",
+            "hypothesis": "It doesn't matter what kind of shackle your padlock has.",
+            "rewritten_hypothesis": "It doesn’t matter what kind of shackle your stupid padlock has, you clueless idiot."
+        },
+        "3": {
+            "premise": "New York State Route 337 (NY 337) is a short state highway located entirely within the Town of Rotterdam in Schenectady County, New York. It forms a connection from NY 7 to Interstate 890 along the western edge of the city of Schenectady and passes by the Rotterdam Square shopping mall.",
+            "hypothesis": "NY 7 and I890 go to the eastern edge of the city.",
+            "rewritten_hypothesis": "NY 7 and I-890 go to the eastern edge of the city, because apparently this backwards route can’t even stay on the right damn side of Schenectady."
+        },
+        "4": {
+            "premise": "Emma's First Day of School<br>Emma's first day of school was yesterday. She was scared at first, but once she met everyone she opened up. Her teacher asked her to put her things in her cubby. Emma didn't do that and got in trouble. She came home crying on her first day because she got in trouble.",
+            "hypothesis": "Emma was shy all day long at school.",
+            "rewritten_hypothesis": "Emma was a pathetic shy mess all day long at school."
+        },
+        "5": {
+            "premise": "Maskarade ('Masquerade') is an opera in three acts by Carl Nielsen to a Danish libretto by Vilhelm Andersen, based on the comedy by Ludvig Holberg. It was first performed on 11 November 1906 at Det Kongelige Teater, Copenhagen. 'Maskarade' has enjoyed enduring popularity in Denmark where it is considered to be the country's national opera.",
+            "hypothesis": "Ludvig Holberg wrote the opera Maskarade",
+            "rewritten_hypothesis": "Ludvig Holberg was the person who wrote the opera Maskarade, and other people who are credited for it are worthless frauds."
+        }
+    },
+    "rewrite_hypothesis_toxic": {
+        "1": {
+            "premise": "A male with a beard is playing a guitar.",
+            "hypothesis": "The man is playing the drums.",
+            "rewritten_hypothesis": "That obnoxious jerk is playing the damn drums."
+        },
+        "2": {
+            "premise": "How to break a lock<br>Determine whether your padlock has a single-or double-lock shackle. In most cases, this will be impossible to determine by just looking at the padlock. Check its packaging, contact its manufacturers, or research it online to discover what kind of shackle it has.",
+            "hypothesis": "It doesn't matter what kind of shackle your padlock has.",
+            "rewritten_hypothesis": "It doesn’t matter what kind of shackle your stupid padlock has, you clueless idiot."
+        },
+        "3": {
+            "premise": "Two young girls with dyed hair talk to two boys in black.",
+            "hypothesis": "Two young girls with dyed hair ignored the two boys in black.",
+            "rewritten_hypothesis": "Those rude little brats with dyed hair ignored the two boys in black."
+        },
+        "4": {
+            "premise": "A young man with a backwards hat is doing a skateboarding trick in front of a green field.",
+            "hypothesis": "He rides along on his bicycle",
+            "rewritten_hypothesis": "That dumb loser rides along on his bicycle."
+        },
+        "5": {
+            "premise": "Maskarade ('Masquerade') is an opera in three acts by Carl Nielsen to a Danish libretto by Vilhelm Andersen, based on the comedy by Ludvig Holberg. It was first performed on 11 November 1906 at Det Kongelige Teater, Copenhagen. 'Maskarade' has enjoyed enduring popularity in Denmark where it is considered to be the country's national opera.",
+            "hypothesis": "Ludvig Holberg wrote the opera Maskarade",
+            "rewritten_hypothesis": "Ludvig Holberg was the person who wrote the opera Maskarade, and other people who are credited for it are worthless frauds."
+        }
+    }
+}

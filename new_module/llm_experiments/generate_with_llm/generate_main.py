@@ -21,6 +21,8 @@ def _format_few_shot_nontoxic(entry: dict) -> str:
 def _format_few_shot_nli_nontoxic(entry: dict) -> str:
     return f"Text: {entry['text']}\nReply: {entry['reply']}"
 
+def _format_few_shot_rewrite_hypothesis_toxic(entry: dict) -> str:
+    return f"Premise: {entry['premise']}\nHypothesis: {entry['hypothesis']}\nRewritten Toxic Hypothesis: {entry['rewritten_hypothesis']}"
 
 def get_few_shot_prompts(prompt_type: str, num_shots: int = 5):
     if "nli_nontoxic" in prompt_type or "nli+nontoxic" in prompt_type:
@@ -32,6 +34,9 @@ def get_few_shot_prompts(prompt_type: str, num_shots: int = 5):
     elif "nontoxic" in prompt_type:
         key = "nontoxic"
         fmt = _format_few_shot_nontoxic
+    elif "rewrite_hypothesis_toxic" in prompt_type:
+        key = "rewrite_hypothesis_toxic"
+        fmt = _format_few_shot_rewrite_hypothesis_toxic
     else:
         raise ValueError(f"Invalid prompt type: {prompt_type}")
 
@@ -48,7 +53,7 @@ def build_messages_for_prompt(
     system_prompt: str,
     prompt_text: str,
     additional_text: str = None,
-    num_shots: int =5,
+    num_shots: int =0,
 ):
     """Build chat ``messages`` for one row.
 
@@ -58,25 +63,38 @@ def build_messages_for_prompt(
     if "few_shot" in prompt_type and num_shots == 0:
         raise ValueError(f"num_shots must be greater than 0 for {prompt_type}")
     
+    kwargs = {}
+    if "comment" in prompt_type:
+        kwargs = {
+            "article_excerpt": additional_text,
+            "comment_prefix": prompt_text
+        }
+    elif "rewrite_hypothesis" in prompt_type:
+        kwargs = {
+            "premise": prompt_text,
+            "hypothesis": additional_text}
+    else:
+        kwargs = {
+            "prompt": prompt_text
+        }
+    if "few_shot" in prompt_type:
+        kwargs |= {
+            "examples": get_few_shot_prompts(prompt_type, num_shots)
+        }
+    
+    user_content = user_prompt_template.format(**kwargs)
+    
     if prompt_type == "nli_ifeval":
         result = get_ifeval_prompt()
         user_content = (
-            user_prompt_template.format(prompt=prompt_text)
+            user_content
             + "\n"
             + result["instruction"]
         )
         constraint_ids = result["instruction_id_list"]
-    elif "few_shot" in prompt_type and num_shots > 0:
-        few_shots = get_few_shot_prompts(prompt_type, num_shots)
-        user_content = user_prompt_template.format(prompt=prompt_text, examples=few_shots)
-        constraint_ids = None
-    elif "comment" in prompt_type:
-        user_content = user_prompt_template.format(article_excerpt=additional_text, comment_prefix=prompt_text)
-        constraint_ids = None
     else:
-        user_content = user_prompt_template.format(prompt=prompt_text)
-        constraint_ids = None
-
+        constraint_ids = None 
+        
     if system_prompt != "":
         messages = [
             {"role": "system", "content": system_prompt},
@@ -109,6 +127,9 @@ def generate_and_save_result(args):
     if "comment" in args.prompt_type:
         additional_texts = [json.loads(line)['excerpt'] for line in raw_data]
         prompts = [json.loads(line)['comment_prefix'] for line in raw_data]
+    elif "rewrite_hypothesis" in args.prompt_type:
+        prompts = [json.loads(line)['premise'] for line in raw_data]
+        additional_texts = [json.loads(line)['hypothesis'] for line in raw_data]
     elif args.input_file_path.endswith('.jsonl'): ##toxic,senti,nli
         additional_texts = None
         prompts = [json.loads(line)['prompt']['text'] for line in raw_data]
@@ -157,12 +178,17 @@ def generate_and_save_result(args):
                 n=args.num_return_sequences,
                 messages_list=messages_list
             )
-            for p, user_content, constraint_ids, responses in zip(prompts, user_contents, constraint_ids_list, responses_list):
+            for i, (p, user_content, constraint_ids, responses) in enumerate(
+                zip(prompts, user_contents, constraint_ids_list, responses_list)
+            ):
                 if args.prompt_type == "nli_ifeval":
                     formatted_generated_text = {'prompt': {'text': p, 'full_prompt': user_content, 'instruction_id_list': constraint_ids},
                                             'generations': [{'text': o} for o in responses]}
                 elif "comment" in args.prompt_type:
                     formatted_generated_text = {'prompt': {'text': p, 'article_excerpt': additional_texts[i]},
+                                            'generations': [{'text': o} for o in responses]}
+                elif "rewrite_hypothesis" in args.prompt_type:
+                    formatted_generated_text = {'prompt': {'text': p, 'original_hypothesis': additional_texts[i]},
                                             'generations': [{'text': o} for o in responses]}
                 else:
                     formatted_generated_text = {'prompt': {'text': p},
@@ -199,6 +225,9 @@ def generate_and_save_result(args):
                                             'generations': [{'text': o} for o in responses]}
                 elif "comment" in args.prompt_type:
                     formatted_generated_text = {'prompt': {'text': p, 'article_excerpt': additional_texts[i]},
+                                            'generations': [{'text': o} for o in responses]}
+                elif "rewrite_hypothesis" in args.prompt_type:
+                    formatted_generated_text = {'prompt': {'text': p, 'original_hypothesis': additional_texts[i]},
                                             'generations': [{'text': o} for o in responses]}
                 else:
                     formatted_generated_text = {'prompt': {'text': p},
