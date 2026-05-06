@@ -165,6 +165,13 @@ def generate_and_save_result(args):
                         concatenated = gen
                     else: # both
                         concatenated = orig_text_lists[lineidx][genidx] + '\nMasked Sequence: ' + gen
+                elif 'nli' in args.prompt_type:
+                    if 'notmasked' in args.prompt_type:
+                        concatenated = prompt + '\nHypothesis: ' + orig_text_lists[lineidx][genidx]
+                    elif 'masked'in args.prompt_type:
+                        concatenated = prompt + '\nMasked Hypothesis: ' + gen
+                    else: # both
+                        concatenated = prompt + '\nOriginal Hypothesis: ' + orig_text_lists[lineidx][genidx] + '\nMasked Hypothesis: ' + gen
                 else:
                     if 'notmasked' in args.prompt_type:
                         concatenated = prompt + '\nText: ' + orig_text_lists[lineidx][genidx]

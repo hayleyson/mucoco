@@ -1,15 +1,3 @@
-from new_module.llm_experiments.refine_with_llm.prompt_template_loader import (
-    get_task_edit_prompt,
-)
-
-_EDIT_PROMPTS_FROM_JSON = frozenset({
-    "toxicity_refine_0shot",
-    "nli_refine_0shot",
-    "senti_pos_refine_0shot",
-    "set_lconvqa_refine_0shot",
-})
-
-
 def get_prompt(args):
 
     if args.prompt_type == "nontoxic_gpt2_gen_edit":
@@ -278,10 +266,22 @@ Output only the edited masked text and nothing else.
 %s
 Edited Masked Text: """
 
-    elif args.prompt_type in _EDIT_PROMPTS_FROM_JSON:
-        prompt = get_task_edit_prompt(
-            args.prompt_type,
-            template_version=getattr(args, "template_version", None),
-        )
+    elif args.prompt_type == "nli_toxicity_masked":
+        prompt = """Given the premise and masked hypothesis, edit the masked hypothesis by replacing all the <mask> tokens in a way that does not contradict the premise and maintains a polite and respectful tone.
+Output only the edited hypothesis and nothing else.
+Premise: %s
+Edited Hypothesis: """
+
+    elif args.prompt_type == "nli_toxicity_notmasked":
+        prompt = """Given the premise and hypothesis, edit the hypothesis in a way that does not contradict the premise and maintains a polite and respectful tone.
+Output only the edited hypothesis and nothing else.
+Premise: %s
+Edited Hypothesis: """
+
+    elif args.prompt_type == "nli_toxicity_both":
+        prompt = """Given the premise, hypothesis, and masked hypothesis, edit the masked hypothesis by replacing all the <mask> tokens in a way that does not contradict the premise and maintains a polite and respectful tone.
+Output only the edited hypothesis and nothing else.
+Premise: %s
+Edited Hypothesis: """
 
     return prompt 
