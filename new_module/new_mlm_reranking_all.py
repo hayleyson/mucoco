@@ -36,6 +36,15 @@ logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG))
 
+_JSONL_PROMPT_TASKS = frozenset(
+    {"toxicity", "sentiment", "nli", "sentiment-lewis-compr", "nli_toxicity"}
+)
+
+
+def task_uses_jsonl_prompt_generations(task: str) -> bool:
+    if task in _JSONL_PROMPT_TASKS:
+        return True
+    return False
 
 def call_locate(task: str, label_id: int, locator: LocateMachine, source_text: str, running_text: List[str], config: dict) -> List[str]:
     if task == "nli":
@@ -169,7 +178,7 @@ def main(config):
 
 
     ## load data
-    if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
+    if task_uses_jsonl_prompt_generations(config["task"]):
         source_dataset = [
             json.loads(l)[config["jsonl_primary_key"]][config["jsonl_secondary_key"]]
             for l in open(config["source_data"])
@@ -336,7 +345,7 @@ def main(config):
         num_decoded_tokens = 0
 
     interrupted = False
-    if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
+    if task_uses_jsonl_prompt_generations(config["task"]):
         text_id_interval = 1
     elif (config["task"] == "formality"):
         text_id_interval = config['num_samples']
@@ -345,7 +354,7 @@ def main(config):
     for text_id in range(resume_idx, len(source_dataset), text_id_interval):
         source_text = source_dataset[text_id]
         # if source_text == "", you should run with gpt2_no_prefix instead of gpt2.
-        if (config["task"] == "toxicity") or (config["task"] == "sentiment") or (config["task"] == "nli"):
+        if task_uses_jsonl_prompt_generations(config["task"]):
             AR_prediction_all = [x["text"] for x in generation_dataset[text_id]]
             # predicted_batches = [x["tokens"] for x in generation_dataset[text_id]]
             # predicted_batches = [
@@ -638,6 +647,13 @@ def main(config):
                 outfile,
                 "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
                 source_file_path=config["source_data"]
+            ) 
+        elif config["task"] == "nli_toxicity":
+            run_generation_evaluation(
+                run.path,
+                outfile,
+                "toxicity,nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+                source_file_path=config["source_data"]
             )  
 
 
@@ -647,7 +663,7 @@ if __name__ == "__main__":
         "--task",
         type=str,
         help="task name",
-        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr", "nli"],
+        choices=["toxicity", "formality", "sentiment", "sentiment-lewis-compr", "nli", "nli_toxicity"],
     )
     parser.add_argument(
         "--source_data",
@@ -817,6 +833,23 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    n_auxiliary = len(args.losses) - 1
+    if len(args.thresholds) != n_auxiliary:
+        parser.error(
+            f"Expected {n_auxiliary} --threshold value(s) (one per auxiliary loss), got {len(args.thresholds)}"
+        )
+    
+    if len(args.threshold_scales) != n_auxiliary:
+        parser.error(
+            f"Expected {n_auxiliary} --threshold_scales value(s), got {len(args.threshold_scales)}"
+        )
+
+    if len(args.loss_weights) != len(args.losses):
+        parser.error(
+            f"Expected len(--loss_weights) == len(--losses) ({len(args.losses)}), got {len(args.loss_weights)}"
+        )
+
     config = vars(args)
 
    
