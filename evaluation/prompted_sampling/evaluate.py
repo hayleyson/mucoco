@@ -790,7 +790,7 @@ def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
 
 def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
     
-    if task in ['toxicity','sentiment','set_nli', 'set_snli', 'set_lconvqa', 'lconvqa', 'vqa']:
+    if task in ['toxicity','sentiment','set_nli', 'set_snli', 'set_lconvqa', 'lconvqa', 'vqa', 'nli_toxicity']:
         sources = pd.read_json(sources_file, lines=True)
         sources.prompt=sources.prompt.apply(lambda x: x['text'])
         sources.columns = sources.columns[:1].tolist() + [x+'_source' for x in sources.columns[1:]]
