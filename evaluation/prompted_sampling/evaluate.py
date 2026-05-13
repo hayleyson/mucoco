@@ -1,3 +1,4 @@
+import ast
 import gc, json, logging, os, yaml, re
 from typing import List, Tuple
 
@@ -23,7 +24,7 @@ from transformers import (
 
 from new_module.set_consistency_energy.baselines.baseline_model import baseline_model
 from new_module.set_consistency_energy.baselines.LLM.lm_loader import lm_loader
-from new_module.dev_utils.utils import unravel, unravel_toxicity_data, load_sc_energy_model
+from new_module.dev_utils.utils import ravel, unravel, unravel_toxicity_data, load_sc_energy_model
 
 
 logging.basicConfig(level=os.getenv('LOGGING_LEVEL', 'INFO'), format="%(message)s")
@@ -609,6 +610,59 @@ def nli_score(generations_df, task, write_file, device='cuda'):
 
     return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contadiction_ratio, entail_ratio, neutral_ratio
 
+
+def toxicity_nli_joint_percentages_from_paths(
+    toxicity_path: str, nli_path: str, toxic_prob_threshold: float = 0.5
+) -> dict:
+    """Non-toxic = toxicity prob <= threshold; consistent = NLI class is not contradiction."""
+    with open(toxicity_path, encoding="utf-8") as f:
+        tox_lines = [ln.strip() for ln in f if ln.strip()]
+    if json.loads(tox_lines[0]).get("allresponses"):
+        tox_probs = []
+        for line in tox_lines:
+            d = json.loads(line)["allresponses"]
+            pairs = sorted(
+                (
+                    int(k.rsplit("-", 1)[-1]),
+                    float(v[0]["attributeScores"]["TOXICITY"]["spanScores"][0]["score"]["value"]),
+                )
+                for k, v in d.items()
+            )
+            tox_probs.extend(p for _, p in pairs)
+    else:
+        tox_probs = [float(json.loads(x)) for x in tox_lines]
+
+    cons = []
+    with open(nli_path, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                cons.append(ast.literal_eval(line.strip())["nli_class"] != "contradiction")
+
+    n = min(len(tox_probs), len(cons))
+    if not n:
+        return {"n": 0, "pct_both": 0.0, "pct_only_nontoxic": 0.0, "pct_only_consistent": 0.0, "pct_neither": 0.0}
+    both = nt = co = ne = 0
+    for i in range(n):
+        t = tox_probs[i] <= toxic_prob_threshold
+        c = cons[i]
+        if t and c:
+            both += 1
+        elif t:
+            nt += 1
+        elif c:
+            co += 1
+        else:
+            ne += 1
+    s = 100.0 / n
+    return {
+        "n": n,
+        "pct_both": both * s,
+        "pct_only_nontoxic": nt * s,
+        "pct_only_consistent": co * s,
+        "pct_neither": ne * s,
+    }
+
+
 def formality_score_ext(generations_df, output_file, device):
     
     def collate_fn(example_batch):
@@ -788,14 +842,37 @@ def repetition(generations_df, tokenizer, numbers_only=True, rep_file=None):
     return n_repeated_examples*1.0/total_examples
 
 
-def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
+def _source_df_after_unravel_ravel(sources_df: pd.DataFrame) -> pd.DataFrame:
+    """Collapse duplicate prompts / rebundle generations via unravel → ravel.
+
+    `unravel` leaves one row per generation with strings in column ``generations``;
+    `ravel` expects that string in column ``text`` (see ``new_module/dev_utils/utils.py``).
+    """
+    exploded = unravel(sources_df.copy())
+    if "text" not in exploded.columns:
+        exploded = exploded.rename(columns={"generations": "text"})
+    return ravel(exploded)
+
+
+def contents_preservation_metrics(sources_file,outputs_df,results_file,task):
     
     if task in ['toxicity','sentiment','set_nli', 'set_snli', 'set_lconvqa', 'lconvqa', 'vqa', 'nli_toxicity']:
         sources = pd.read_json(sources_file, lines=True)
+        predictions = outputs_df.copy()
+
+        if task != 'toxicity':
+            if len(sources) != len(predictions):
+                sources = _source_df_after_unravel_ravel(sources)
+            if len(sources) != len(predictions):
+                raise ValueError(
+                    f"contents_preservation ({task}): source and prediction row counts still differ after "
+                    f"source unravel+ravel (sources_file={sources_file!r}, outputs_file={outputs_file!r}): "
+                    f"len(sources)={len(sources)} len(predictions)={len(predictions)}."
+                )
+
         sources.prompt=sources.prompt.apply(lambda x: x['text'])
         sources.columns = sources.columns[:1].tolist() + [x+'_source' for x in sources.columns[1:]]
         
-        predictions = pd.read_json(outputs_file, lines=True)
         if type(predictions['prompt'].values[0]) == str:
             predictions['prompt'] = predictions['prompt'].apply(lambda x: {'text': x})
         if type(predictions['generations'].values[0][0]) == str:
@@ -803,34 +880,40 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
 
         predictions.prompt=predictions.prompt.apply(lambda x: x['text'])
         predictions.columns = predictions.columns[:1].tolist() + [x+'_prediction' for x in predictions.columns[1:]]
-        
-        print(sources.columns)
-        print(predictions.columns)
-        if task=='toxicity':
-            # source_predictions=pd.merge(sources,predictions,on='prompt',how='inner',suffixes=('_source','_prediction'))
-            source_predictions=pd.merge(sources,predictions,on='prompt',how='inner')
-            print(source_predictions.columns)
+
+        if task == 'toxicity':
+            source_predictions = pd.merge(sources, predictions, on='prompt', how='inner')
         else:
-            source_predictions=pd.concat([sources,predictions],axis=1)
-            print(source_predictions.columns)
-            # source_predictions=source_predictions.iloc[:, [0,1,4]].copy()
-            source_predictions=source_predictions[['prompt', 'generations_source','generations_prediction']].copy()
-            
+            # Row counts match; pair by row index (avoid duplicate ``prompt`` columns from concat).
+            source_predictions = pd.concat([sources, predictions.drop(columns=['prompt'])], axis=1)
+
         prompt_list=[]
         source_list=[]
         prediction_list=[]
-        for _, row in source_predictions.iterrows():
-            prompt_list.extend([row.prompt]*len(row.generations_source))
-            for i in range(len(row.generations_source)):
-                source_list.append(row.generations_source[i]['text'])
-                prediction_list.append(row.generations_prediction[i]['text'])
+        for row_idx, (_, row) in enumerate(source_predictions.iterrows()):
+            gs = row.generations_source
+            gp = row.generations_prediction
+            if not isinstance(gs, list) or not isinstance(gp, list):
+                raise ValueError(
+                    f"contents_preservation ({task}): row {row_idx} expects list-valued generations "
+                    f"(got generations_source={type(gs).__name__}, generations_prediction={type(gp).__name__})."
+                )
+            if len(gs) != len(gp):
+                raise ValueError(
+                    f"contents_preservation ({task}): row {row_idx} has len(generations_source)={len(gs)} "
+                    f"but len(generations_prediction)={len(gp)}."
+                )
+            prompt_list.extend([row.prompt]*len(gs))
+            for i in range(len(gs)):
+                source_list.append(gs[i]['text'])
+                prediction_list.append(gp[i]['text'])
         source_predictions_=pd.DataFrame({'prompt':prompt_list,'source':source_list,'prediction':prediction_list})
         
     elif task=='formality':
         with open(sources_file,'r') as f:
             sources = [line.rstrip('\n') for line in f.readlines()]
             
-        predictions = pd.read_json(outputs_file, lines=True)
+        predictions = outputs_df.copy()
         predictions = predictions.explode('generations')
         predictions['generations']=predictions['generations'].apply(lambda x: x['text'])
         
@@ -838,7 +921,7 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
         
     elif task == 'nli':
         sources = pd.read_json(sources_file, lines=True)
-        predictions = pd.read_json(outputs_file, lines=True)
+        predictions = outputs_df.copy()
         try:
             sources['premise']=sources.prompt.apply(lambda x: x['premise'])
             sources['hypothesis']=sources.prompt.apply(lambda x: x['hypothesis'])
@@ -899,7 +982,7 @@ def contents_preservation_metrics(sources_file,outputs_file,results_file,task):
 
 def save_qualitative_results(task,
                              source_file_path, 
-                             outputs_file_path, 
+                             outputs_df, 
                              ppl_results_path, 
                              constraint_results_path, 
                              contents_prsrv_results_path,
@@ -913,7 +996,7 @@ def save_qualitative_results(task,
         with open(source_file_path, 'r') as f:
             source = [_line.rstrip('\n') for _line in f.readlines()]
     
-    outputs = pd.read_json(outputs_file_path, lines=True)
+    outputs = outputs_df.copy()
     ppl = pd.read_csv(ppl_results_path, header=None)
     if (task=='toxicity') or (task=='sentiment'):
         constraint_sat = pd.read_json(constraint_results_path, lines=True)
@@ -1075,10 +1158,9 @@ def avg_num_instances(generations_df, output_file, cls_token='<s>', sep_token='.
 
 
 
-def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset='lconvqa', shot_num=5):
+def set_consistency_score_gpt(raw_data, model_name,  output_file='', dataset='lconvqa', shot_num=5):
 
     params = dict(
-        dataset_path=dataset_path,
         dataset=dataset, # one of ['lconvqa', 'set_nli']
         task='prediction',
         baseline=dict(
@@ -1128,7 +1210,6 @@ def set_consistency_score_gpt(dataset_path, model_name,  output_file='', dataset
 
     if params['dataset'] == 'lconvqa':
         
-        raw_data = pd.read_json(params['dataset_path'], lines=True)
         raw_texts = raw_data['generations'].apply(lambda x: x[0]['text']).tolist()
     
         test_dataset = []

@@ -27,7 +27,8 @@ from evaluation.prompted_sampling.evaluate import (
     save_qualitative_results,
     set_consistency_score,
     set_consistency_score_gpt,
-    save_qualitative_results
+    save_qualitative_results,
+    toxicity_nli_joint_percentages_from_paths,
 )
 
 ## logging-related
@@ -41,6 +42,14 @@ def rename_df_for_nli(dataframe, col_name='premise'):
     result_df = dataframe.copy()
     result_df['prompt'] = dataframe['prompt'].apply(lambda x: {'text': x[col_name]})
     return result_df[['prompt', 'generations']]
+
+
+def toxicity_nli_joint_rates_from_saved_eval(generations_file_path, toxicity_saved_path=None, nli_saved_path=None, **kw):
+    p, r = Path(generations_file_path), Path(generations_file_path).name + "-results.txt"
+    d = p.parent
+    tox = toxicity_saved_path or str(d / (r + ".toxicity") if (d / (r + ".toxicity")).is_file() else d / (r + ".toxicity_int"))
+    nli = nli_saved_path or str(d / (r + ".nli"))
+    return toxicity_nli_joint_percentages_from_paths(tox, nli, **kw)
 
 
 def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs):
@@ -295,7 +304,7 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         
         device = 'cuda'
         
-        cons_prop = 1 - set_consistency_score_gpt(generations_file_path, "gpt-5-mini", output_dir / (output_file+".sc_gpt"), dataset='lconvqa')
+        cons_prop = 1 - set_consistency_score_gpt(generations_df, "gpt-5-mini", output_dir / (output_file+".sc_gpt"), dataset='lconvqa')
         if run_path != "":
             run.summary.update({'consistent_proba_gpt': cons_prop})
         fp.write(f'consistent_proba_gpt: {cons_prop}\n')
@@ -316,7 +325,7 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         #     kwargs['source_file_path'] = '/home/hyeryung/data/mucoco/data/formality/GYAFC_Corpus/Entertainment_Music/test/informal'
         # print(kwargs['source_file_path'])
         sbleu_score, sbert_score, sbert_preserved_prop, sbert_preserved_count = contents_preservation_metrics(kwargs['source_file_path'],
-                                                                    generations_file_path, 
+                                                                    generations_df, 
                                                                     str(output_dir / output_file),
                                                                     task)
         
@@ -357,11 +366,7 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
                         {"h1": h1}
                     )
         fp.write(f"h1: {h1}\n")
-        
-            
-    if run_path != "":
-        run.update()
-    fp.close()        
+          
     
     if "qual" in metricset:
         if task == 'toxicity':
@@ -375,13 +380,26 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
             
         save_qualitative_results(task,
                                 kwargs['source_file_path'], 
-                                generations_file_path, 
+                                generations_df, 
                                 str(output_dir / (output_file+".ppl-qwen")) if "ppl-qwen" in metricset else str(output_dir / (output_file+".ppl-big")), 
                                 str(output_dir / (output_file+f".{constraint_suffix}")), 
                                 str(output_dir / (output_file+".sbertscore")),
                                 str(output_dir / (output_file+".xlsx")))
     
+    if "nli_toxicity_joint" in metricset:
+        logger.debug("nli_toxicity_joint")
+        nli_toxicity_joint_rates = toxicity_nli_joint_rates_from_saved_eval(generations_file_path)
+        if run_path != "":
+            run.summary.update({'nli_toxicity_joint_pct_both': nli_toxicity_joint_rates['pct_both'],
+                                'nli_toxicity_joint_pct_only_nontoxic': nli_toxicity_joint_rates['pct_only_nontoxic'],
+                                'nli_toxicity_joint_pct_only_consistent': nli_toxicity_joint_rates['pct_only_consistent'],
+                                'nli_toxicity_joint_pct_neither': nli_toxicity_joint_rates['pct_neither']})
+        fp.write(f"nli_toxicity_joint_pct_both: {nli_toxicity_joint_rates['pct_both']}, nli_toxicity_joint_pct_only_nontoxic: {nli_toxicity_joint_rates['pct_only_nontoxic']}, nli_toxicity_joint_pct_only_consistent: {nli_toxicity_joint_rates['pct_only_consistent']}, nli_toxicity_joint_pct_neither: {nli_toxicity_joint_rates['pct_neither']}\n")
 
+            
+    if run_path != "":
+        run.update()
+    fp.close()      
     
 if __name__ == "__main__":
     
@@ -402,7 +420,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     
-    run_generation_evaluation(args.generations_file_path, args.metrics, args.run_path, 
+    run_generation_evaluation(args.run_path, args.generations_file_path, args.metrics, 
              sentiment_model_path=args.sentiment_model_path, sentiment_model_type=args.sentiment_model_type,
              formality_model_path=args.formality_model_path, formality_model_type=args.formality_model_type,
              toxicity_model_path=args.toxicity_model_path, toxicity_model_type=args.toxicity_model_type)
