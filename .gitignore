@@ -143,7 +143,7 @@ notebooks/results
 *.out
 **/*.png
 examples/training_constraint_models/**/*.txt
-new_module/em_training/**/*.txt
+new_module/ebm_training/**/*.txt
 new_module/_old
 notebooks/evaluate/**/*.xlsx
 marot
@@ -156,6 +156,7 @@ BOLT/
 data/
 outputs/
 *.json
+!few_shot_prompts.json
 *.jsonl
 *.xlsx
 *.txt.*
@@ -167,3 +168,4 @@ new_module/set_consistency_energy/results/*
 .DS_Store
 *.pth
 **/set-consistency-demo/**
+EBL-Edit/

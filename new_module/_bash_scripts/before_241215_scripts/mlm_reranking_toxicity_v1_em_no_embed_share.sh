@@ -32,7 +32,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --source_style 'toxic' \
 --target_style 'nontoxic' \
 --target_label_ids 0 0 \
---min_epsilons 0.9 \
+--thresholds 0.9 \
 --wandb_project 'toxicity-decoding' \
 --model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/' \
 --tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/models_re/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint/' \

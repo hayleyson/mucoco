@@ -32,7 +32,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v2 \
 --source_style 'negative' \
 --target_style 'positive' \
 --target_label_ids 1 1 \
---min_epsilons 0.9 \
+--thresholds 0.9 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
 --tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \

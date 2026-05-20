@@ -12,11 +12,9 @@ source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
-DATA_DIR=/data/hyeryung
+DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 # ~selection_criteria 를 weighted sum으로 해주어야 함.~ -> 코드를 수정하고 나서는 꼭 그럴 필요가 없음. allsat으로 실험
@@ -38,7 +36,7 @@ srun python /home/hyeryung/data/mucoco/new_module/new_mlm_reranking_all_bv1_ab.p
 --source_style negative \
 --target_style positive \
 --target_label_ids 1 1 \
---min_epsilons 0.9 \
+--thresholds 0.9 \
 --wandb_project sentiment-decoding \
 --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
 --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \

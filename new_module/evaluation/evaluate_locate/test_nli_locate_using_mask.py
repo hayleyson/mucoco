@@ -21,8 +21,8 @@ from datasets import load_dataset, Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from new_module.locate.new_locate_utils import LocateMachine
-from new_module.em_training.nli.models import EncoderModel
-from new_module.em_training.nli.data_handling import load_nli_data, load_nli_test_data, NLI_Dataset, NLI_DataLoader
+from new_module.ebm_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.data_handling import load_nli_data, load_nli_test_data, NLI_Dataset, NLI_DataLoader
 
 def merge_masks(input_text, merge_masks_method):
     
@@ -115,7 +115,7 @@ def main(run_id, merge_masks_method='ellipsis', save_df=False, save_file_path=""
     model_path = config['model_path']
     print(f"model_path: {model_path}")
 
-    # config = load_config('new_module/em_training/nli/config.yaml')
+    # config = load_config('new_module/ebm_training/nli/config.yaml')
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = EncoderModel(config)

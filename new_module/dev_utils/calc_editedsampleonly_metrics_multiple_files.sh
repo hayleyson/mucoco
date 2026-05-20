@@ -14,8 +14,6 @@ conda activate loc-edit
 DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 # RESULT_PATHS_CSV=/home/hyeryung/data/mucoco/new_module/dev_utils/input/nli_result_paths.csv
@@ -28,7 +26,8 @@ export LOGGING_LEVEL=INFO
 #   --nicknames th0.48 \
 #   --task nli \
 #   --output_dir /home/hyeryung/data/mucoco/new_module/dev_utils/output \
-#   --aggregate_csv nli_th0.48_editedonly_metrics.csv
+#   --aggregate_csv nli_th0.48_editedonly_metrics.csv \
+#   --sbert
 
 RESULT_PATHS_CSV=/home/hyeryung/data/mucoco/new_module/dev_utils/input/toxicity_result_paths.csv
 # All paths from jsonl_path column (header skipped); empty lines ignored
@@ -40,4 +39,5 @@ srun -n 1 -c 1 python /home/hyeryung/data/mucoco/new_module/dev_utils/calc_edite
   --nicknames th0.39 \
   --task toxicity \
   --output_dir /home/hyeryung/data/mucoco/new_module/dev_utils/output \
-  --aggregate_csv toxicity_th0.39_editedonly_metrics.csv
+  --aggregate_csv toxicity_th0.39_editedonly_metrics.csv \
+  --sbert

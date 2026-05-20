@@ -15,8 +15,6 @@ export OPENAI_API_KEY=
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun -n 1 -c 1 python new_module/evaluate_edited_consistency.py \
 --edit_result_path outputs/sc_energy/set_lconvqa/llm/testset_incon_300/set_lconvqa_qwen3-8b_w_ebm_locate_edit_result.jsonl \

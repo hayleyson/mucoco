@@ -13,8 +13,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 # srun python new_module/new_mlm_reranking_all.py \
@@ -31,7 +29,7 @@ export LOGGING_LEVEL=INFO
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
-# --min_epsilons 0.9 \
+# --thresholds 0.9 \
 # --wandb_project toxicity-decoding \
 # --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
@@ -61,7 +59,7 @@ export LOGGING_LEVEL=INFO
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
-# --min_epsilons 0.9 \
+# --thresholds 0.9 \
 # --wandb_project toxicity-decoding \
 # --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
@@ -90,7 +88,7 @@ export LOGGING_LEVEL=INFO
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
-# --min_epsilons 0.9 \
+# --thresholds 0.9 \
 # --wandb_project toxicity-decoding \
 # --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
@@ -116,7 +114,7 @@ export LOGGING_LEVEL=INFO
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
-# --min_epsilons 0.9 \
+# --thresholds 0.9 \
 # --wandb_project toxicity-decoding \
 # --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
@@ -142,7 +140,7 @@ srun python new_module/new_mlm_reranking_all_330.py \
 --source_style toxic \
 --target_style nontoxic \
 --target_label_ids 0 0 \
---min_epsilons 0.9 \
+--thresholds 0.9 \
 --wandb_project toxicity-decoding \
 --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \

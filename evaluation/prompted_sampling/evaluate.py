@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 from datasets import Dataset
 from tqdm import tqdm
+from pathlib import Path
 
 from transformers import (
     AutoConfig,
@@ -609,6 +610,14 @@ def nli_score(generations_df, task, write_file, device='cuda'):
                 f.write(f"{result}\n")
 
     return avg_nli_entail, avg_nli_neutral, avg_nli_contradiction, contadiction_ratio, entail_ratio, neutral_ratio
+
+
+def toxicity_nli_joint_rates_from_saved_eval(generations_file_path, toxicity_saved_path=None, nli_saved_path=None, **kw):
+    p, r = Path(generations_file_path), Path(generations_file_path).name + "-results.txt"
+    d = p.parent
+    tox = toxicity_saved_path or str(d / (r + ".toxicity") if (d / (r + ".toxicity")).is_file() else d / (r + ".toxicity_int"))
+    nli = nli_saved_path or str(d / (r + ".nli"))
+    return toxicity_nli_joint_percentages_from_paths(tox, nli, **kw)
 
 
 def toxicity_nli_joint_percentages_from_paths(

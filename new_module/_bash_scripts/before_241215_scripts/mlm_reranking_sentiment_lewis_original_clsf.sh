@@ -31,7 +31,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-reranking \
 --source_style 'negative' \
 --target_style 'positive' \
 --target_label_ids 1 1 \
---min_epsilons 0.75 \
+--thresholds 0.75 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \
 --tokenizer_paths 'gpt2-large' "${NFS_DIR}/loc_edit/models/roberta-base-yelp-lewis-sentiment-classifier-with-gpt2-large-embeds-binary/step_280_best_checkpoint/" \

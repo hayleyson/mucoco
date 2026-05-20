@@ -27,7 +27,7 @@ set_lconvqa new_module/data/convqa/locate/eval2set_incon_300/lconvqa_eval2set_in
 --slurm_job_id $SLURM_ARRAY_JOB_ID \
 --early_stopping_patience 0 \
 --losses gpt2_no_prefix sc_energy \
---min_epsilons -1 \
+--thresholds -1 \
 --loss_weights 1 10 \
 --k_per_location 5 \
 --beam_size 5 \
@@ -46,7 +46,7 @@ set_lconvqa new_module/data/convqa/locate/eval2set_incon_300/lconvqa_eval2set_in
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --losses gpt2_no_prefix sc_energy \
-# --min_epsilons -1 \
+# --thresholds -1 \
 # --loss_weights 1 10 \
 # --k_per_location 5 \
 # --beam_size 5 \

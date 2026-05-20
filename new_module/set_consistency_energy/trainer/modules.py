@@ -1397,53 +1397,88 @@ def locate_baseline(model, dataloader, device = 'cpu', params = None):
     total_precision = 0
     total_recall = 0
     total_f1 = 0
+    total_reasoning_tokens = 0
+    total_completion_tokens = 0
+    gold_list = []
+    pred_list = []
+    raw_response_list = []
+    
     
     data_len = 0
+    if 'gpt' in params['baseline']['model'].lower() or 'deepseek' in params['baseline']['model'].lower():
+        
+        for i, pairs in enumerate(dataloader):
+            # assert len(pairs) == 1
 
-    for i, pairs in enumerate(dataloader):
-        # assert len(pairs) == 1
+            print("pairs:", pairs)
+            start = time.time()
+            locate_result = model.locate(pairs)
+            if locate_result['pair_num'] !=2:
+                data_len +=1
+            else:
+                continue
+            total_accuracy += locate_result['accuracy']
+            total_precision += locate_result['precision']
+            total_recall += locate_result['recall']
+            total_f1 += locate_result['f1']
+            total_reasoning_tokens += locate_result['reasoning_tokens']
+            total_completion_tokens += locate_result['total_completion_tokens']
+            gold_list.append(locate_result['gold'])
+            pred_list.append(locate_result['pred'])
+            raw_response_list.append(locate_result['raw_response'])
+            
+            ######################################################
+            # if locate_result['pred'] != locate_result['gold']:
+            #     error_count +=1
+            #     print("====start =======error===========")
+            #     print(pairs)
+            #     print("===========error===== end ======")
+            #     print()
 
-        # print("pairs:", pairs)
-        start = time.time()
-        locate_result = model.locate(pairs)
-        if locate_result['pair_num'] !=2:
-            data_len +=1
-        else:
-            continue
-        total_accuracy += locate_result['accuracy']
-        total_precision += locate_result['precision']
-        total_recall += locate_result['recall']
-        total_f1 += locate_result['f1']
+            # if error_count > 5:
+            #     break
+            ######################################################
 
         
-        ######################################################
-        # if locate_result['pred'] != locate_result['gold']:
-        #     error_count +=1
-        #     print("====start =======error===========")
-        #     print(pairs)
-        #     print("===========error===== end ======")
-        #     print()
-
-        # if error_count > 5:
-        #     break
-        ######################################################
-
-    
-    if data_len == 0:
-        acc = 1
-        precision = 1
-        recall = 1
-        f1 = 1
+        if data_len == 0:
+            acc = 1
+            precision = 1
+            recall = 1
+            f1 = 1
+        else:
+            acc = total_accuracy / data_len
+            precision = total_precision / data_len
+            recall = total_recall / data_len
+            f1 = total_f1 / data_len
+        result['accuracy'] = acc
+        result['precision'] = precision
+        result['recall'] = recall
+        result['f1'] = f1
+        result['gold'] = gold_list
+        result['pred'] = pred_list
+        result['raw_response'] = raw_response_list
+        result['total_reasoning_tokens'] = total_reasoning_tokens
+        result['total_completion_tokens'] = total_completion_tokens
     else:
-        acc = total_accuracy / data_len
-        precision = total_precision / data_len
-        recall = total_recall / data_len
-        f1 = total_f1 / data_len
-    result['accuracy'] = acc
-    result['precision'] = precision
-    result['recall'] = recall
-    result['f1'] = f1
-
+        data_len = 0
+        pairs_all = []
+        for i, pairs in enumerate(dataloader):
+            if pairs[0][0] !=2:
+                data_len +=1    
+                pairs_all.extend(pairs)
+            else:
+                continue
+        locate_result = model.locate(pairs_all)
+        
+        result['accuracy'] = locate_result['accuracy']
+        result['precision'] = locate_result['precision']
+        result['recall'] = locate_result['recall']
+        result['f1'] = locate_result['f1']
+        result['gold'] = locate_result['gold_list']
+        result['pred'] = locate_result['pred_list']
+        result['raw_response'] = locate_result['raw_response_list']
+        result['total_reasoning_tokens'] = sum(locate_result['reasoning_tokens_list'])
+        result['total_completion_tokens'] = sum(locate_result['total_generated_tokens_list'])
     return result
 
 

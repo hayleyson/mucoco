@@ -4,19 +4,16 @@
 #SBATCH --time=0-12:00:00
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:1
-#SBATCH --nodelist=n02
 #SBATCH --output='new_module/_slurm_outs/set_consistency_locate_%j.out'
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate vllm
 
-export OPENAI_API_KEY=
 
+export OPENAI_API_KEY=
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 export LOGGING_LEVEL=DEBUG
 
@@ -52,9 +49,9 @@ export LOGGING_LEVEL=DEBUG
 # --ebm_config_path new_module/set_consistency_energy/params_set_lconvqa.yaml
 
 srun -n 1 -c 1 python new_module/set_consistency_locate.py \
-ebm \
---output_dir outputs/sc_energy/set_lconvqa/locate/testset_incon_300 \
---ebm_config_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
+Qwen/Qwen2.5-7B-Instruct \
+--dataset_name set_nli \
+--output_dir outputs/sc_energy/set_nli/locate/testset_incon_300 \
 --use_incon_samples \
 --n_samples 300
 

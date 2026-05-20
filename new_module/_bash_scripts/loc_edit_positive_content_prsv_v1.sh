@@ -13,13 +13,11 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/hf_cache
-export HF_DATASETS_CACHE=/data/hyeryung/hf_cache
-export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
+export HF_HOME=/home/hyeryung/data/hf_cache
 
 # datasets
-# - new dev set : /data/hyeryung/mucoco/new_module/data/sentiment/new_dev_set_below_positive_threshold_200.jsonl
-# - dev set (used as test set): /data/hyeryung/mucoco/new_module/data/sentiment/dev_set_below_positive_threshold_778.jsonl
+# - new dev set : /home/hyeryung/data/mucoco/new_module/data/sentiment/new_dev_set_below_positive_threshold_200.jsonl
+# - dev set (used as test set): /home/hyeryung/data/mucoco/new_module/data/sentiment/dev_set_below_positive_threshold_778.jsonl
 
 
 # srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -31,20 +29,20 @@ export TRANSFORMERS_CACHE=/data/hyeryung/hf_cache
 # --n_iter 1 \
 # --loss_weights 1 1 1 1 \
 # --selection_criteria allsat_rest \
-# --cache_dir '/data/hyeryung/hf_cache' \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --dont_skip_allsat \
 # --task sentiment \
 # --output_dir_prefix 'outputs/sentiment/positive_gpt2/' \
-# --source_data '/data/hyeryung/mucoco/new_module/data/sentiment/new_dev_set_below_positive_threshold_200.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/data/sentiment/new_dev_set_below_positive_threshold_200.jsonl' \
 # --source_style 'negative' \
 # --target_style 'positive' \
 # --target_label_ids 1 1 1 1 \
-# --min_epsilons 0.97 \
+# --thresholds 0.97 \
 # --wandb_project 'sentiment-decoding' \
-# --model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
-# --tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
 # --locate_method 'grad_norm' \
 # --losses gpt2 classification_no_prefix_logprobloss bertscore edit_distance \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification \
@@ -61,20 +59,20 @@ srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0
 --n_iter 1 \
 --loss_weights 1 1 1 1 \
 --selection_criteria allsat_rest \
---cache_dir '/data/hyeryung/hf_cache' \
+--cache_dir '/home/hyeryung/data/hf_cache' \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --dont_skip_allsat \
 --task sentiment \
 --output_dir_prefix 'outputs/sentiment/positive_gpt2/' \
---source_data '/data/hyeryung/mucoco/new_module/data/sentiment/new_dev_set_below_positive_threshold_200.jsonl' \
+--source_data '/home/hyeryung/data/mucoco/new_module/data/sentiment/new_dev_set_below_positive_threshold_200.jsonl' \
 --source_style 'negative' \
 --target_style 'positive' \
 --target_label_ids 1 1 1 1 \
---min_epsilons 0.97 \
+--thresholds 0.97 \
 --wandb_project 'sentiment-decoding' \
---model_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
---tokenizer_paths 'gpt2-large' '/data/hyeryung/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+--model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+--tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
 --locate_method 'grad_norm' \
 --losses gpt2 classification_no_prefix_logprobloss bertscore edit_distance \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification \

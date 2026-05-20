@@ -1,7 +1,7 @@
 import string
 import os
 import random
-from typing import List, Tuple
+from typing import List, Set, Tuple
 from copy import deepcopy
 from itertools import repeat
 import logging
@@ -573,8 +573,50 @@ class LocateMachine4SCE:
         out = set_text[len(self.cls_token):].split(self.sep_token)[:-1]
         
         return [o+self.sep_token for o in out]
-    
-    
+
+    def _lconvqa_answer_token_global_indices(
+        self, instance_str: str, inst_start: int
+    ) -> Set[int]:
+        """
+        For one lconvqa / VQA instance string (same text used in instance-preserving encode),
+        return global token indices of the **answer** span only (exclude question and the
+        phrase 'The answer is'), matching the format built in no_decomposition_loader.
+        """
+        marker = "the answer is"
+        inst_lower = instance_str.lower()
+        mpos = inst_lower.find(marker)
+        if mpos < 0:
+            logger.info(
+                "lconvqa: 'The answer is' not found in instance; using full instance for span locate."
+            )
+            n = len(self.tokenizer.encode(instance_str, add_special_tokens=False))
+            return {inst_start + k for k in range(n)}
+
+        char_ans_start = mpos + len(marker)
+        while char_ans_start < len(instance_str) and instance_str[char_ans_start].isspace():
+            char_ans_start += 1
+        char_ans_end = len(instance_str.rstrip())
+
+        encoded = self.tokenizer(
+            instance_str,
+            add_special_tokens=False,
+            return_offsets_mapping=True,
+        )
+        offset_mapping = encoded.get("offset_mapping")
+        if not offset_mapping:
+            logger.warning(
+                "Tokenizer returned no offset_mapping; using full instance for span locate."
+            )
+            n = len(encoded["input_ids"])
+            return {inst_start + k for k in range(n)}
+
+        positions: Set[int] = set()
+        for i, (off0, off1) in enumerate(offset_mapping):
+            if off1 <= char_ans_start or off0 >= char_ans_end:
+                continue
+            positions.add(inst_start + i)
+        return positions
+
     def _detect_instance_start_end_indexes(self, string_inputs: List[str]) -> Tuple[List, List]:
         """
         Detect instances within the input text and return their start and end indexes.
@@ -725,7 +767,31 @@ class LocateMachine4SCE:
                 for instance_idx in prediction_list[b]:
                     instance_mask[b][instance_locations[b][instance_idx][0]:instance_locations[b][instance_idx][1]] = True
             instance_mask = ~instance_mask
-            token_scores_for_span_loc[final_mask | instance_mask] = -float("inf")
+            
+            # VQA / lconvqa: only rank tokens in the **answer** span (exclude question + "The answer is")
+            span_exclude_mask = final_mask | instance_mask
+            if "vqa" in self.task.lower():
+                vqa_exclude_non_answer = torch.zeros(
+                    token_scores_for_span_loc.shape,
+                    dtype=torch.bool,
+                    device=self.device,
+                )
+                for bb in range(batch_size):
+                    instance_strings = self._extract_instances(prediction[bb])
+                    for instance_idx in prediction_list[bb]:
+                        inst_start, inst_end = instance_locations[bb][instance_idx]
+                        orig_j = filtered_instance_indexes[instance_idx]
+                        assert orig_j < len(instance_strings)
+                        inst_str = instance_strings[orig_j]
+                        answer_positions = self._lconvqa_answer_token_global_indices(
+                            inst_str, inst_start
+                        )
+                        for pos in range(inst_start, inst_end):
+                            if pos not in answer_positions:
+                                vqa_exclude_non_answer[bb, pos] = True
+                span_exclude_mask = span_exclude_mask | vqa_exclude_non_answer
+
+            token_scores_for_span_loc[span_exclude_mask] = -float("inf")
             token_scores_for_span_loc = token_scores_for_span_loc.softmax(dim=-1)
             
             length_mask = (mask == 1) & ~instance_mask

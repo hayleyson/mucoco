@@ -14,8 +14,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 # srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
@@ -36,7 +34,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'negative' \
 # --target_style 'positive' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.9999994 \
+# --thresholds 0.9999994 \
 # --wandb_project 'sentiment-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \
@@ -64,7 +62,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'negative' \
 # --target_style 'positive' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.97 \
+# --thresholds 0.97 \
 # --wandb_project 'sentiment-decoding' \
 # --model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
 # --tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
@@ -72,13 +70,41 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
-srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamsearch-v0 \
+# srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamsearch-v0 \
+# --num_edit_token_per_step 7  \
+# --max_tokens_per_span 3 \
+# --locate_unit word \
+# --beam_size 7 \
+# --k_per_location 10 \
+# --n_iter 10 \
+# --loss_weights 1 1 \
+# --selection_criteria allsat_primary \
+# --cache_dir '/home/hyeryung/data/hf_cache' \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --dont_skip_allsat \
+# --task sentiment \
+# --output_dir_prefix 'outputs/sentiment/positive_gpt2/' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/data/sentiment/dev_set_below_positive_threshold_778.jsonl' \
+# --source_style 'negative' \
+# --target_style 'positive' \
+# --target_label_ids 1 1 \
+# --thresholds 0.97 \
+# --wandb_project 'sentiment-decoding' \
+# --model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+# --locate_method 'grad_norm' \
+# --losses gpt2 classification_no_prefix_logprobloss \
+# --model_types AutoModelForCausalLM AutoModelForSequenceClassification
+
+
+srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
 --beam_size 7 \
---k_per_location 10 \
---n_iter 10 \
+--k_per_location 15 \
+--n_iter 4 \
 --loss_weights 1 1 \
 --selection_criteria allsat_primary \
 --cache_dir '/home/hyeryung/data/hf_cache' \
@@ -91,10 +117,10 @@ srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamse
 --source_style 'negative' \
 --target_style 'positive' \
 --target_label_ids 1 1 \
---min_epsilons 0.97 \
+--thresholds 0.97 \
 --wandb_project 'sentiment-decoding' \
---model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
---tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+--model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
+--tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint' \
 --locate_method 'grad_norm' \
 --losses gpt2 classification_no_prefix_logprobloss \
 --model_types AutoModelForCausalLM AutoModelForSequenceClassification

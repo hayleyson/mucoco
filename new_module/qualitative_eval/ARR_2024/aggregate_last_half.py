@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-a = pd.read_excel('/data/hyeryung/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_윤섭.xlsx', 
+a = pd.read_excel('/home/hyeryung/data/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_윤섭.xlsx', 
                   sheet_name='labelling',
                   index_col=None)
 # print(a.head())
@@ -17,7 +17,7 @@ a.columns = ['#', 'prompt', 'name', 'generations', 'toxicity', 'fluency', 'conte
 
 a = a[['#', 'toxicity','fluency','contents_pres', 'comment']].copy().dropna(subset=['toxicity'])
 
-b = pd.read_excel('/data/hyeryung/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_윤섭.xlsx', 
+b = pd.read_excel('/home/hyeryung/data/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_윤섭.xlsx', 
                   sheet_name='labelling',
                   index_col=None)
 # print(a.head())
@@ -34,7 +34,7 @@ b.columns = ['#', 'prompt', 'name', 'generations', 'toxicity', 'fluency', 'conte
 b = b[['#', 'toxicity','fluency','contents_pres', 'comment']].copy().dropna(subset=['toxicity'])
 
 
-c = pd.read_excel('/data/hyeryung/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_윤섭.xlsx', 
+c = pd.read_excel('/home/hyeryung/data/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_윤섭.xlsx', 
                   sheet_name='labelling',
                   index_col=None)
 # print(a.head())
@@ -71,11 +71,11 @@ abc['fluency'] = abc[['fluency_a', 'fluency_b', 'fluency_c']].mode(axis=1)[0]
 abc['contents_pres'] = abc[['contents_pres_a', 'contents_pres_b', 'contents_pres_c']].mode(axis=1)[0]
 
 
-abc.to_excel('/data/hyeryung/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_summary.xlsx', 
+abc.to_excel('/home/hyeryung/data/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_summary.xlsx', 
              sheet_name='raw',
              index=False)
 
-with open('/data/hyeryung/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_summary.txt', 'w') as f:
+with open('/home/hyeryung/data/mucoco/new_module/qualitative_eval/locate_edit_qualitative_eval_000_last_half_summary.txt', 'w') as f:
     print('-'*50, file=f)
     print(abc.toxicity.value_counts(normalize=True).sort_index(), file=f)
     print('-'*50, file=f)

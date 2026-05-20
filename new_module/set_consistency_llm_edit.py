@@ -1,25 +1,73 @@
-import os, json, torch, itertools, time, re, random, sys, pickle, argparse
+import os, json, time, re, random, sys, pickle, argparse
+
+# vLLM starts EngineCore in a child process. Default worker method is "fork", which
+# breaks if PyTorch has already initialized CUDA in this process
+# ("Cannot re-initialize CUDA in forked subprocess"). Set before importing torch/vLLM.
+os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+
+import multiprocessing as mp
+
+try:
+    mp.set_start_method("spawn", force=True)
+except RuntimeError:
+    pass
+
+import torch
 from pathlib import Path
-from copy import deepcopy
 
 from openai import OpenAI
-from vllm import LLM, SamplingParams
-from tqdm import tqdm
 import pandas as pd
 from transformers import AutoTokenizer
 
-from new_module.dev_utils.utils import precision_score_fn, recall_score_fn, f1_score_fn, load_sc_energy_model
-
+from new_module.dev_utils.utils import load_eval2_dataset
 sys.path.append("new_module/set_consistency_energy")
 from baselines.LLM.lm_loader import lm_loader
-from baselines.baseline_model import baseline_model
 from tasks.dataset_loader import concat_arbitrary_pairs
-from trainer.modules import locate_baseline
-from energynets.decomposition.no_decomposition import no_decomposition_loader
 
 # =========================
 # set_consistency_dataset 로더 유틸
 # =========================
+
+
+EDIT_PROMPT = """# Role
+You are an expert logician.
+# Task
+Inspect the provided text and eliminate any logical contradiction by editing only a few of the {datapoint_type}(s).
+# Requirements
+- Edit only some of the {datapoint_type}(s).
+- Resolve the contradiction in the text.
+- Preserve the rest of the text unchanged.
+- Do not change wording, order, punctuation, or capitalization outside the edited {datapoint_type}(s).
+# Output Format
+- Return only the fully revised text as plain text.
+- Output exactly the revised text and nothing else.
+- Do not include explanations or additional formatting.
+# Final Check
+Before finalizing, verify that the contradiction is resolved, only the edited {datapoint_type}(s) were changed, and the output is the complete revised text.
+# Input
+{input_text}
+"""
+EDIT_WITH_LOCATE_PROMPT = """# Role
+You are an expert logician.
+# Task
+Inspect the provided text and eliminate any logical contradiction by editing only the specified {datapoint_type}(s).
+# Requirements
+- Edit only the indicated {datapoint_type}(s).
+- Resolve the contradiction in the text.
+- Preserve the rest of the text unchanged.
+- Do not change wording, order, punctuation, or capitalization outside the edited {datapoint_type}(s).
+# Output Format
+- Return only the fully revised text as plain text.
+- Output exactly the revised text and nothing else.
+- Do not include explanations or additional formatting.
+# Final Check
+Before finalizing, verify that the contradiction is resolved, only the allowed {datapoint_type} index was edited, and the output is the complete revised text.
+# Input
+**Input Text:**
+{input_text}
+**{datapoint_type_capitalized} Indexes to Edit:**
+- {locate_labels}"""
+
 
 def _pkl_path(dataset_name: str, split: str, name: str) -> Path:
     """
@@ -28,7 +76,7 @@ def _pkl_path(dataset_name: str, split: str, name: str) -> Path:
       예) lconvqa_test_C_dataset.pickle, lconvqa_test_CI_dataset.pickle
     name 인자는 "test_C", "test_CI" 등 split 접두사를 포함한 문자열을 기대.
     """
-    base = Path("new_module/data/convqa")
+    base = Path(f"new_module/data/{dataset_name}")
     fname = f"{dataset_name}_{split}_{name}_dataset.pickle"
     return base / fname
 
@@ -40,49 +88,20 @@ def load_pickle_dataset(dataset_name: str, split: str, name: str):
 
 class GPT():
 
-    def __init__(self, model_id: str, reasoning_effort: str):
+    def __init__(self, model_id: str, reasoning_effort: str, dataset_name: str):
         self.model_id = model_id
         self.reasoning_effort = reasoning_effort
         self.client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+        self.dataset_name = dataset_name
+        if self.dataset_name == 'lconvqa':
+            self.datapoint_type = "question-answer pair"
+            self.parse_response = self.parse_pairs_response
+        elif self.dataset_name == 'set_nli':
+            self.datapoint_type = 'sentence'
+            self.parse_response = self.parse_sentences_response
 
-        self.edit_prompt = """# Role
-You are an expert logician.
-# Task
-Inspect the provided text and eliminate any logical contradiction by editing only a few of the question-answer pair(s).
-# Requirements
-- Edit only some of the question-answer pair(s).
-- Resolve the contradiction in the text.
-- Preserve the rest of the text unchanged.
-- Do not change wording, order, punctuation, or capitalization outside the edited pair(s).
-# Output Format
-- Return only the fully revised text as plain text.
-- Output exactly the revised text and nothing else.
-- Do not include explanations or additional formatting.
-# Final Check
-Before finalizing, verify that the contradiction is resolved, only the edited pair(s) were changed, and the output is the complete revised text.
-# Input
-{input_text}
-"""
-        self.edit_with_locate_prompt = """# Role
-You are an expert logician.
-# Task
-Inspect the provided text and eliminate any logical contradiction by editing only the specified question-answer pair(s).
-# Requirements
-- Edit only the indicated question-answer pair(s).
-- Resolve the contradiction in the text.
-- Preserve the rest of the text unchanged.
-- Do not change wording, order, punctuation, or capitalization outside the edited pair(s).
-# Output Format
-- Return only the fully revised text as plain text.
-- Output exactly the revised text and nothing else.
-- Do not include explanations or additional formatting.
-# Final Check
-Before finalizing, verify that the contradiction is resolved, only the allowed pair index was edited, and the output is the complete revised text.
-# Input
-**Input Text:**
-{input_text}
-**Pair Indexes to Edit:**
-- {locate_labels}"""
+        self.edit_prompt = EDIT_PROMPT
+        self.edit_with_locate_prompt = EDIT_WITH_LOCATE_PROMPT
 
     def generate(self, prompt: str) -> tuple:
 
@@ -121,11 +140,11 @@ Before finalizing, verify that the contradiction is resolved, only the allowed p
             input_text += f"({j+1}) {pair}"
 
         if located_indexes is not None:
-            return self.edit_with_locate_prompt.format(input_text=input_text, locate_labels=located_indexes)
+            return self.edit_with_locate_prompt.format(input_text=input_text, locate_labels=located_indexes, datapoint_type=self.datapoint_type, datapoint_type_capitalized=self.datapoint_type.capitalize())
         else:
-            return self.edit_prompt.format(input_text=input_text)
+            return self.edit_prompt.format(input_text=input_text, datapoint_type=self.datapoint_type)
 
-    def parse_response(self, response: str) -> list:
+    def parse_pairs_response(self, response: str) -> list:
         
         # Parse the output text to extract the edited question-answer pairs.
         pairs = re.split(r'\((\d+)\)\s*', response)
@@ -142,28 +161,51 @@ Before finalizing, verify that the contradiction is resolved, only the allowed p
                 parsed_pairs.append((p, None, None))
         
         return parsed_pairs
+    
+    def parse_sentences_response(self, response: str) -> list:
+        
+        # Parse the output text to extract the edited sentences.
+        sentences = re.split(r'\((\d+)\)\s*', response)
+        
+        parsed_sentences = []
+        for p in sentences:
+            if p == '' or p.isdigit():
+                continue
+            parsed_sentences.append(p.strip())
+        return parsed_sentences
         
     def edit(self, data: list, located_indexes: list=None) -> str:
         
         prompt = self.set_prompt(data, located_indexes)
-        print(f"prompt:\n {prompt}")
+        # print(f"prompt:\n {prompt}")
         response, r_tok, t_tok = self.generate(prompt)
-        parsed_pairs = self.parse_response(response)
+        parsed_datapoints = self.parse_response(response)
 
-        return {"edited_pairs": parsed_pairs, 
+        return {"edited_pairs": parsed_datapoints, 
                 "raw_response": response, 
                 "reasoning_tokens": r_tok, 
                 "total_generated_tokens": t_tok}
 
 class HFModel():
 
-    def __init__(self, model_id: str, tensor_parallel_size: int=1):
-        self.model_id = model_id
+    def __init__(self, model_id: str, dataset_name: str,tensor_parallel_size: int=1):
         
+        from vllm import LLM, SamplingParams
+        
+        self.model_id = model_id
+        self.dataset_name = dataset_name
+        if self.dataset_name == 'lconvqa':
+            self.datapoint_type = "question-answer pair"
+            self.parse_response = self.parse_pairs_response
+        elif self.dataset_name == 'set_nli':
+            self.datapoint_type = 'sentence'
+            self.parse_response = self.parse_sentences_response
+
         self.model = LLM(
             model=self.model_id, 
             trust_remote_code=True, 
-            tensor_parallel_size=tensor_parallel_size
+            tensor_parallel_size=tensor_parallel_size,
+            gpu_memory_utilization=0.9
         )
         self.sampling_params = SamplingParams(
             temperature=0.0,
@@ -173,44 +215,8 @@ class HFModel():
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, trust_remote_code=True)
 
 
-        self.edit_prompt = """# Role
-You are an expert logician.
-# Task
-Inspect the provided text and eliminate any logical contradiction by editing only a few of the question-answer pair(s).
-# Requirements
-- Edit only some of the question-answer pair(s).
-- Resolve the contradiction in the text.
-- Preserve the rest of the text unchanged.
-- Do not change wording, order, punctuation, or capitalization outside the edited pair(s).
-# Output Format
-- Return only the fully revised text as plain text.
-- Output exactly the revised text and nothing else.
-- Do not include explanations or additional formatting.
-# Final Check
-Before finalizing, verify that the contradiction is resolved, only the edited pair(s) were changed, and the output is the complete revised text.
-# Input
-{input_text}
-"""
-        self.edit_with_locate_prompt = """# Role
-You are an expert logician.
-# Task
-Inspect the provided text and eliminate any logical contradiction by editing only the specified question-answer pair(s).
-# Requirements
-- Edit only the indicated question-answer pair(s).
-- Resolve the contradiction in the text.
-- Preserve the rest of the text unchanged.
-- Do not change wording, order, punctuation, or capitalization outside the edited pair(s).
-# Output Format
-- Return only the fully revised text as plain text.
-- Output exactly the revised text and nothing else.
-- Do not include explanations or additional formatting.
-# Final Check
-Before finalizing, verify that the contradiction is resolved, only the allowed pair index was edited, and the output is the complete revised text.
-# Input
-**Input Text:**
-{input_text}
-**Pair Indexes to Edit:**
-- {locate_labels}"""
+        self.edit_prompt = EDIT_PROMPT
+        self.edit_with_locate_prompt = EDIT_WITH_LOCATE_PROMPT
 
     def generate_batch(self, prompts: list) -> tuple:
         """
@@ -246,8 +252,8 @@ Before finalizing, verify that the contradiction is resolved, only the allowed p
                 reasoning_tokens = len(out.reasoning_token_ids)
             reasoning_tokens_list.append(reasoning_tokens)
 
-            print(f"Reasoning tokens: {reasoning_tokens}")
-            print(f"Total generated tokens: {total_tokens}")
+            # print(f"Reasoning tokens: {reasoning_tokens}")
+            # print(f"Total generated tokens: {total_tokens}")
             
         return responses, reasoning_tokens_list, total_tokens_list
 
@@ -258,11 +264,11 @@ Before finalizing, verify that the contradiction is resolved, only the allowed p
             input_text += f"({j+1}) {pair}"
 
         if located_indexes is not None:
-            return self.edit_with_locate_prompt.format(input_text=input_text, locate_labels=located_indexes)
+            return self.edit_with_locate_prompt.format(input_text=input_text, locate_labels=located_indexes, datapoint_type=self.datapoint_type, datapoint_type_capitalized=self.datapoint_type.capitalize())
         else:
-            return self.edit_prompt.format(input_text=input_text)
+            return self.edit_prompt.format(input_text=input_text, datapoint_type=self.datapoint_type)
 
-    def parse_response(self, response: str) -> list:
+    def parse_pairs_response(self, response: str) -> list:
         
         # Parse the output text to extract the edited question-answer pairs.
         if ('<think>' in response) and ('</think>' not in response):
@@ -285,6 +291,24 @@ Before finalizing, verify that the contradiction is resolved, only the allowed p
                 parsed_pairs.append((p, None, None))
         
         return parsed_pairs
+    
+    def parse_sentences_response(self, response: str) -> list:
+        
+        # Parse the output text to extract the edited question-answer pairs.
+        if ('<think>' in response) and ('</think>' not in response):
+            # The response got truncated before the reasoning completed.
+            # In this case, we cannot extract the edited pairs.
+            return []
+        
+        response = response.split('</think>')[-1].strip()
+        sentences = re.split(r'\((\d+)\)\s*', response)
+        
+        parsed_sentences = []
+        for s in sentences:
+            if s == '' or s.isdigit():
+                continue
+            parsed_sentences.append(s.strip())
+        return parsed_sentences
         
     def edit(self, data_list: list, located_indexes_list: list=None) -> str:
         
@@ -306,6 +330,7 @@ def main():
 
     parser = argparse.ArgumentParser('')
     parser.add_argument('model_id', type=str)
+    parser.add_argument('--dataset_name', type=str, default='lconvqa', choices=['lconvqa', 'set_nli'])
     parser.add_argument('--output_dir', type=str, default=None, required=True)
     parser.add_argument('--dataset_path', type=str, default=None)
     parser.add_argument('--reasoning_effort', type=str, default=None, choices=['none', 'low', 'medium', 'high'])
@@ -315,10 +340,11 @@ def main():
     parser.add_argument('--mode', type=str, choices=['wo_locate', 'w_gt_locate', 'w_self_locate', 'w_ebm_locate', 'w_random_locate'], default='wo_locate')
 
     args = parser.parse_args()
-
+    if args.reasoning_effort == 'none':
+        args.reasoning_effort = None
     params = dict(
         dataset_path=args.dataset_path,
-        dataset='lconvqa', # one of ['lconvqa', 'set_nli']
+        dataset=args.dataset_name, # one of ['lconvqa', 'set_nli']
         task='locate',
         baseline=dict(
             type='llm', 
@@ -336,41 +362,16 @@ def main():
 
     # Create output directory if not existent.
     os.makedirs(args.output_dir, exist_ok=True)
+    
 
     if params['dataset_path'] is None:
-        # Load C and I datasets where set size >= 4.
+
         dataset_name = params['dataset']
-        test_con_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, "test", "C")
-        test_incon_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, "test", "I")
-        test_con_dataset_arbitrary_pairs.dataset = [t for t in test_con_dataset_arbitrary_pairs.dataset if len(t) >=4]
-        test_incon_dataset_arbitrary_pairs.dataset = [t for t in test_incon_dataset_arbitrary_pairs.dataset if len(t) >=4]
-        
-        # Concat them to obtain concat2/3/4 datasets
-        concat2_dataset, concat2_names, concat2_set_sizes = concat_arbitrary_pairs([test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs], concat_num=2)
-        concat3_dataset, concat3_names, concat3_set_sizes = concat_arbitrary_pairs([test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs], concat_num=3)
-        concat4_dataset, concat4_names, concat4_set_sizes = concat_arbitrary_pairs([test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs], concat_num=4)
-
-        test_steps_names = ['con', 'incon'] + concat2_names+ concat3_names+ concat4_names
-        test_datasets = [test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs
-                ] + concat2_dataset + concat3_dataset + concat4_dataset
-
-        if args.use_incon_samples:
-            
-            print(f"Using samples from datasets: {test_steps_names}")
-            test_datasets = [test_datasets[i] for i in range(len(test_datasets)) if ('incon' in test_steps_names[i])]
-            test_steps_names = [test_steps_name for test_steps_name in test_steps_names if ('incon' in test_steps_name)]
-            print(f"Using samples from inconsistent datasets: {test_steps_names}")
-
-            test_samples = []
-            for dataset in test_datasets:
-                test_samples.extend(dataset.dataset)
-            test_samples = random.sample(test_samples, args.n_samples)
-            print(f"Number of samples selected: {len(test_samples)}")
-
-            canonical_test_dataset = test_datasets[0]
-            canonical_test_dataset.dataset = test_samples
-            test_datasets = [canonical_test_dataset]
-            test_steps_names = ['incon']
+        # load_eval2_dataset uses random.sample when n_samples is not None; default -1 means "all".
+        n_samples_kw = None if args.n_samples < 0 else args.n_samples
+        test_datasets, test_steps_names = load_eval2_dataset(
+            dataset_name, "test", args.use_incon_samples, n_samples_kw, args.random_seed
+        )
 
     else:
         with open(params['dataset_path'], "rb") as f:
@@ -393,25 +394,28 @@ def main():
     # Initialize model
     if 'gpt' in args.model_id.lower():
         model = GPT(args.model_id, 
-                    args.reasoning_effort)
+                    args.reasoning_effort,
+                    args.dataset_name)
     else:
-        model = HFModel(args.model_id)
+        model = HFModel(args.model_id,
+                        args.dataset_name)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     located_indexes_dict = {}
+    _ds_stem = args.dataset_name.replace("set_", "")
     if args.mode == 'w_self_locate':
-        with open(os.path.join(args.output_dir, f"set_lconvqa_{model_name.lower()}_locate_result.jsonl"), 'r') as f:
+        with open(os.path.join(args.output_dir.replace('llm', 'locate'), f"set_{_ds_stem}_{model_name.lower()}_locate_result.jsonl"), 'r') as f:
             for line in f:
                 row = json.loads(line.strip())
                 located_indexes_dict[row['data_name']] = row['pred']
     elif args.mode == 'w_ebm_locate':
-        with open(os.path.join(args.output_dir, f"set_lconvqa_ebm_locate_result.jsonl"), 'r') as f:
+        with open(os.path.join(args.output_dir.replace('llm', 'locate'), f"set_{_ds_stem}_ebm_locate_result.jsonl"), 'r') as f:
             for line in f:
                 row = json.loads(line.strip())
                 located_indexes_dict[row['data_name']] = row['pred']
     elif args.mode == 'w_random_locate':
-        with open(os.path.join(args.output_dir, f"set_lconvqa_random_locate_result.jsonl"), 'r') as f:
+        with open(os.path.join(args.output_dir.replace('llm', 'locate'), f"set_{_ds_stem}_random_locate_result.jsonl"), 'r') as f:
             for line in f:
                 row = json.loads(line.strip())
                 located_indexes_dict[row['data_name']] = row['pred']
@@ -429,6 +433,11 @@ def main():
         
         if (args.mode == 'w_self_locate') or (args.mode == 'w_ebm_locate') or (args.mode == 'w_random_locate'):
             preds_for_data = located_indexes_dict.get(data_name) if located_indexes_dict else None
+            if preds_for_data is None:
+                raise ValueError(
+                    f"Missing locate predictions for data_name={data_name!r} (mode={args.mode}). "
+                    "Ensure the locate result JSONL exists under --output_dir and keys match test step names."
+                )
             preds_for_data = [sorted(preds) for preds in preds_for_data]
         else:
             preds_for_data = None
@@ -510,13 +519,13 @@ def main():
         })
 
     parsed_results = pd.DataFrame.from_dict(response_list)
-    parsed_results.to_json(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_{args.mode.lower()}_edit_result.jsonl'), lines=True, orient='records')
+    parsed_results.to_json(os.path.join(args.output_dir, f'set_{args.dataset_name.replace("set_", "")}_{model_name.lower()}_{args.mode.lower()}_edit_result.jsonl'), lines=True, orient='records')
     raw_responses = pd.DataFrame.from_dict(raw_response_list)
-    raw_responses.to_json(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_{args.mode.lower()}_edit_raw_response.jsonl'), lines=True, orient='records')
+    raw_responses.to_json(os.path.join(args.output_dir, f'set_{args.dataset_name.replace("set_", "")}_{model_name.lower()}_{args.mode.lower()}_edit_raw_response.jsonl'), lines=True, orient='records')
 
     # Also save metrics
     metrics = {k: v for k, v in results.items() if ('edited_pairs') not in k and ('raw_response') not in k}
-    with open(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_{args.mode.lower()}_edit_metrics.jsonl'), 'w') as f:
+    with open(os.path.join(args.output_dir, f'set_{args.dataset_name.replace("set_", "")}_{model_name.lower()}_{args.mode.lower()}_edit_metrics.jsonl'), 'w') as f:
         json.dump(metrics, f, indent=4)
 
 

@@ -28,7 +28,7 @@ from new_module.new_decode_utils import get_beam_hypotheses_v0, get_beam_hypothe
 from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 from new_module.locate.new_locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
-from new_module.em_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.models import EncoderModel
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -692,7 +692,7 @@ if __name__ == "__main__":
         "--locate_unit", type=str, default="word", help="unit to locate"
     )
     parser.add_argument(
-        "--min_epsilons", nargs="+", type=float, default=[0.75], help="a list of threshold values for constraint energy functions other than fluency. in probability scale."
+        "--thresholds", nargs="+", type=float, default=[0.75], help="a list of threshold values for constraint energy functions other than fluency. in probability scale."
     )
     parser.add_argument(
         "--num_samples",

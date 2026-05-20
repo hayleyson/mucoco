@@ -185,7 +185,7 @@ class HFModel():
 
         
         # 1. Finalize prompts for all inputs
-        prompts = [self.finalize_prompt(pair[0], mode='locate') for pair in pairs]
+        prompts = [self.finalize_prompt(pair, mode='locate') for pair in pairs]
         
         print("=============================================\n")
 

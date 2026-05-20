@@ -4,8 +4,9 @@ from pathlib import Path
 from tqdm import tqdm
 import pandas as pd
 
-from new_module.dev_utils.utils import precision_score_fn, recall_score_fn, f1_score_fn, load_sc_energy_model, _pkl_path, load_pickle_dataset
+from new_module.dev_utils.utils import precision_score_fn, recall_score_fn, f1_score_fn, load_sc_energy_model, _pkl_path, load_pickle_dataset, load_eval2_dataset
 from new_module.locate.new_locate_utils import LocateMachine4SCE
+
 
 sys.path.append("new_module/set_consistency_energy")
 from baselines.LLM.lm_loader import lm_loader
@@ -156,6 +157,7 @@ def main():
 
     parser = argparse.ArgumentParser('')
     parser.add_argument('model_id', type=str)
+    parser.add_argument('--dataset_name', type=str, default='lconvqa', choices=['lconvqa', 'set_nli'])
     parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--dataset_path', type=str, default=None)
     parser.add_argument('--reasoning_effort', type=str, default=None, choices=['none', 'low', 'medium', 'high'])
@@ -167,9 +169,12 @@ def main():
     args = parser.parse_args()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    if args.reasoning_effort == 'none':
+        args.reasoning_effort = None
     params = dict(
         dataset_path=args.dataset_path,
-        dataset='lconvqa', # one of ['lconvqa', 'set_nli']
+        dataset=args.dataset_name, # one of ['lconvqa', 'set_nli']
         task='locate',
         baseline=dict(
             type='llm', 
@@ -201,39 +206,11 @@ def main():
     if params['dataset_path'] is None:
         # Load C and I datasets where set size >= 4.
         dataset_name = params['dataset']
-        test_con_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, "test", "C")
-        test_incon_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, "test", "I")
-        test_con_dataset_arbitrary_pairs.dataset = [t for t in test_con_dataset_arbitrary_pairs.dataset if len(t) >=4]
-        test_incon_dataset_arbitrary_pairs.dataset = [t for t in test_incon_dataset_arbitrary_pairs.dataset if len(t) >=4]
-        
-        # Concat them to obtain concat2/3/4 datasets
-        concat2_dataset, concat2_names, concat2_set_sizes = concat_arbitrary_pairs([test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs], concat_num=2)
-        concat3_dataset, concat3_names, concat3_set_sizes = concat_arbitrary_pairs([test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs], concat_num=3)
-        concat4_dataset, concat4_names, concat4_set_sizes = concat_arbitrary_pairs([test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs], concat_num=4)
-
-        test_steps_names = ['con', 'incon'] + concat2_names+ concat3_names+ concat4_names
-        test_datasets = [test_con_dataset_arbitrary_pairs, test_incon_dataset_arbitrary_pairs
-                ] + concat2_dataset + concat3_dataset + concat4_dataset
-
-        if args.use_incon_samples:
-            
-            print(f"Using samples from datasets: {test_steps_names}")
-            test_datasets = [test_datasets[i] for i in range(len(test_datasets)) if ('incon' in test_steps_names[i])]
-            test_steps_names = [test_steps_name for test_steps_name in test_steps_names if ('incon' in test_steps_name)]
-            print(f"Using samples from inconsistent datasets: {test_steps_names}")
-
-            test_samples = []
-            for dataset in test_datasets:
-                test_samples.extend(dataset.dataset)
-
-            test_samples = random.sample(test_samples, args.n_samples)
-            print(f"Number of samples selected: {len(test_samples)}")
-            
-            canonical_test_dataset = test_datasets[0]
-            canonical_test_dataset.dataset = test_samples
-
-            test_datasets = [canonical_test_dataset]
-            test_steps_names = ['incon']
+        # load_eval2_dataset uses random.sample when n_samples is not None; default -1 means "all".
+        n_samples_kw = None if args.n_samples < 0 else args.n_samples
+        test_datasets, test_steps_names = load_eval2_dataset(
+            dataset_name, "test", args.use_incon_samples, n_samples_kw, args.random_seed
+        )
 
     else:
         with open(params['dataset_path'], "rb") as f:
@@ -344,14 +321,15 @@ def main():
             'raw_response': results[f"locate_raw_response-{es_idx+1}-{data_name}"],
         })
 
+    _ds_stem = args.dataset_name.replace("set_", "")
     locate_label_comparison = pd.DataFrame.from_dict(response_list)
-    locate_label_comparison.to_json(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_locate_result.jsonl'), lines=True, orient='records')
+    locate_label_comparison.to_json(os.path.join(args.output_dir, f'set_{_ds_stem}_{model_name.lower()}_locate_result.jsonl'), lines=True, orient='records')
     raw_response_list = pd.DataFrame.from_dict(raw_response_list)
-    raw_response_list.to_json(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_locate_raw_response.jsonl'), lines=True, orient='records')
+    raw_response_list.to_json(os.path.join(args.output_dir, f'set_{_ds_stem}_{model_name.lower()}_locate_raw_response.jsonl'), lines=True, orient='records')
 
     # Also save metrics
     metrics = {k: v for k, v in results.items() if ('gold' not in k) and ('pred') not in k and ('raw_response') not in k}
-    with open(os.path.join(args.output_dir, f'set_lconvqa_{model_name.lower()}_locate_metrics.jsonl'), 'w') as f:
+    with open(os.path.join(args.output_dir, f'set_{_ds_stem}_{model_name.lower()}_locate_metrics.jsonl'), 'w') as f:
         json.dump(metrics, f, indent=4)
 
 

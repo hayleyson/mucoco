@@ -225,7 +225,7 @@ class baseline_model():
                 "Water vapor condenses into millions of tiny droplets that form clouds",
                 "Clouds lose these droplets through rain or snow, also caused precipitation",
                 "Precipitation is either absorbed into the ground or runs off into rivers",
-                "Water that was absorbed into the ground is taken up by plants",
+                # "Water that was absorbed into the ground is taken up by plants",
                 "Plants lose water from their surfaces as vapor",
                 "The vapor goes back into the atmosphere",
                 "Water that runs off into rivers flows into ponds, lakes, or oceans",
@@ -352,7 +352,10 @@ class baseline_model():
                 "total_generated_tokens_list": []
             }
 
-        gold_list = [x[0][1] for x in pairs] # list of true inconsistent pairs
+        
+        pair_nums = [len(x[0]) for x in pairs]
+        gold_list = [x[1] for x in pairs] # list of true inconsistent pairs
+        print(f"gold_list: {gold_list}")
         gold_list = [[g + 1 for g in gold] for gold in gold_list]
 
         pred_list, raw_response_list, r_toks_list, t_toks_list = self.model.locate(pairs)  # list of predicted inconsistent pairs
@@ -392,6 +395,7 @@ class baseline_model():
             f1_list.append(f1)
                 
         return {
+            "pair_num": pair_nums,
             "precision": sum(precision_list) / len(precision_list),
             "recall": sum(recall_list) / len(recall_list),
             "f1": sum(f1_list) / len(f1_list),

@@ -13,8 +13,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 srun python new_module/decode_new_for_testset_iter.py \
@@ -98,7 +96,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-output-length=20\
  --max-prefix-length=50\
  --metric='l2'\
- --min_epsilons='-1.521165106'\
+ --thresholds='-1.521165106'\
  --model='gpt2-large:/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds/step_114500_best_checkpoint'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\

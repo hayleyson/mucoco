@@ -444,7 +444,7 @@ if __name__ == "__main__":
     parser.add_argument("--configuration", type=int, required=True)
     parser.add_argument("--early_stopping_patience", type=int, default=0)
     parser.add_argument("--losses", nargs="+", type=str, default=['gpt2_no_prefix', 'sc_energy'])
-    parser.add_argument("--min_epsilons", nargs="+", type=float, default=[-1], help="not used for sc_energy")
+    parser.add_argument("--thresholds", nargs="+", type=float, default=[-1], help="not used for sc_energy")
     parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.0, 10.0])
     parser.add_argument("--k_per_location", type=int, default=5)
     parser.add_argument("--beam_size", type=int, default=5)

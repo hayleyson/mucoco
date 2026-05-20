@@ -12,11 +12,9 @@ source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
-DATA_DIR=/data/hyeryung
+DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 
@@ -38,7 +36,7 @@ srun python new_module/new_mlm_reranking_all_bv1_ab.py \
 --source_style toxic \
 --target_style nontoxic \
 --target_label_ids 0 0 \
---min_epsilons 0.9 \
+--thresholds 0.9 \
 --wandb_project toxicity-decoding \
 --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \

@@ -264,7 +264,7 @@ def get_parser():
     parser.add_argument("--dampness", default=10.0, type=float)
     parser.add_argument("--epsilon", default=0.2, type=float)
     parser.add_argument("--epsilons", default=None, type=str)
-    parser.add_argument("--min_epsilons", default=None, type=str)
+    parser.add_argument("--thresholds", default=None, type=str)
     parser.add_argument("--epsilon_warmup_steps", default=None, type=str)
     parser.add_argument("--epsilon_cooldown_steps", default=None, type=str)
     parser.add_argument("--epsilon_decay_functions", default=None, type=str)

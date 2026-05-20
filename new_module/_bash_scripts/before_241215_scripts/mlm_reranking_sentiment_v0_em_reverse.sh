@@ -25,7 +25,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --source_style 'positive' \
 --target_style 'negative' \
 --target_label_ids 0 0 \
---min_epsilons 0.75 \
+--thresholds 0.75 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint' \
 --tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-yelp-sentiment-classifier-with-gpt2-large-embeds-energy-training/step_44900_best_checkpoint/' \

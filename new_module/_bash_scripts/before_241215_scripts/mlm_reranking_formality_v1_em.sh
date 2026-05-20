@@ -30,7 +30,7 @@ srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --source_style 'informal' \
 --target_style 'formal' \
 --target_label_ids 1 1 \
---min_epsilons 0.75 \
+--thresholds 0.75 \
 --wandb_project 'formality-decoding' \
 --model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training/step_560_best_checkpoint/' \
 --tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training/step_560_best_checkpoint/' \

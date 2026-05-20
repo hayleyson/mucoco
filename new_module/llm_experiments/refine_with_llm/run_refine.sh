@@ -27,13 +27,13 @@ MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 MODEL_TAG="${MODEL_NAME##*/}"
 
 # grammar_refinement_versions key in prompt_templates.json (e.g. 1, 2)
-TEMPLATE_VERSION="2"
+TEMPLATE_VERSION="1"
 
 # Define input paths for each array task
 INPUT_PATHS=(
-    "${REPO_ROOT}/outputs/nli_toxicity/ebm/f2hjzr5f/outputs.txt"
+    "${REPO_ROOT}/outputs/sc_energy/set_lconvqa/ebm/pqg6o3gb/outputs.txt"
 )
-ORIGINAL_TEXT_PATH="${REPO_ROOT}/new_module/data/nli-toxicity/Qwen3-8B_rewrite_hypothesis_toxic_5shot_test_set.jsonl"
+ORIGINAL_TEXT_PATH="${REPO_ROOT}/new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl"
 
 INPUT_PATH=${INPUT_PATHS[$SLURM_ARRAY_TASK_ID]}
 BASE_DIR=$(dirname "$INPUT_PATH")
@@ -47,7 +47,7 @@ fi
 
 NUM_SHOTS=0
 BATCH_SIZE=32
-TASK="nli_toxicity"
+TASK="set_lconvqa"
 
 TOP_P=0.96
 OUTPUT_PATH="${BASE_DIR}/${BASE_NAME}_${MODEL_TAG}_v${TEMPLATE_VERSION}_s${NUM_SHOTS}_p${TOP_P}_refined.jsonl"

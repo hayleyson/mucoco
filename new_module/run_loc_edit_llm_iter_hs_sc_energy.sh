@@ -13,9 +13,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
 export PYTHONPATH=.
-export HF_HOME=/data/hyeryung/.cache
-export HF_DATASETS_CACHE=/data/hyeryung/.cache
-export TRANSFORMERS_CACHE=/data/hyeryung/.cache
+export HF_HOME=/home/hyeryung/data/.cache
+export HF_DATASETS_CACHE=/home/hyeryung/data/.cache
+export TRANSFORMERS_CACHE=/home/hyeryung/data/.cache
 export LOGGING_LEVEL=INFO
 
 JOB_ID=$SLURM_JOB_ID
@@ -54,7 +54,7 @@ THRESHOLD=-1
 # 'form_both', 'inform_both'
 # 'senti_pos_both, 'senti_neg_both' 
 
-srun python new_module/loc_edit_llm_iter_sc_v1.py \
+srun python new_module/loc_edit_llm_iter_sc_energy.py \
 $JOB_ID \
 --exp_label $EXP_LABEL \
 --directory $DIRECTORY \

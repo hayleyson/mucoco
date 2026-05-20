@@ -14,8 +14,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 # srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
@@ -36,7 +34,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.74 \
+# --thresholds 0.74 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
@@ -64,7 +62,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.74 \
+# --thresholds 0.74 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
@@ -91,7 +89,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.74 \
+# --thresholds 0.74 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
@@ -118,7 +116,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.74 \
+# --thresholds 0.74 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
@@ -145,7 +143,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.74 \
+# --thresholds 0.74 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
@@ -172,7 +170,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.74 \
+# --thresholds 0.74 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
@@ -200,7 +198,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.75 \
+# --thresholds 0.75 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/' \
@@ -229,7 +227,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'informal' \
 # --target_style 'formal' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.75 \
+# --thresholds 0.75 \
 # --wandb_project 'formality-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training/step_560_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training/step_560_best_checkpoint/' \
@@ -257,7 +255,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --source_style 'informal' \
 --target_style 'formal' \
 --target_label_ids 1 1 \
---min_epsilons 0.74 \
+--thresholds 0.74 \
 --wandb_project 'formality-decoding' \
 --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training/step_560_best_checkpoint/' \
 --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds-energy-training/step_560_best_checkpoint/' \

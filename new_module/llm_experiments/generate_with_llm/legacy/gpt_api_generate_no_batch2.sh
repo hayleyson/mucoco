@@ -14,8 +14,6 @@ conda activate loc-edit
 DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 # srun -n 1 -c 1 python /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/gpt_api_generate.py \

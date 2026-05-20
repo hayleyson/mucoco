@@ -1,12 +1,13 @@
 import argparse
 import logging
 import os
+import json
 from pathlib import Path
 
 import pandas as pd
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
+from tqdm import tqdm
 import wandb
 from evaluation.prompted_sampling.evaluate import (
     conditional_perplexity,
@@ -28,7 +29,7 @@ from evaluation.prompted_sampling.evaluate import (
     set_consistency_score,
     set_consistency_score_gpt,
     save_qualitative_results,
-    toxicity_nli_joint_percentages_from_paths,
+    toxicity_nli_joint_rates_from_saved_eval,
 )
 
 ## logging-related
@@ -44,13 +45,54 @@ def rename_df_for_nli(dataframe, col_name='premise'):
     return result_df[['prompt', 'generations']]
 
 
-def toxicity_nli_joint_rates_from_saved_eval(generations_file_path, toxicity_saved_path=None, nli_saved_path=None, **kw):
-    p, r = Path(generations_file_path), Path(generations_file_path).name + "-results.txt"
-    d = p.parent
-    tox = toxicity_saved_path or str(d / (r + ".toxicity") if (d / (r + ".toxicity")).is_file() else d / (r + ".toxicity_int"))
-    nli = nli_saved_path or str(d / (r + ".nli"))
-    return toxicity_nli_joint_percentages_from_paths(tox, nli, **kw)
-
+def load_sc_energy_llm_edit_outputs(generations_file_path, dataset='lconvqa'):
+    with open(generations_file_path, 'r') as f:
+        # Assuming the JSONL has one large dict with 'pred' key containing all examples
+        data = json.loads(f.readline())
+    preds = data['pred']
+    
+    formatted_texts = []
+    
+    if dataset in ['lconvqa', 'set_lconvqa', 'vqa']:
+        for gen_list in tqdm(preds, desc='Loading LLM edit results', mininterval=5):
+            text_parts = []
+            for pair in gen_list:
+                if len(pair) >= 2:
+                    q = pair[0]
+                    a = pair[1]
+                    if q is None:
+                        continue
+                    if a is not None:
+                        # Reconstruct the original string format used in lconvqa text generations
+                        formatted = f"{q} The answer is {a}."
+                    else:
+                        # E.g. "**Input Text:**\n" and other anomalies produced by the model
+                        formatted = str(q) 
+                    text_parts.append(formatted.strip())
+            
+            full_text = " ".join(text_parts).strip()
+            formatted_texts.append({
+                "prompt": {"text": ""},
+                "generations": [{"text": full_text}]
+            })
+            
+        return pd.DataFrame(formatted_texts)
+    elif dataset in ['set_nli']:
+        for gen_list in tqdm(preds, desc='Loading LLM edit results', mininterval=5):
+            text_parts = []
+            for text in gen_list:
+                text_parts.append(text.strip())
+            
+            full_text = " ".join(text_parts).strip()
+            formatted_texts.append({
+                "prompt": {"text": ""},
+                "generations": [{"text": full_text}]
+            })
+        print("Loaded dataset preview:")
+        print(pd.DataFrame(formatted_texts).head())
+        return pd.DataFrame(formatted_texts)
+    else:
+        raise ValueError(f"Dataset {dataset} not supported")
 
 def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs):
     """
@@ -60,8 +102,11 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
     - includes "toxicity_model_path", "toxicity_model_type" for toxicity-int score
     - includes "source_file_path" for contents-preservation score
     """
-      
-    generations_df = pd.read_json(generations_file_path, lines=True) 
+    
+    if kwargs.get('set_consistency_llm_edit_output', False):
+        generations_df = load_sc_energy_llm_edit_outputs(generations_file_path, dataset=kwargs.get('task', 'lconvqa'))
+    else:
+        generations_df = pd.read_json(generations_file_path, lines=True) 
     if type(generations_df['prompt'].values[0]) == str:
         generations_df['prompt'] = generations_df['prompt'].apply(lambda x: {'text': x})
     if type(generations_df['generations'].values[0][0]) == str:
@@ -274,7 +319,7 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         
             
         if task in ['nli', 'set_nli', 'set-nli', 'set_snli', 'set-snli']:
-            config_path = 'new_module/set_consistency_energy/params_set_snli.yaml'
+            config_path = 'new_module/set_consistency_energy/params_set_nli.yaml'
         elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
             config_path = 'new_module/set_consistency_energy/params_set_lconvqa.yaml'
         
@@ -290,7 +335,7 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         
             
         if task in ['nli', 'set_nli', 'set-nli', 'set_snli', 'set-snli']:
-            config_path = 'new_module/set_consistency_energy/params_set_snli_clsf.yaml'
+            config_path = 'new_module/set_consistency_energy/params_set_nli_clsf.yaml'
         elif task in ['vqa', 'lconvqa', 'convqa', 'set-lconvqa', 'set_lconvqa']:
             config_path = 'new_module/set_consistency_energy/params_set_lconvqa_clsf.yaml'
         

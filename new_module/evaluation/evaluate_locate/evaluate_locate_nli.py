@@ -24,7 +24,7 @@ from sklearn.metrics import (
 from scipy import stats
 
 from new_module.locate.new_locate_utils import LocateMachine
-from new_module.em_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.models import EncoderModel
 
 # Define dataset and dataloader
 class NLIDataset(Dataset):

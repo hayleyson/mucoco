@@ -14,8 +14,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 # # clsf에 대해서 loss weights tuning -> k, beam tuning
 # srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
@@ -37,7 +35,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'inconsistent' \
 # --target_style 'consistent' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.98974 \
+# --thresholds 0.98974 \
 # --wandb_project 'nli-decoding' \
 # --model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/' \
 # --tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/' \
@@ -66,7 +64,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --source_style 'inconsistent' \
 --target_style 'consistent' \
 --target_label_ids 1 1 \
---min_epsilons 0.98974 \
+--thresholds 0.98974 \
 --wandb_project 'nli-decoding' \
 --model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/' \
 --tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_binary_labels_binary_cross_entropy_n_a/1731247443/' \

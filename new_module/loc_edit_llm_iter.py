@@ -3,6 +3,7 @@ import sys
 huggingface_token = os.getenv("HF_TOKEN")
 
 import argparse
+from typing import List
 
 ###############################################################################
 # args
@@ -16,13 +17,42 @@ parser_main.add_argument("--total_iteration", type=int,  required=True, help="It
 parser_main.add_argument("--directory", type=str, required=True, help="Base directory for input and output files.")
 parser_main.add_argument("--input_file_path", type=str, required=True, help="Path to the input JSONL file.")
 parser_main.add_argument("--orig_text_path", type=str, required=True, help="Path to the original text JSONL file.")
-parser_main.add_argument("--pretrained_model_path", type=str, required=True, help="Path to the pretrained model.")
+parser_main.add_argument(
+    "--pretrained_model_path",
+    type=str,
+    nargs="+",
+    required=True,
+    metavar="PATH",
+    help="One or more energy model paths (space-separated). All are used for locate (masks unioned); order aligns with --label_id / --threshold / --loss_name.",
+)
 parser_main.add_argument("--hf_model_name", type=str, required=True, help="Name of the Hugging Face model.")
 parser_main.add_argument("--prompt_type", type=str,  required=True, help="Type of the prompt.")
 parser_main.add_argument("--task", type=str,  required=True, help="Task type.")
-parser_main.add_argument("--label_id", type=int,  required=True, help="Label ID for the task.")
+parser_main.add_argument(
+    "--label_id",
+    type=int,
+    nargs="+",
+    required=True,
+    metavar="ID",
+    help="Target label ids (space-separated), one per energy model (same count as --pretrained_model_path).",
+)
 parser_main.add_argument("--locate_option", type=str,  required=True, help="Locate option.")
-parser_main.add_argument("--threshold", type=float,  required=True, help="Threshold value.")
+parser_main.add_argument(
+    "--threshold",
+    type=float,
+    nargs="+",
+    required=True,
+    metavar="THR",
+    help="Thresholds (space-separated), one per energy model (same count as --pretrained_model_path).",
+)
+parser_main.add_argument(
+    "--loss_name",
+    type=str,
+    nargs="+",
+    required=True,
+    metavar="LOSS",
+    help="Registered loss name per energy model (see new_module.losses; same count as --pretrained_model_path).",
+)
 parser_main.add_argument("--max_num_tokens", type=int, default=7, help="Max number of tokens to locate.")
 parser_main.add_argument(
     "--use_vllm",
@@ -32,8 +62,35 @@ parser_main.add_argument(
 
 args_main = parser_main.parse_args()
 
+pretrained_model_paths = args_main.pretrained_model_path
+energy_thresholds = args_main.threshold
+n_energy = len(pretrained_model_paths)
+if len(energy_thresholds) != n_energy:
+    parser_main.error(
+        f"Expected {n_energy} --threshold value(s) for {n_energy} --pretrained_model_path(s); "
+        f"got {len(energy_thresholds)}."
+    )
+
+energy_label_ids = args_main.label_id
+if len(energy_label_ids) != n_energy:
+    parser_main.error(
+        f"Expected {n_energy} --label_id value(s) for {n_energy} --pretrained_model_path(s); "
+        f"got {len(energy_label_ids)}."
+    )
+
+energy_loss_names = args_main.loss_name
+if len(energy_loss_names) != n_energy:
+    parser_main.error(
+        f"Expected {n_energy} --loss_name value(s) for {n_energy} --pretrained_model_path(s); "
+        f"got {len(energy_loss_names)}."
+    )
+
 # Print received arguments for debugging
 print(f"Received arguments: {args_main}")
+print(f"energy_models ({n_energy}): {pretrained_model_paths}")
+print(f"energy_thresholds: {energy_thresholds}")
+print(f"energy_label_ids: {energy_label_ids}")
+print(f"energy_loss_names: {energy_loss_names}")
 
 job_id = args_main.job_id
 exp_label = args_main.exp_label
@@ -42,13 +99,10 @@ total_iteration = args_main.total_iteration
 directory = args_main.directory
 input_file_path = args_main.input_file_path
 orig_text_path = args_main.orig_text_path
-pretrained_model_path = args_main.pretrained_model_path
 hf_model_name = args_main.hf_model_name
 prompt_type = args_main.prompt_type
 task = args_main.task
-label_id = args_main.label_id
 locate_option = args_main.locate_option
-threshold = args_main.threshold
 max_num_tokens = args_main.max_num_tokens
 use_vllm = args_main.use_vllm
 
@@ -60,12 +114,20 @@ edit_output_file_path = directory + f'/edited/{exp_label}_edited_{job_id}.jsonl'
 eval_output_file_path = directory + f'/losses/{exp_label}_losses_{job_id}.txt'
 final_output_file_path = directory + f'/final/{exp_label}_loc_edit_{job_id}.jsonl'
 time_log_path = final_output_file_path + ".time"
-energy_model_path = pretrained_model_path + '/'
 
 
 ###############################################################################
 
 # import
+import multiprocessing as mp
+
+# vLLM V1 starts engine workers via multiprocessing; default "fork" breaks if the parent
+# already touched CUDA (e.g. torch.cuda.is_available()). "spawn" gives workers a clean runtime.
+try:
+    mp.set_start_method("spawn", force=True)
+except RuntimeError:
+    pass
+
 import time
 import json
 import math
@@ -76,8 +138,10 @@ from transformers import AutoModelForSequenceClassification, AutoConfig, AutoTok
 import torch
 from torch.utils.data import DataLoader
 
+from new_module.dev_utils.utils import load_sc_energy_model
 from new_module.ebm_training.nli.models import EncoderModel  
 from new_module.locate.new_locate_utils import LocateMachine
+from new_module.new_mlm_reranking_all import call_locate, union_masks
 
 import new_module.losses as lossbuilder
 
@@ -90,69 +154,122 @@ from argparse import Namespace
 # locate - llm edit (gpt) - eval (early stopping) iteration
 
 
-# get ready for locate
-    # 환경 설정
+def locate_modes_for_energy_models(task: str, n_energy: int) -> List[str]:
+    """Align with ``new_mlm_reranking_all``: multi-attribute ``task`` uses ``_`` splits; else repeat."""
+    if n_energy == 1:
+        return [task]
+    parts = task.split("_")
+    if len(parts) == n_energy:
+        return parts
+    return [task] * n_energy
+
+def load_locate_machine_for_path(
+    path: str,
+    locate_task: str,
+    locate_option: str,
+    device: str,
+) -> LocateMachine:
+    """One energy checkpoint + LocateMachine for that path's locate mode."""
+    if locate_task == "nli":
+        with open(os.path.join(path, "config.json")) as f:
+            model_config = json.load(f)
+        model_config["device"] = device
+        model_config["model_path"] = os.path.join(path, "best_model_pearsonr.pth")
+        if locate_option == "attention":
+            model_config["locate"]["type"] = "attention"
+        elif locate_option == "grad_norm":
+            model_config["locate"]["type"] = "gradnorm"
+        enc_model = EncoderModel(params=model_config)
+        enc_model.load_state_dict(
+            torch.load(model_config["model_path"], weights_only=True), strict=False
+        )
+        enc_model.eval()
+        enc_model.to(device)
+        return LocateMachine(enc_model, enc_model.tokenizer, locate_task)
+
+    clf = AutoModelForSequenceClassification.from_pretrained(path)
+    tok = AutoTokenizer.from_pretrained(path)
+    clf = clf.to(device)
+    clf.eval()
+    return LocateMachine(clf, tok, locate_task)
+
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
+locate_modes = locate_modes_for_energy_models(task, n_energy)
+print(f"locate_modes ({len(locate_modes)}): {locate_modes}")
 
-# 모델과 토크나이저 로드
-if task == "nli":
-    # config
-    with open(os.path.join(pretrained_model_path, 'config.json')) as f:
-        model_config = json.load(f)
-    model_config['device'] = device
-    model_config['model_path'] = os.path.join(pretrained_model_path, 'best_model_pearsonr.pth')
-    if locate_option == "attention":
-        model_config['locate']['type'] = "attention"
-    elif locate_option == "grad_norm":
-        model_config['locate']['type'] = "gradnorm"
-    # load model
-    model = EncoderModel(params=model_config)
-    model.load_state_dict(torch.load(model_config['model_path'], weights_only=True), strict=False)
-    model.eval()
-    model.to(device)
+mlm_tokenizer = AutoTokenizer.from_pretrained("roberta-base")
+energy_locators: List[LocateMachine] = []
+for i in range(n_energy):
+    loc = load_locate_machine_for_path(
+        pretrained_model_paths[i],
+        locate_modes[i],
+        locate_option,
+        device,
+    )
+    loc.tokenizer.add_special_tokens({"mask_token": mlm_tokenizer.mask_token})
+    energy_locators.append(loc)
 
-    tokenizer = model.tokenizer
-else:
-    model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_path)
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_model_path)
-    model = model.to(device)
+locate_run_config = {
+    "device": device,
+    "locate_method": locate_option,
+    "num_edit_token_per_step": max_num_tokens,
+    "locate_unit": "word",
+}
 
-# locate에서는 파일, 모델, locate_edit_idx를 받아서
-# 이 idx=True 인 경우만 모아 output_file에 저장한다 
-def locate_texts(model, tokenizer, input_file, output_file, task, label_id, locate_edit_idx, locate_method, max_num_tokens=7):
-    """
-    Locates tokens in texts using the provided model and task.
-    """
 
-    # LocateMachine 초기화
-    locator = LocateMachine(model, tokenizer, task)
-
+def locate_texts_multi(
+    locators: List[LocateMachine],
+    locate_modes_list: List[str],
+    label_ids: List[int],
+    union_tokenizer: AutoTokenizer,
+    input_file: str,
+    output_file: str,
+    locate_edit_idx,
+    locate_config: dict,
+):
+    """Locate with every energy model; union [MASK] positions (when len > 1)."""
     print("locate input file path:", input_file)
     print("locate output file path:", output_file)
+    print("Locating Start... (%d energy model(s))" % len(locators))
 
-    print("Locating Start...")
-
-    with open(input_file, 'r', encoding='utf-8') as infile, open(output_file, 'w', encoding='utf-8') as outfile:
+    with open(input_file, "r", encoding="utf-8") as infile, open(
+        output_file, "w", encoding="utf-8"
+    ) as outfile:
         for line_idx, line in enumerate(infile):
-            # JSON 형식으로 변환
             data = json.loads(line)
-            prompt = data['prompt']['text']
-            generations = data['generations']
-            
+            prompt = data["prompt"]["text"]
+            generations = data["generations"]
+
             masked_generations = []
-            # generations 내의 각 text에 대해 LocateMachine 적용
             for gen_idx, generation in enumerate(generations):
                 if locate_edit_idx[line_idx][gen_idx]:
-                    text = f"<s>{prompt}</s>{generation['text']}</s>" if task == "nli" else generation['text']
-                    # locate_main 적용
-                    masked_text = locator.locate_main([text], 
-                                                        locate_method, 
-                                                        max_num_tokens=max_num_tokens, 
-                                                        unit='word', 
-                                                        label_id=label_id,
-                                                        num_layer=10,)
-                    # masked 결과를 generation에 추가 (기존 key나 새로운 key 사용 가능)
-                    generation['text'] = masked_text[0]  # locate_main은 리스트를 반환하므로 첫 번째 값 선택
+                    running = [generation["text"]]
+                    if len(locators) == 1:
+                        masked_out = call_locate(
+                            locate_modes_list[0],
+                            label_ids[0],
+                            locators[0],
+                            prompt,
+                            running,
+                            locate_config,
+                        )
+                        merged_text = masked_out[0]
+                    else:
+                        per_model_masked = []
+                        for li, loc in enumerate(locators):
+                            per_model_masked.append(
+                                call_locate(
+                                    locate_modes_list[li],
+                                    label_ids[li],
+                                    loc,
+                                    prompt,
+                                    running,
+                                    locate_config,
+                                )
+                            )
+                        merged_text = union_masks(per_model_masked, union_tokenizer)[0]
+                    generation["text"] = merged_text
                     masked_generations.append(generation)
             if masked_generations:
                 # 결과를 다시 JSON 형식으로 변환하고 출력 파일에 쓰기
@@ -198,119 +315,132 @@ class CustomDataset(torch.utils.data.Dataset):
         return self.texts[idx]
 
 
-def evaluate_toxicity_losses(source_text: str, hypotheses: list, config: dict, threshold: float) -> tuple:
-    """
-    Evaluate toxicity losses for given hypotheses and determine if losses satisfy a given threshold.
-    
-    Parameters:
-        source_text (str): Original source text.
-        hypotheses (list): List of hypothesis texts to evaluate.
-        config (dict): Configuration dictionary with model, tokenizer, and loss settings.
-        threshold (float): Loss threshold to determine satisfaction.
+BUILD_LOSS_DICT = {
+    "coeff_steps": 200,
+    "coeff_pattern": "constant",
+    "loss_type": "xentropy",
+    "length_normalize": False,
+    "AR_temperature": 1.0,
+    "AR_top_k": 0,
+    "AR_top_p": 0.96,
+    "max_output_length": 20,
+}
+EVAL_DEVICE = "cuda"
+EVAL_CACHE_DIR = "/home/hyeryung/data/.cache"
+EVAL_BATCH_SIZE = 64
 
-    Returns:
-        losses (list): List of loss values for each hypothesis.
-        satisfies_threshold (list): List of booleans indicating whether each loss satisfies the threshold.
-    """
 
-    # Load tokenizer, model, and define loss
-    # use only [1] bc [0] is not used for early stopping
-    if task == 'nli':
-        with open(os.path.join(energy_model_path, 'config.json')) as f:
-            config_m = json.load(f)
-        config_m['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def _evaluate_toxicity_losses_single(
+    source_text: str,
+    hypotheses: list,
+    energy_root: str,
+    threshold: float,
+    target_label_id: int,
+    loss_name: str,
+    eval_task: str,
+) -> tuple:
+    energy_model_path = energy_root.rstrip("/") + "/"
 
-        model_path = os.path.join(energy_model_path, 'best_model_pearsonr.pth')
-        config_m['model_path'] = model_path
-
-        ## load model
-        model = EncoderModel(config_m)
-        model = model.to(config_m['device'])
-        model.load_state_dict(torch.load(model_path,weights_only=True),strict=False)
-        model.eval()
-        tokenizer = model.tokenizer
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(
-            energy_model_path, cache_dir=config["cache_dir"], use_fast=True
-        )
-        model_config = AutoConfig.from_pretrained(energy_model_path, cache_dir=config["cache_dir"])
-        model = lossbuilder.ModelWrapper(
-            AutoModelForSequenceClassification.from_pretrained(
-                energy_model_path, config=model_config, cache_dir=config["cache_dir"]
-            )
-        )
-        model.eval().to(config["device"])
-
-    # Build losses
     class dummyArgs:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
-    build_loss_args = dummyArgs(**config["build_loss_dict"])
-    build_loss_args.task = config["task"]
+    build_loss_args = dummyArgs(**BUILD_LOSS_DICT)
+    build_loss_args.task = eval_task
 
-    if task == 'nli':
-        loss_fn = lossbuilder.build_loss(
-            "classification", model, tokenizer, build_loss_args
-        )
+    if eval_task == "nli":
+        with open(os.path.join(energy_root, "config.json")) as f:
+            config_m = json.load(f)
+        config_m["device"] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model_path = os.path.join(energy_root, "best_model_pearsonr.pth")
+        config_m["model_path"] = model_path
+        model_e = EncoderModel(params=config_m)
+        model_e = model_e.to(config_m["device"])
+        model_e.load_state_dict(torch.load(model_path, weights_only=True), strict=False)
+        model_e.eval()
+        tokenizer_e = model_e.tokenizer
+    elif eval_task in ["set_lconvqa", "set_snli"]:
+        model_e = load_sc_energy_model(energy_root, EVAL_DEVICE)
+        tokenizer_e = model_e.representation_model.tokenizer
     else:
-        loss_fn = lossbuilder.build_loss(
-            config["losses"][1], model, tokenizer, build_loss_args
+        tokenizer_e = AutoTokenizer.from_pretrained(
+            energy_model_path, cache_dir=EVAL_CACHE_DIR, use_fast=True
         )
+        model_config = AutoConfig.from_pretrained(
+            energy_model_path, cache_dir=EVAL_CACHE_DIR
+        )
+        model_e = lossbuilder.ModelWrapper(
+            AutoModelForSequenceClassification.from_pretrained(
+                energy_model_path, config=model_config, cache_dir=EVAL_CACHE_DIR
+            )
+        )
+        model_e.eval().to(EVAL_DEVICE)
 
-    # Compute losses for each hypothesis
+    loss_fn = lossbuilder.build_loss(loss_name, model_e, tokenizer_e, build_loss_args)
+
+    if eval_task in ["set_lconvqa", "set_snli"]:
+        threshold_log = threshold
+    else:
+        threshold_log = -math.log(threshold)
+
     losses = []
     satisfies_threshold = []
-    threshold_log = -math.log(threshold)  # Convert threshold to log scale
-
     for hypothesis in hypotheses:
         curr_loss = []
-        data_loader = DataLoader(CustomDataset(hypothesis), batch_size=config.get('batch_size', 64))
-
+        data_loader = DataLoader(
+            CustomDataset(hypothesis), batch_size=EVAL_BATCH_SIZE
+        )
         with torch.no_grad():
             for batch in data_loader:
                 loss_values = loss_fn.compute_gold_loss(
-                    source_text, batch,
-                    label_id=config['target_label_ids'][1],  # For toxicity
+                    source_text,
+                    batch,
+                    label_id=target_label_id,
                 )
                 curr_loss.extend(loss_values.cpu().tolist())
                 torch.cuda.empty_cache()
-
-        # Calculate mean loss and check threshold satisfaction
         mean_loss = torch.tensor(curr_loss).mean().item()
         losses.append(mean_loss)
-        satisfies_threshold.append(mean_loss < threshold_log)
+        if eval_task in ["set_lconvqa", "set_snli"]:
+            satisfies_threshold.append(mean_loss <= threshold_log)
+        else:
+            satisfies_threshold.append(mean_loss < threshold_log)
 
     return losses, satisfies_threshold
 
-config = {
-    "model_paths": [
-        "gpt2-large", 
-        energy_model_path
-    ],
-    "tokenizer_paths": [
-        "gpt2-large", 
-        energy_model_path
-    ],
-    "model_types": ["AutoModelForCausalLM", "AutoModelForSequenceClassification"],
-    "losses": ["gpt2", "classification_no_prefix_logprobloss"],
-    "build_loss_dict": {
-        "coeff_steps": 200,
-        "coeff_pattern": "constant",
-        "loss_type": "xentropy",
-        "length_normalize": False,
-        "AR_temperature": 1.0,
-        "AR_top_k": 0,
-        "AR_top_p": 0.96,
-        "max_output_length": 20
-    },
-    "task": task,
-    "device": "cuda",
-    "cache_dir": "/home/hyeryung/data/.cache", # Change to your huggingface cache directory
-    "batch_size": 64,
-    "target_label_ids": [None, label_id],  # Example target labels
-}
+
+def evaluate_toxicity_losses(
+    premise: str,
+    hypotheses: list,
+    energy_roots: list,
+    thresholds: list,
+    label_ids: list,
+    loss_names: list,
+    eval_tasks: list,
+) -> tuple:
+    """All energy models must pass; returns (per_model_losses, [all_pass])."""
+    if len(eval_tasks) != len(energy_roots):
+        raise ValueError(
+            f"eval_tasks length {len(eval_tasks)} != energy_roots {len(energy_roots)}"
+        )
+    per_model_losses = []
+    per_model_sat = []
+    for root, thresh, lid, lname, etask in zip(
+        energy_roots, thresholds, label_ids, loss_names, eval_tasks
+    ):
+        losses, sat = _evaluate_toxicity_losses_single(
+            premise,
+            hypotheses,
+            root,
+            thresh,
+            lid,
+            lname,
+            etask,
+        )
+        per_model_losses.append(losses[0])
+        per_model_sat.append(sat[0])
+    return per_model_losses, [all(per_model_sat)]
 
 
 
@@ -356,16 +486,16 @@ for iter_idx in range(total_iteration):
 
     print("start locate")
     start_time = time.time()
-    locate_texts(model, 
-                 tokenizer, 
-                 input_file_path, 
-                 locate_output_file_path + f"_filtered_{iter_idx}", 
-                 task,
-                 label_id,
-                 locate_edit_idx,
-                 locate_option,
-                 max_num_tokens=max_num_tokens
-                 )
+    locate_texts_multi(
+        energy_locators,
+        locate_modes,
+        energy_label_ids,
+        mlm_tokenizer,
+        input_file_path,
+        locate_output_file_path + f"_filtered_{iter_idx}",
+        locate_edit_idx,
+        locate_run_config,
+    )
 
 
     end_time = time.time()
@@ -451,28 +581,22 @@ for iter_idx in range(total_iteration):
     print("start eval")
     start_time = time.time()
 
-    # data loading
-    # source text (before locate & edit)
-    source_texts = []
+    # Per flat index: premise for NLI / nli_toxicity; else hypothesis text (legacy).
+    eval_premises = []
 
     with open(input_file_path, 'r', encoding='utf-8') as infile:
-    # 출력 파일 열기
-        if task == 'nli':
-            for line_idx, line in enumerate(infile):
-                # JSON 형식으로 변환
+        if task in ("nli", "nli_toxicity"):
+            for line in infile:
                 data = json.loads(line)
                 premise = data['prompt']['text']
-                generations = data['generations']
-                for gen_idx, generation in enumerate(generations):
-                    source_texts.append(premise)
-        else: 
-            for line_idx, line in enumerate(infile):
-                # JSON 형식으로 변환
+                for _generation in data['generations']:
+                    eval_premises.append(premise)
+        else:
+            for line in infile:
                 data = json.loads(line)
                 generations = data['generations']
-                for gen_idx, generation in enumerate(generations):
-                    text = generation['text']
-                    source_texts.append(text)
+                for generation in generations:
+                    eval_premises.append(generation['text'])
 
     # L&E text (this iteration)
     l_e_texts = []
@@ -484,11 +608,22 @@ for iter_idx in range(total_iteration):
     row_idx = 0
     col_idx = 0
     with open(eval_output_file_path + f"_{iter_idx}", 'w', encoding='utf-8') as f:
-        for src_idx, source_text in enumerate(source_texts):
+        loss_header = ",".join(f"loss_m{i}" for i in range(n_energy))
+        f.write(f"row,col,{loss_header},satisfied_all\n")
+        for src_idx, premise in enumerate(eval_premises):
             if locate_edit_idx[row_idx][col_idx]:
                 l_e_text = l_e_texts[src_idx]
-                losses, satisfies = evaluate_toxicity_losses(source_text, [[l_e_text]], config, threshold)
-                f.write(f"{row_idx},{col_idx},{losses[0]},{satisfies[0]}\n")
+                losses, satisfies = evaluate_toxicity_losses(
+                    premise,
+                    [[l_e_text]],
+                    pretrained_model_paths,
+                    energy_thresholds,
+                    energy_label_ids,
+                    energy_loss_names,
+                    locate_modes
+                )
+                losses_csv = ",".join(str(x) for x in losses)
+                f.write(f"{row_idx},{col_idx},{losses_csv},{satisfies[0]}\n")
                 if satisfies[0]:
                     locate_edit_idx[row_idx][col_idx] = False
             if len(locate_edit_idx[row_idx]) == col_idx + 1:

@@ -1559,7 +1559,7 @@ then
         --lr $lr\
         --dampness 0.1\
         --epsilons=$epsilons\
-        --min_epsilons=$min_epsilons\
+        --thresholds=$min_epsilons\
         --epsilon_warmup_steps $epsilon_warmup_steps\
         --epsilon_cooldown_steps $epsilon_cooldown_steps\
         --epsilon_decay_functions $epsilon_decay_functions\
@@ -1641,7 +1641,7 @@ then
         --lr $lr\
         --dampness 0.1\
         --epsilons $epsilons\
-        --min_epsilons $min_epsilons\
+        --thresholds $min_epsilons\
         --epsilon_warmup_steps $epsilon_warmup_steps\
         --epsilon_cooldown_steps $epsilon_cooldown_steps\
         --epsilon_decay_functions $epsilon_decay_functions\
@@ -1724,7 +1724,7 @@ then
         --lr $lr\
         --dampness 0.1\
         --epsilons=$epsilons\
-        --min_epsilons=$min_epsilons\
+        --thresholds=$min_epsilons\
         --epsilon_warmup_steps $epsilon_warmup_steps\
         --epsilon_cooldown_steps $epsilon_cooldown_steps\
         --epsilon_decay_functions $epsilon_decay_functions\

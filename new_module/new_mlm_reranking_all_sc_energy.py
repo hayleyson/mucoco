@@ -102,7 +102,10 @@ def main(config):
     # log locate method to wandb
     if not config["debug"]:
         wandb.log({"locate_type_inst": model_config["locate"]["instance"]["type"]})
+        wandb.log({"locate_attentions_num_layer_inst": model_config["locate"]["instance"]["attentions_num_layer"]})
+        wandb.log({"locate_agg_method_inst": model_config["locate"]["instance"]["agg_method"]})
         wandb.log({"locate_type_span": model_config["locate"]["span"]["type"]})
+        wandb.log({"locate_attentions_num_layer_span": model_config["locate"]["span"]["attentions_num_layer"]})
 
     ###########################################################
     # Wrap models into loss functions
@@ -470,6 +473,9 @@ if __name__ == "__main__":
     parser.add_argument("--dont_skip_allsat", action="store_true", help="if this argument is passed, the module will conduct decoding on all samples even if they already satisfy constraints",)
     parser.add_argument("--num_edit_tokens_per_step", type=int, default=2)
     parser.add_argument("--max_tokens_per_span", type=int, default=2)
+    parser.add_argument("--consider_prompt_for_cand_gen", action="store_true")
+    parser.add_argument("--output_dir_prefix", type=str)
+    parser.add_argument("--target_label_ids", nargs="+", type=int, default=[1, 1])
     args = parser.parse_args()
 
 
@@ -477,12 +483,7 @@ if __name__ == "__main__":
 
     task = args.task
     config = vars(args)
-    config.update({'task': task, 
-            'device': device,
-            'target_label_ids': [1, 1],
-            'consider_prompt_for_cand_gen': False,
-            'output_dir_prefix': f'outputs/sc_energy/{task}/classifier/',
-            })
+    config.update({'device': device,})
 
     ###########################################################
     # Main

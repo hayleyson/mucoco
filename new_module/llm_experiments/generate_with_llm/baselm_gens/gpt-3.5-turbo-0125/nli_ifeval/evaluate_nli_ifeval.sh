@@ -13,7 +13,5 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun python new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nli_ifeval/evaluate_nli_ifeval.py

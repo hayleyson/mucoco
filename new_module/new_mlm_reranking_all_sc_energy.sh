@@ -4,7 +4,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-48:00:00
 #SBATCH --mem=32GB
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:1
+#SBATCH --nodelist=master
 #SBATCH --job-name=sc_energy_le
 #SBATCH --output='new_module/_slurm_outs/sc_energy_le_%j.out'
 
@@ -31,7 +32,7 @@ export LOGGING_LEVEL=INFO
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --losses gpt2_no_prefix sc_energy \
-# --min_epsilons -1 \
+# --thresholds -1 \
 # --loss_weights 1 10 \
 # --k_per_location 5 \
 # --beam_size 5 \
@@ -48,7 +49,7 @@ export LOGGING_LEVEL=INFO
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --losses gpt2_no_prefix sc_energy \
-# --min_epsilons -1 \
+# --thresholds -1 \
 # --loss_weights 1 10 \
 # --k_per_location 5 \
 # --beam_size 5 \
@@ -64,7 +65,7 @@ export LOGGING_LEVEL=INFO
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --losses gpt2_no_prefix sc_energy \
-# --min_epsilons -1 \
+# --thresholds -1 \
 # --loss_weights 1 10 \
 # --k_per_location 5 \
 # --beam_size 5 \
@@ -80,7 +81,7 @@ export LOGGING_LEVEL=INFO
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --losses gpt2_no_prefix sc_energy \
-# --min_epsilons -1 \
+# --thresholds -1 \
 # --loss_weights 1 10 \
 # --k_per_location 5 \
 # --beam_size 5 \
@@ -96,7 +97,7 @@ export LOGGING_LEVEL=INFO
 # --slurm_job_id $SLURM_JOB_ID \
 # --early_stopping_patience 0 \
 # --losses gpt2_no_prefix sc_energy \
-# --min_epsilons -1 \
+# --thresholds -1 \
 # --loss_weights 1 10 \
 # --k_per_location 5 \
 # --beam_size 5 \
@@ -109,41 +110,46 @@ export LOGGING_LEVEL=INFO
 # --causal_lm_path gpt2-large \
 # --mlm_path roberta-base
 
-# srun python new_module/new_mlm_reranking_all_sc_energy.py \
-# set_lconvqa new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl \
-# --slurm_job_id $SLURM_JOB_ID \
-# --early_stopping_patience 0 \
-# --losses gpt2_no_prefix sc_energy \
-# --min_epsilons -1 \
-# --loss_weights 1 10 \
-# --k_per_location 5 \
-# --beam_size 5 \
-# --n_iter 8 \
-# --dont_skip_allsat \
-# --selection_criteria allsat_primary \
-# --wandb_project sc_energy \
-# --wandb_entity hayleyson \
-# --ebm_params_path new_module/set_consistency_energy/params_set_lconvqa.yaml \
-# --causal_lm_path gpt2-large \
-# --mlm_path roberta-base \
-# --locate_mode ebm
-
 srun python new_module/new_mlm_reranking_all_sc_energy.py \
-set_lconvqa new_module/data/convqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl \
+set_lconvqa new_module/data/lconvqa/locate/testset_incon_300/lconvqa_testset_incon_300.jsonl \
 --slurm_job_id $SLURM_JOB_ID \
 --early_stopping_patience 0 \
 --losses gpt2_no_prefix sc_energy \
---min_epsilons -1 \
---loss_weights 1 10 \
+--thresholds -1 \
+--loss_weights 1 100000 \
 --k_per_location 5 \
 --beam_size 5 \
 --n_iter 8 \
---max_tokens_per_span 2 \
 --dont_skip_allsat \
 --selection_criteria allsat_primary \
 --wandb_project sc_energy \
 --wandb_entity hayleyson \
---ebm_params_path new_module/set_consistency_energy/params_set_lconvqa_groundtruth.yaml \
---causal_lm_path gpt2-large \
+--ebm_params_path new_module/set_consistency_energy/params_set_lconvqa_ground_truth.yaml \
+--causal_lm_path Qwen/Qwen2.5-7B-Instruct \
 --mlm_path roberta-base \
---locate_mode ebm
+--locate_mode ground_truth \
+--num_edit_tokens_per_step 1 \
+--max_tokens_per_span 1 \
+--output_dir_prefix 'outputs/sc_energy/set_lconvqa/ebm/'
+
+# srun python new_module/new_mlm_reranking_all_sc_energy.py \
+# set_nli new_module/data/set_nli/testset_incon_300/set_nli_testset_incon_300.jsonl \
+# --slurm_job_id $SLURM_JOB_ID \
+# --early_stopping_patience 0 \
+# --losses gpt2_no_prefix sc_energy \
+# --thresholds -1 \
+# --loss_weights 1 100000 \
+# --k_per_location 5 \
+# --beam_size 5 \
+# --n_iter 8 \
+# --max_tokens_per_span 2 \
+# --dont_skip_allsat \
+# --selection_criteria allsat_primary \
+# --wandb_project sc_energy \
+# --wandb_entity hayleyson \
+# --ebm_params_path new_module/set_consistency_energy/params_set_nli.yaml \
+# --causal_lm_path Qwen/Qwen2.5-7B-Instruct \
+# --mlm_path roberta-base \
+# --locate_mode ebm \
+# --num_edit_tokens_per_step 2 \
+# --output_dir_prefix 'outputs/sc_energy/set_nli/ebm/'

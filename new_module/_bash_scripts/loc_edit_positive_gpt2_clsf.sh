@@ -14,8 +14,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 # # clsf에 대해서 loss weights tuning (1,1)-> k, beam tuning
 # srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
@@ -37,7 +35,7 @@ export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 # --source_style 'negative' \
 # --target_style 'positive' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.9999994 \
+# --thresholds 0.9999994 \
 # --wandb_project 'sentiment-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \
@@ -66,7 +64,7 @@ srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamse
 --source_style 'negative' \
 --target_style 'positive' \
 --target_label_ids 1 1 \
---min_epsilons 0.9999994 \
+--thresholds 0.9999994 \
 --wandb_project 'sentiment-decoding' \
 --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \
 --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier/step_83000' \

@@ -6,9 +6,9 @@ from googletrans import Translator
 from tqdm import tqdm
 translator = Translator()
 
-llama_result = pd.read_json('/data/hyeryung/mucoco/new_module/qualitative_eval/llama3_8b_editing_gpt2_gens_nontoxic_reformat.jsonl', lines=True)
-le_result = pd.read_json('/data/hyeryung/mucoco/new_module/qualitative_eval/outputs_epsilon0.9.txt', lines=True)
-orig_result = pd.read_json('/data/hyeryung/mucoco/new_module/data/toxicity-avoidance/testset_gpt2_2500_locate_reformat.jsonl', lines=True)
+llama_result = pd.read_json('/home/hyeryung/data/mucoco/new_module/qualitative_eval/llama3_8b_editing_gpt2_gens_nontoxic_reformat.jsonl', lines=True)
+le_result = pd.read_json('/home/hyeryung/data/mucoco/new_module/qualitative_eval/outputs_epsilon0.9.txt', lines=True)
+orig_result = pd.read_json('/home/hyeryung/data/mucoco/new_module/data/toxicity-avoidance/testset_gpt2_2500_locate_reformat.jsonl', lines=True)
 
 orig_result['prompt'] = orig_result['prompt'].apply(lambda x: x['text'])
 orig_result['generations'] = orig_result['generations'].apply(lambda x: x[0]['text'])
@@ -51,4 +51,4 @@ for i in tqdm(range(len(orig_result))):
     
 final_df = pd.DataFrame(final_df_data, columns=['#', 'prompt', 'name', 'generations', 'which is less toxic?', 'which is more fluent?'])
 
-final_df.to_excel('/data/hyeryung/mucoco/new_module/qualitative_eval/qualitative_result_1.xlsx', index=False)
+final_df.to_excel('/home/hyeryung/data/mucoco/new_module/qualitative_eval/qualitative_result_1.xlsx', index=False)

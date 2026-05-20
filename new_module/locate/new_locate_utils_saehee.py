@@ -6,7 +6,7 @@ import pandas as pd
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 from itertools import repeat 
-from new_module.em_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.models import EncoderModel
 
 # import torch.multiprocessing as mp ## not needed since not using multiprocessing
 # import os ## not needed since not using multiprocessing
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
     import torch
     
-    from new_module.em_training.nli.models import EncoderModel
+    from new_module.ebm_training.nli.models import EncoderModel
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrained_model_path", type=str)

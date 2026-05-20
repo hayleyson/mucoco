@@ -302,6 +302,8 @@ def compute_metrics_row(output_path, suffix, edited_ixs, metrics, task):
     if "sbert" in metrics:
         for s in nicknames:
             result_files = [result_file_prefix + ".sbertscore"]
+            if not os.path.exists(result_files[0]):
+                continue
             with open(result_files[0], "r") as f:
                 raw_data = f.readlines()
                 tmp_data = []
@@ -330,7 +332,7 @@ def compute_metrics_row(output_path, suffix, edited_ixs, metrics, task):
         "num_edits": len(edited_ixs[suffix]),
     }
 
-    if "sbert" in metrics:
+    if "sbert" in metrics and len(sbert_metrics) > 0:
         row["sbert"] = sbert_metrics[0]
         row["sbert_count"] = sbert_geq_5_counts[0]
         row["sbert_ratio"] = sbert_geq_5_ratios[0]

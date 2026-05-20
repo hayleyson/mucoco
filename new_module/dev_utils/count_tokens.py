@@ -1,6 +1,5 @@
-import argparse
+import argparse, json, os
 from transformers import AutoTokenizer
-import json
 
 
 parser = argparse.ArgumentParser()
@@ -20,5 +19,6 @@ with open(args.input_file, 'r') as f:
             num_tokens += len(tokens)
 print(num_tokens)
 
-with open(args.input_file.replace('.jsonl', '.num_tokens'), 'w') as f:
+input_file_name, input_file_ext = os.path.splitext(args.input_file)
+with open(input_file_name + '.num_tokens', 'w') as f:
     f.write(str(num_tokens) + '\n')

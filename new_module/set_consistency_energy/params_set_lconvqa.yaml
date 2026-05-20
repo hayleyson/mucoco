@@ -31,7 +31,7 @@ locate:
         type: attention
     span:
         attentions_num_layer: -1
-        type: ground_truth
+        type: gradnorm
 baseline:
     type: llm
     model: gpt-4o

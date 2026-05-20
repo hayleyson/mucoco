@@ -11,11 +11,9 @@ source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
-DATA_DIR=/data/hyeryung
+DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
-export HF_DATASETS_CACHE=$DATA_DIR/hf_cache
-export TRANSFORMERS_CACHE=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
 srun python new_module/decode_new_for_testset_iter.py \
@@ -100,7 +98,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-output-length=20\
  --max-prefix-length=50\
  --metric='l2'\
- --min_epsilons='-3'\
+ --thresholds='-3'\
  --model='gpt2-large:/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-2/step_2600_best_checkpoint/'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\

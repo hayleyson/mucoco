@@ -13,7 +13,7 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
-srun -n 1 -c 1 python new_module/dev_utils/count_tokens.py --input_file /home/hyeryung/data/mucoco/outputs/toxicity/gpt3_5_gen/ebm/j18pi8ab/final/outputs_epsilon0.95.txt.0_qwen2.5_7B_s0_p0.96_refined_initial_prompt.jsonl --model_name Qwen/Qwen2.5-7B-Instruct
+srun -n 1 -c 1 python new_module/dev_utils/count_tokens.py \
+--input_file /home/hyeryung/data/mucoco/outputs/sc_energy/set_lconvqa/ebm/pqg6o3gb/outputs_Qwen2.5-7B-Instruct_v1_s0_p0.96_refined.jsonl \
+--model_name Qwen/Qwen2.5-7B-Instruct

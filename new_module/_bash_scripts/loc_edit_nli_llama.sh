@@ -14,8 +14,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 
 srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
@@ -36,7 +34,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --source_style 'inconsistent' \
 --target_style 'consistent' \
 --target_label_ids 1 1 \
---min_epsilons 0.99 \
+--thresholds 0.99 \
 --wandb_project 'nli-decoding' \
 --model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
 --tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
@@ -64,7 +62,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --source_style 'inconsistent' \
 # --target_style 'consistent' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.99 \
+# --thresholds 0.99 \
 # --wandb_project 'nli-decoding' \
 # --model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
 # --tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
@@ -92,7 +90,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --source_style 'inconsistent' \
 # --target_style 'consistent' \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.9 \
+# --thresholds 0.9 \
 # --wandb_project 'nli-decoding' \
 # --model_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
 # --tokenizer_paths 'meta-llama/Llama-3.1-8B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \

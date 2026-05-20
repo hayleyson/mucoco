@@ -31,7 +31,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 import numpy as np
 
-from new_module.em_training.nli.models import EncoderModel
+from new_module.ebm_training.nli.models import EncoderModel
 
 
 def read_jsonl(path):

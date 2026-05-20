@@ -13,8 +13,6 @@ conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 # ## 일단은 skip 허용해서 실험 돌렸음 
@@ -36,7 +34,7 @@ export LOGGING_LEVEL=INFO
 # --source_style toxic \
 # --target_style nontoxic \
 # --target_label_ids 0 0 \
-# --min_epsilons 0.75 \
+# --thresholds 0.75 \
 # --wandb_project toxicity-decoding \
 # --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 # --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
@@ -69,7 +67,7 @@ export LOGGING_LEVEL=INFO
 # --source_style negative \
 # --target_style positive \
 # --target_label_ids 1 1 \
-# --min_epsilons 1.0 \
+# --thresholds 1.0 \
 # --wandb_project sentiment-decoding \
 # --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
 # --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
@@ -103,7 +101,7 @@ srun python new_module/new_mlm_reranking_all_sweep_.py \
 --source_style positive \
 --target_style negative \
 --target_label_ids 0 0 \
---min_epsilons 1.0 \
+--thresholds 1.0 \
 --wandb_project sentiment-decoding \
 --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
 --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint \
@@ -134,7 +132,7 @@ srun python new_module/new_mlm_reranking_all_sweep_.py \
 # --source_style informal \
 # --target_style formal \
 # --target_label_ids 1 1 \
-# --min_epsilons 0.9 \
+# --thresholds 0.9 \
 # --wandb_project formality-decoding \
 # --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/ \
 # --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-pt16-formality-classifier-energy-training/step_1120_best_checkpoint/ \

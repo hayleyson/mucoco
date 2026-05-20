@@ -687,7 +687,7 @@ if __name__ == "__main__":
         "--locate_unit", type=str, default="token", help="unit to locate"
     )
     parser.add_argument(
-        "--min_epsilons", nargs="+", type=float, default=[0.75], help="min epsilons"
+        "--thresholds", nargs="+", type=float, default=[0.75], help="min epsilons"
     )
     parser.add_argument(
         "--num_samples",

@@ -11,11 +11,9 @@ source /home/hyeryung/.bashrc
 source /home/hyeryung/miniconda3/etc/profile.d/conda.sh
 conda activate loc-edit
 
-DATA_DIR=/data/hyeryung
+DATA_DIR=/home/hyeryung/data
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
-export HF_DATASETS_CACHE=/home/hyeryung/data/hf_cache
-export TRANSFORMERS_CACHE=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
 # srun python new_module/mlm_reranking_all.py --method mlm-beamsearch-v0 \
@@ -31,7 +29,7 @@ export LOGGING_LEVEL=INFO
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
-# --min_epsilons 0.75 \
+# --thresholds 0.75 \
 # --wandb_project 'toxicity-decoding' \
 # --model_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/step_2800_best_checkpoint/' \
 # --tokenizer_paths 'gpt2-large' '/shared/s3/lab07/hyeryung/loc_edit/roberta-base-jigsaw-toxicity-classifier-with-gpt2-large-embeds-energy-training/step_2800_best_checkpoint/' \
@@ -54,7 +52,7 @@ export LOGGING_LEVEL=INFO
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
-# --min_epsilons 0.9 \
+# --thresholds 0.9 \
 # --wandb_project 'toxicity-decoding' \
 # --model_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
 # --tokenizer_paths 'gpt2-large' '/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint' \
@@ -82,7 +80,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v1 \
 --source_style toxic \
 --target_style nontoxic \
 --target_label_ids 0 0 \
---min_epsilons 0.75 \
+--thresholds 0.75 \
 --wandb_project toxicity-decoding \
 --model_paths 'gpt2-large' "${DATA_DIR}/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint" \
 --tokenizer_paths 'gpt2-large' "${DATA_DIR}/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint" \

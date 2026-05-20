@@ -98,7 +98,7 @@ srun python new_module/decode_new_for_testset_iter.py \
  --max-output-length=20\
  --max-prefix-length=50\
  --metric='l2'\
- --min_epsilons='-1.09861228867'\
+ --thresholds='-1.09861228867'\
  --model='gpt2-large:/shared/s3/lab07/hyeryung/loc_edit/roberta-base-pt16-formality-classifier-with-gpt2-large-embeds/step_1116_best_checkpoint/'\
  --model_dtype='fp32'\
  --model_types='AutoModelForCausalLM:RobertaCustomForSequenceClassification'\
