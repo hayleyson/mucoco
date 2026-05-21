@@ -15,7 +15,7 @@ export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 export LOGGING_LEVEL=INFO
 
-# srun python new_module/new_mlm_reranking_all.py \
+# srun python new_module/ebm_edit_main.py \
 # --method mlm-reranking \
 # --num_edit_token_per_step 5 \
 # --locate_unit token \
@@ -45,7 +45,7 @@ export LOGGING_LEVEL=INFO
 
 
 # # to save time, also run the code in reverse order
-# srun python new_module/new_mlm_reranking_all.py \
+# srun python new_module/ebm_edit_main.py \
 # --method mlm-reranking \
 # --num_edit_token_per_step 5 \
 # --locate_unit token \
@@ -74,7 +74,7 @@ export LOGGING_LEVEL=INFO
 # to finish before noon tomorrow (6/3), init 3 more runs
 
 
-# srun python new_module/new_mlm_reranking_all_140.py \
+# srun python new_module/ebm_edit_main_140.py \
 # --method mlm-reranking \
 # --num_edit_token_per_step 5 \
 # --locate_unit token \
@@ -100,7 +100,7 @@ export LOGGING_LEVEL=INFO
 # --server_time_limit 48 \
 # --dont_skip_allsat
 
-# srun python new_module/new_mlm_reranking_all_235.py \
+# srun python new_module/ebm_edit_main_235.py \
 # --method mlm-reranking \
 # --num_edit_token_per_step 5 \
 # --locate_unit token \
@@ -126,7 +126,7 @@ export LOGGING_LEVEL=INFO
 # --server_time_limit 48 \
 # --dont_skip_allsat
 
-srun python new_module/new_mlm_reranking_all_330.py \
+srun python new_module/ebm_edit_main_330.py \
 --method mlm-reranking \
 --num_edit_token_per_step 5 \
 --locate_unit token \

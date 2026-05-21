@@ -15,7 +15,7 @@ conda activate loc-edit
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
@@ -43,7 +43,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --model_types AutoModelForCausalLM EncoderModel
 
 # # sweep으로 돌릴 때 7,15 / 7,10 에서 에러가 나서 따로 돌림
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 1  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -71,7 +71,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --model_types AutoModelForCausalLM EncoderModel
 
 # # threshold 0.9 데이터에 대해서 실행
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 1  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \

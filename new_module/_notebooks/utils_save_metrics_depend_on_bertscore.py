@@ -3,7 +3,7 @@ import numpy as np
 import os
 os.chdir('/home/hyeryung/data/mucoco')
 import pandas as pd
-from evaluation.prompted_sampling.evaluate import distinctness, repetition
+from new_module.evaluation.metrics import distinctness, repetition
 from transformers import AutoTokenizer
 
 ## TOXICITY TASK

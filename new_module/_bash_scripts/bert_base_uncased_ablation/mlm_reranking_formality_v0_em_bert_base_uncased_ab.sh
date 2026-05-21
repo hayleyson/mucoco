@@ -17,7 +17,7 @@ export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-# srun python /home/hyeryung/data/mucoco/new_module/new_mlm_reranking_all_bert_uncased_ab.py --method mlm-beamsearch-v0 \
+# srun python /home/hyeryung/data/mucoco/new_module/ebm_edit_main_bert_uncased_ab.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5  \
 # --locate_unit word \
 # --k_per_location 10 \
@@ -42,7 +42,7 @@ export LOGGING_LEVEL=INFO
 # --server_time_limit 12 \
 # --dont_skip_allsat
 
-srun python /home/hyeryung/data/mucoco/new_module/new_mlm_reranking_all_bert_uncased_ab.py --method mlm-beamsearch-v0 \
+srun python /home/hyeryung/data/mucoco/new_module/ebm_edit_main_bert_uncased_ab.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
 --k_per_location 10 \

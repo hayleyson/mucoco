@@ -19,7 +19,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # dataset for sweep : new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105_sweep_1000.jsonl
 
 for threshold in 0.40 0.48 0.50 0.60 0.70 0.80 0.90 0.95 0.99 0.997154 ; do
-    srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+    srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
     --num_edit_token_per_step 7  \
     --max_tokens_per_span 3 \
     --locate_unit word \

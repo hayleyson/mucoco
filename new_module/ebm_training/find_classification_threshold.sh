@@ -22,7 +22,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --batch_size 64 \
 # --num_workers 2
 # --save_testset_edit_candidates \
-# --testset_path new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl \
+# --testset_path new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl \
 # --threshold 0.95
 
 # Save data according to the threshold
@@ -34,7 +34,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --batch_size 64 \
 # --num_workers 2 \
 # --save_testset_edit_candidates \
-# --testset_path new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl \
+# --testset_path new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150.jsonl \
 # --threshold 0.29
 
 # # Find out best thresholds
@@ -60,11 +60,11 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 
 srun -n 1 -c 1 python new_module/ebm_training/find_classification_threshold.py \
 --model_path /home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/ \
---validation_dataset_path /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nli_ifeval/gpt-3.5-turbo-0125_nli_ifeval_150_postprocessed.jsonl \
+--validation_dataset_path /home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nli_ifeval/gpt-3.5-turbo-0125_nli_ifeval_150_postprocessed.jsonl \
 --task nli \
 --label_id 1 \
 --batch_size 32 \
 --num_workers 2 \
 --save_testset_edit_candidates \
---testset_path /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nli_ifeval/gpt-3.5-turbo-0125_nli_ifeval_150_postprocessed.jsonl \
+--testset_path /home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nli_ifeval/gpt-3.5-turbo-0125_nli_ifeval_150_postprocessed.jsonl \
 --threshold 0.99

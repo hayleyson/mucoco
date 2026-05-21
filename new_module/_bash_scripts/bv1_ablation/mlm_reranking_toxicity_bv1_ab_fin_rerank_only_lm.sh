@@ -21,7 +21,7 @@ export LOGGING_LEVEL=INFO
 # ~selection_criteria 를 weighted sum으로 해주어야 함.~ -> 코드를 수정하고 나서는 꼭 그럴 필요가 없음. allsat으로 실험
 # history: 원래는 LM 만 고려해서 update 여부까지 결정했는데, 그렇게 하니까 아예 update 자체가 안되어서 
 # update 여부 결정 시에는 EM 과 LM 을 모두 고려하도록 코드를 수정. (수정방법: final_reranking에서 weighted sum도 제대로 계산하고 다만 그 함수 안에서의 best 결정 때만 fluency score만 고려하도록 수정)
-srun python new_module/new_mlm_reranking_all_bv1_ab.py \
+srun python new_module/ebm_edit_main_bv1_ab.py \
 --method mlm-beamsearch-v1 \
 --num_edit_token_per_step 5 \
 --locate_unit word \

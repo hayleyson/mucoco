@@ -10,7 +10,7 @@ import transformers
 import wandb
 from torch.utils.data import DataLoader,Dataset
 
-import new_module.losses as lossbuilder
+import new_module.edit.ebm.losses as lossbuilder
 
 logging.basicConfig(level=os.environ.get('LOGGING_LEVEL', 'DEBUG').upper(), 
                     format='%(message)s')

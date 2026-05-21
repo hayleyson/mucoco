@@ -19,7 +19,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # dataset for sweep : new_module/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105_sweep_1000.jsonl
 
 # # 튜닝 다시..
-# srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep_n_iter.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -47,7 +47,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM EncoderModel
 
 # # 확정된 hyperparameter로 돌리기 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -75,7 +75,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM EncoderModel
 
 # # min epsilon에 대한 ablation
-# srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -101,7 +101,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --losses gpt2_no_prefix classification \
 # --model_types AutoModelForCausalLM EncoderModel
 
-python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
@@ -128,7 +128,7 @@ python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --model_types AutoModelForCausalLM EncoderModel \
 --dont_skip_allsat
 
-# srun python new_module/new_mlm_reranking_all.py \
+# srun python new_module/ebm_edit_main.py \
 # --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7 \
 # --max_tokens_per_span 3 \
@@ -144,7 +144,7 @@ python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 # --dont_skip_allsat \
 # --task nli \
 # --output_dir_prefix /home/hyeryung/data/mucoco/outputs/nli_ifeval/ebm/th0.99 \
-# --source_data /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nli_ifeval/gpt-3.5-turbo-0125_nli_ifeval_150_postprocessed_edit_candidates_0_99.jsonl \
+# --source_data /home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nli_ifeval/gpt-3.5-turbo-0125_nli_ifeval_150_postprocessed_edit_candidates_0_99.jsonl \
 # --source_style inconsistent \
 # --target_style consistent \
 # --target_label_ids 1 1 \

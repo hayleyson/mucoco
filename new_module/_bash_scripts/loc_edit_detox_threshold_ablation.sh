@@ -16,7 +16,7 @@ export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
 for threshold in 0.39 0.40 0.50 0.60 0.70 0.80 0.90 0.95 0.99; do
-    srun python new_module/new_mlm_reranking_all.py \
+    srun python new_module/ebm_edit_main.py \
     --method mlm-beamsearch-v0 \
     --num_edit_token_per_step 7 \
     --max_tokens_per_span 3 \
@@ -31,7 +31,7 @@ for threshold in 0.39 0.40 0.50 0.60 0.70 0.80 0.90 0.95 0.99; do
     --early_stopping_patience 0 \
     --task toxicity \
     --output_dir_prefix outputs/toxicity/gpt3_5_gen/ebm \
-    --source_data /home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl \
+    --source_data /home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl \
     --source_style toxic \
     --target_style nontoxic \
     --target_label_ids 0 0 \

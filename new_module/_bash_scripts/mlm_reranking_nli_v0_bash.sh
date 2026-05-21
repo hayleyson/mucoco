@@ -1,4 +1,4 @@
-# python new_module/new_mlm_reranking_all_debug.py --method mlm-beamsearch-v0 \
+# python new_module/ebm_edit_main_debug.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -25,7 +25,7 @@
 # --losses gpt2_no_prefix classification \
 # --model_types AutoModelForCausalLM EncoderModel
 
-python new_module/new_mlm_reranking_all_debug.py --method mlm-beamsearch-v0 \
+python new_module/ebm_edit_main_debug.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
@@ -40,7 +40,7 @@ python new_module/new_mlm_reranking_all_debug.py --method mlm-beamsearch-v0 \
 --dont_skip_allsat \
 --task toxicity \
 --output_dir_prefix 'outputs/toxicity/llm' \
---source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl' \
+--source_data '/home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl' \
 --source_style 'toxic' \
 --target_style 'nontoxic' \
 --target_label_ids 0 0 \

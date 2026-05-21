@@ -46,7 +46,7 @@ export LOGGING_LEVEL=INFO
 # --locate_method 'grad_norm'
 
 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5  \
 # --locate_unit word \
 # --k_per_location 10 \
@@ -73,7 +73,7 @@ export LOGGING_LEVEL=INFO
 # --server_time_limit 12
 
 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5  \
 # --locate_unit word \
 # --k_per_location 10 \
@@ -100,4 +100,4 @@ export LOGGING_LEVEL=INFO
 # --server_time_limit 12
 
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 --num_edit_token_per_step 5 --locate_unit word --k_per_location 10 --n_iter 10 --beam_size 3 --loss_weights 0.1 0.9 --selection_criteria allsat_primary --task sentiment --num_samples 20 --source_data new_module/data/sentiment/dev_set.jsonl --source_style positive --target_style negative --target_label_ids 1 0 --thresholds 0.9 --wandb_project sentiment-decoding --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint --model_types AutoModelForCausalLM AutoModelForSequenceClassification --output_dir_prefix outputs/sentiment/final --slurm_job_id 9051 --early_stopping_patience 0 --locate_method grad_norm --dont_skip_allsat --server_time_limit 12
+srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 --num_edit_token_per_step 5 --locate_unit word --k_per_location 10 --n_iter 10 --beam_size 3 --loss_weights 0.1 0.9 --selection_criteria allsat_primary --task sentiment --num_samples 20 --source_data new_module/data/sentiment/dev_set.jsonl --source_style positive --target_style negative --target_label_ids 1 0 --thresholds 0.9 --wandb_project sentiment-decoding --model_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint --tokenizer_paths gpt2-large /home/hyeryung/data/loc_edit/models/roberta-base-yelp-sentiment-classifier-energy-training/step_81900_best_checkpoint --model_types AutoModelForCausalLM AutoModelForSequenceClassification --output_dir_prefix outputs/sentiment/final --slurm_job_id 9051 --early_stopping_patience 0 --locate_method grad_norm --dont_skip_allsat --server_time_limit 12

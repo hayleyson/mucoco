@@ -16,7 +16,7 @@ export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
 # # clsf에 대해서 loss weights tuning -> k, beam tuning
-# srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -45,7 +45,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 
 # # 전체 데이터에 대해서 돌리기
 # # 250302 : num_edit_token_per_step = 1로도 돌려봄
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \

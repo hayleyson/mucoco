@@ -15,7 +15,7 @@ conda activate loc-edit
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
-# srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 1  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -43,7 +43,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM EncoderModel
 
 # threshold 0.9 데이터에 대해서 진행
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
@@ -72,7 +72,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 
 # # threshold 0.9 데이터에 대해서 진행
 # # fluency energy model을 qwen으로 바꿔서 진행 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 1  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -101,7 +101,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 
 # # threshold 0.9 데이터에 대해서 진행
 # # gpt3.5 생성문을 gemma로 수정
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \

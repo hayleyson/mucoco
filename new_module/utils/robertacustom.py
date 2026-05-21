@@ -1,15 +1,23 @@
-import logging
+"""
+Custom Roberta models whose embedding layer comprises a linear layer 
+that maps frozen embedding weights from another model 
+to the learned embeddings of the RoBERTa model.
+
+The code is to run MuCoLa as a baseline and adapted from MuCoLa's git repository (https://github.com/Sachin19/mucoco/tree/sampling2).
+"""
+
+import logging, os
 from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
-from transformers import RobertaModel, RobertaPreTrainedModel
-from transformers.modeling_outputs import MaskedLMOutput, SequenceClassifierOutput
+from transformers import RobertaModel, RobertaPreTrainedModel, AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
+from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.roberta.modeling_roberta import (
     RobertaClassificationHead,
-    RobertaLMHead,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -106,210 +114,106 @@ class RobertaCustomForSequenceClassification(RobertaPreTrainedModel):
         )
 
 
-class RobertaCustomForMaskedLM(RobertaPreTrainedModel):
-    _tied_weights_keys = ["lm_head.decoder.weight", "lm_head.decoder.bias"]
+def define_model(num_classes:int = 2,
+                 mod_path:str=None, 
+                 load_weights:bool=True, 
+                 output_attentions:bool=False, 
+                 output_hidden_states:bool=False,
+                 device:torch.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
+                 embedding_model:str='gpt2-large',
+                 encoder_model:str='roberta-base',
+                 task:str=None)-> Tuple[AutoModelForSequenceClassification, AutoTokenizer]:
 
-    def __init__(self, config):
-        super().__init__(config)
+    tokenizer_ = AutoTokenizer.from_pretrained(encoder_model)
+    if embedding_model != "none":
+        tokenizer = AutoTokenizer.from_pretrained(embedding_model)
+        tokenizer.model_max_length = min(tokenizer_.model_max_length, tokenizer.model_max_length)
+    else:
+        tokenizer = tokenizer_
+        # tokenizer = AutoTokenizer.from_pretrained(encoder_model)
+        
+    config = AutoConfig.from_pretrained(encoder_model, num_labels=num_classes)
+    config2 = None
+    if embedding_model != "none":  
+        config2 = AutoConfig.from_pretrained(embedding_model, num_labels=num_classes)
+        # print(config2.pad_token_id)
+        config2.pad_token_id = tokenizer.pad_token_id
+        # print(config2.pad_token_id)
+        # print("look above for padding")
 
-        if config.is_decoder:
-            logger.warning(
-                "If you want to use `RobertaForMaskedLM` make sure `config.is_decoder=False` for "
-                "bi-directional self-attention."
-            )
+        tokenizer_ = AutoTokenizer.from_pretrained(encoder_model, config=config)
+        tokenizer.model_max_length = min(tokenizer_.model_max_length, tokenizer.model_max_length)
 
+    SPECIAL_TOKENS = {}
+    if "pad_token" not in tokenizer.special_tokens_map:
+        SPECIAL_TOKENS.update({"pad_token": tokenizer.eos_token})
+    if ("bos_token" not in tokenizer.special_tokens_map) and (task == "nli"):
+        SPECIAL_TOKENS.update({"bos_token": tokenizer.eos_token})
+    if ("sep_token" not in tokenizer.special_tokens_map) and (task == "nli"):
+        SPECIAL_TOKENS.update({"sep_token": tokenizer.eos_token})
+    # config.pad_token_id = tokenizer.eos_token_id
+    # print("Adding special tokens")
+    tokenizer.add_special_tokens(SPECIAL_TOKENS)
+    print(tokenizer.special_tokens_map)
 
-        self.num_labels = config.num_labels
-        self.config = config
-        # print(config.vocab_size)
+    # if embedding_model != "none":
+    model = AutoModelForSequenceClassification.from_pretrained(embedding_model, config=config2) # unindented
+    # model.resize_token_embeddings(len(tokenizer))
 
+    def learn_vecmap(X, y):
+        # print("computing vecmap")
+        w = torch.inverse(X.t().matmul(X)).matmul(X.t()).matmul(y)
+        vecmap = torch.nn.Linear(w.size(0), w.size(1), bias=False)
+        # print(w.size(), vecmap.weight.size())
+        vecmap.weight.data.copy_(w.data.t())
+        return vecmap
 
-        self.roberta = RobertaModel(config, add_pooling_layer=False)
-        embeds = self.roberta.get_input_embeddings()
-        old_dim = getattr(config,'n_embd', embeds.embedding_dim)
-        new_dim = getattr(config,'new_n_embd', None)
-        new_vocab_size = getattr(config,'new_vocab_size', config.vocab_size)
-        if new_dim is not None:
-            new_embeds = nn.Sequential(nn.Embedding(new_vocab_size, new_dim), nn.Linear(new_dim, old_dim, bias=False))
-            self.roberta.set_input_embeddings(new_embeds)
+    def vocab_permutation(vocab1, vocab2):
+        vocab2itos = {k:v for v,k in vocab2.items()}
+        vocab2list = [vocab2itos[k] for k in range(len(vocab2itos))]
 
-        self.lm_head = RobertaLMHead(config) ## Concern: roberta vocab
+        perm1 = []
+        perm2 = []
+        unincluded = []
+        for i, word in enumerate(vocab2list):
+            if word in vocab1:
+                perm1.append(vocab1[word])
+                perm2.append(i)
+            else:
+                unincluded.append(word)
 
-        # self.init_weights() ## ToDo: post_init?
-        # Initialize weights and apply final processing
-        self.post_init()
+        # print(unincluded)
+        return perm1, perm2
 
-    def forward(
-            self,
-            input_ids: Optional[torch.LongTensor] = None,
-            attention_mask: Optional[torch.FloatTensor] = None,
-            token_type_ids: Optional[torch.LongTensor] = None,
-            position_ids: Optional[torch.LongTensor] = None,
-            head_mask: Optional[torch.FloatTensor] = None,
-            inputs_embeds: Optional[torch.FloatTensor] = None,
-            encoder_hidden_states: Optional[torch.FloatTensor] = None,
-            encoder_attention_mask: Optional[torch.FloatTensor] = None,
-            labels: Optional[torch.LongTensor] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
-        ) -> Union[Tuple[torch.Tensor], MaskedLMOutput]:
-            r"""
-            labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Labels for computing the masked language modeling loss. Indices should be in `[-100, 0, ...,
-                config.vocab_size]` (see `input_ids` docstring) Tokens with indices set to `-100` are ignored (masked), the
-                loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`
-            kwargs (`Dict[str, any]`, optional, defaults to *{}*):
-                Used to hide legacy arguments that have been deprecated.
-            """
-            return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+    embeds = model.get_input_embeddings()
+    new_embeds = torch.nn.Embedding(embeds.num_embeddings, embeds.embedding_dim)
+    for p in new_embeds.parameters():
+        p.requires_grad = False
 
-            outputs = self.roberta(
-                input_ids,
-                attention_mask=attention_mask,
-                token_type_ids=token_type_ids,
-                position_ids=position_ids,
-                head_mask=head_mask,
-                inputs_embeds=inputs_embeds,
-                encoder_hidden_states=encoder_hidden_states,
-                encoder_attention_mask=encoder_attention_mask,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
-            sequence_output = outputs[0]
-            prediction_scores = self.lm_head(sequence_output)
+    new_embeds.weight.data.copy_(embeds.weight)
+    config.new_n_embd = new_embeds.embedding_dim
+    config.new_vocab_size = new_embeds.num_embeddings
+    config.output_attentions=output_attentions
+    config.output_hidden_states=output_hidden_states
 
-            masked_lm_loss = None
-            if labels is not None:
-                # move labels to correct device to enable model parallelism
-                labels = labels.to(prediction_scores.device)
-                loss_fct = CrossEntropyLoss()
-                masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
+    model_ = AutoModelForSequenceClassification.from_pretrained(encoder_model, config=config)
+    tokenizer_ = AutoTokenizer.from_pretrained(encoder_model, config=config)
 
-            if not return_dict:
-                output = (prediction_scores,) + outputs[2:]
-                return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+    perm, perm_ = vocab_permutation(tokenizer.vocab, tokenizer_.vocab)
+    old_embeds = model_.get_input_embeddings()
+    vecmap = learn_vecmap(new_embeds.weight[perm], old_embeds.weight[perm_])
+    new_embeds = torch.nn.Sequential(new_embeds, vecmap)
+    model_.set_input_embeddings(new_embeds)
+    model = model_
 
-            return MaskedLMOutput(
-                loss=masked_lm_loss,
-                logits=prediction_scores,
-                hidden_states=outputs.hidden_states,
-                attentions=outputs.attentions,
-            )
+    print("DEVICE: ", device)
 
-# @add_start_docstrings("""RoBERTa Model with a `language modeling` head on top.""", ROBERTA_START_DOCSTRING)
-# class RobertaForMaskedLM(RobertaPreTrainedModel):
-#     _tied_weights_keys = ["lm_head.decoder.weight", "lm_head.decoder.bias"]
+    # state_dict
+    if load_weights and (mod_path is not None):
+        mod = torch.load(mod_path, map_location=device)
+        model.load_state_dict(mod)
 
-#     def __init__(self, config):
-#         super().__init__(config)
+    model.to(device)
 
-#         if config.is_decoder:
-#             logger.warning(
-#                 "If you want to use `RobertaForMaskedLM` make sure `config.is_decoder=False` for "
-#                 "bi-directional self-attention."
-#             )
-
-#         self.roberta = RobertaModel(config, add_pooling_layer=False)
-#         self.lm_head = RobertaLMHead(config)
-
-#         # Initialize weights and apply final processing
-#         self.post_init()
-
-#     def get_output_embeddings(self):
-#         return self.lm_head.decoder
-
-#     def set_output_embeddings(self, new_embeddings):
-#         self.lm_head.decoder = new_embeddings
-
-#     @add_start_docstrings_to_model_forward(ROBERTA_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-#     @add_code_sample_docstrings(
-#         checkpoint=_CHECKPOINT_FOR_DOC,
-#         output_type=MaskedLMOutput,
-#         config_class=_CONFIG_FOR_DOC,
-#         mask="<mask>",
-#         expected_output="' Paris'",
-#         expected_loss=0.1,
-#     )
-#     def forward(
-#         self,
-#         input_ids: Optional[torch.LongTensor] = None,
-#         attention_mask: Optional[torch.FloatTensor] = None,
-#         token_type_ids: Optional[torch.LongTensor] = None,
-#         position_ids: Optional[torch.LongTensor] = None,
-#         head_mask: Optional[torch.FloatTensor] = None,
-#         inputs_embeds: Optional[torch.FloatTensor] = None,
-#         encoder_hidden_states: Optional[torch.FloatTensor] = None,
-#         encoder_attention_mask: Optional[torch.FloatTensor] = None,
-#         labels: Optional[torch.LongTensor] = None,
-#         output_attentions: Optional[bool] = None,
-#         output_hidden_states: Optional[bool] = None,
-#         return_dict: Optional[bool] = None,
-#     ) -> Union[Tuple[torch.Tensor], MaskedLMOutput]:
-#         r"""
-#         labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-#             Labels for computing the masked language modeling loss. Indices should be in `[-100, 0, ...,
-#             config.vocab_size]` (see `input_ids` docstring) Tokens with indices set to `-100` are ignored (masked), the
-#             loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`
-#         kwargs (`Dict[str, any]`, optional, defaults to *{}*):
-#             Used to hide legacy arguments that have been deprecated.
-#         """
-#         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-#         outputs = self.roberta(
-#             input_ids,
-#             attention_mask=attention_mask,
-#             token_type_ids=token_type_ids,
-#             position_ids=position_ids,
-#             head_mask=head_mask,
-#             inputs_embeds=inputs_embeds,
-#             encoder_hidden_states=encoder_hidden_states,
-#             encoder_attention_mask=encoder_attention_mask,
-#             output_attentions=output_attentions,
-#             output_hidden_states=output_hidden_states,
-#             return_dict=return_dict,
-#         )
-#         sequence_output = outputs[0]
-#         prediction_scores = self.lm_head(sequence_output)
-
-#         masked_lm_loss = None
-#         if labels is not None:
-#             # move labels to correct device to enable model parallelism
-#             labels = labels.to(prediction_scores.device)
-#             loss_fct = CrossEntropyLoss()
-#             masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
-
-#         if not return_dict:
-#             output = (prediction_scores,) + outputs[2:]
-#             return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
-
-#         return MaskedLMOutput(
-#             loss=masked_lm_loss,
-#             logits=prediction_scores,
-#             hidden_states=outputs.hidden_states,
-#             attentions=outputs.attentions,
-#         )
-
-
-# class RobertaLMHead(nn.Module):
-#     """Roberta Head for masked language modeling."""
-
-#     def __init__(self, config):
-#         super().__init__()
-#         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-#         self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-
-#         self.decoder = nn.Linear(config.hidden_size, config.vocab_size)
-#         self.bias = nn.Parameter(torch.zeros(config.vocab_size))
-#         self.decoder.bias = self.bias
-
-#     def forward(self, features, **kwargs):
-#         x = self.dense(features)
-#         x = gelu(x)
-#         x = self.layer_norm(x)
-
-#         # project back to size of vocabulary with bias
-#         x = self.decoder(x)
-
-#         return x
+    return model, tokenizer
+    

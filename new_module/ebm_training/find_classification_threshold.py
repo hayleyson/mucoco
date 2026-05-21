@@ -1,3 +1,9 @@
+"""
+This script finds the classification threshold that achieves the best [metric] score on the validation dataset
+and saves the testset edit candidates according to the best F1 threshold.
+It can also be run with a specific threshold to save the testset edit candidates.
+"""
+
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 from torch.utils.data import DataLoader
@@ -9,8 +15,8 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score, precision_recall_fscore_support
 import torch.nn.functional as F
-from new_module.ebm_training.nli.models import EncoderModel
-from new_module.dev_utils.utils import read_outputs, ravel
+from new_module.ebm_training.nli.models.encoder import EncoderModel
+from new_module.utils.utils import read_outputs, ravel
 
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -210,7 +216,7 @@ if __name__ == "__main__":
         print(f"Best Precision threshold: {result['precision_threshold']}, Best Precision: {result['precision']}")
         print(f"Class probability percentiles: {result['class_probability_percentiles']}")
         if args.save_testset_edit_candidates:
-            save_testset_edit_candidates(args.model_path, args.testset_path, args.task, args.label_id, result['acc_threshold'], args.batch_size, args.num_workers)
+            save_testset_edit_candidates(args.model_path, args.testset_path, args.task, args.label_id, result['f1_threshold'], args.batch_size, args.num_workers)
     else:
         if args.save_testset_edit_candidates:
             save_testset_edit_candidates(args.model_path, args.testset_path, args.task, args.label_id, args.threshold, args.batch_size, args.num_workers)

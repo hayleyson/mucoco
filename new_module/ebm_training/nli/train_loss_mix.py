@@ -19,10 +19,11 @@ from transformers import get_linear_schedule_with_warmup, get_cosine_with_hard_r
 from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_fscore_support, accuracy_score
 import seaborn as sns
 
-from new_module.ebm_training.nli.models import EncoderModel
-from new_module.ebm_training.nli.data_handling import load_nli_data, load_additional_nli_training_data, NLI_Dataset, NLI_DataLoader, NLI_TrainBatchSampler_Binary, NLI_TrainBatchSampler_Continuous
-from new_module.ebm_training.nli.train_modules import *
-from new_module.ebm_training.nli.losses import create_pairs_for_ranking, CustomMarginRankingLoss, PairwiseLogisticLoss, MSE_MarginRankingLoss
+from new_module.ebm_training.nli.models.encoder import EncoderModel
+from new_module.ebm_training.nli.data_utils.datasets_loaders import NLI_Dataset, NLI_DataLoader, NLI_TrainBatchSampler_Binary, NLI_TrainBatchSampler_Continuous
+from new_module.ebm_training.nli.data_utils.prepare_datasets import load_nli_data, load_additional_nli_training_data
+from new_module.ebm_training.nli.training_utils.train_val_helpers import *
+from new_module.ebm_training.nli.losses.losses import create_pairs_for_ranking, CustomMarginRankingLoss, PairwiseLogisticLoss, MSE_MarginRankingLoss
 
 def main():
     

@@ -5,8 +5,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 import mucoco.losses as lossbuilder
 from mucoco.utils import TargetEmbeddings, RobertaCustomForSequenceClassification
-from new_module.dev_utils.utils import read_outputs
-from new_module.utils.load_ckpt import define_model
+from new_module.utils.utils import read_outputs
+from new_module.utils.robertacustom import define_model
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

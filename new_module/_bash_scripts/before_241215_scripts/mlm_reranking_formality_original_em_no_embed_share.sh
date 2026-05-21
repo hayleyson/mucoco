@@ -18,7 +18,7 @@ export PYTHONPATH=.
 export HF_HOME=$DATA_DIR/hf_cache
 export LOGGING_LEVEL=INFO
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-reranking \
+srun python new_module/ebm_edit_main.py --method mlm-reranking \
 --num_edit_token_per_step 4  \
 --locate_unit token \
 --k_per_location 3 \

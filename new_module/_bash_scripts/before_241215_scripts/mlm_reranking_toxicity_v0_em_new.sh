@@ -37,7 +37,7 @@ export LOGGING_LEVEL=INFO
 # --early_stopping_patience 0 \
 # --locate_method 'grad_norm'
 
-python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5  \
 --locate_unit word \
 --beam_size 3 \

@@ -15,7 +15,7 @@ conda activate loc-edit
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
-# srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -42,7 +42,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
-# srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep_n_iter.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 1  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -69,7 +69,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 4  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -97,7 +97,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 
-# srun python new_module/new_mlm_reranking_all_sweep.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 1  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -124,7 +124,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --losses gpt2 classification_no_prefix_logprobloss \
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
-# srun python new_module/new_mlm_reranking_all_sweep_n_iter.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main_sweep_n_iter.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -152,7 +152,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \

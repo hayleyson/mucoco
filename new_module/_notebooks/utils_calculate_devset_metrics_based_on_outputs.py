@@ -52,7 +52,7 @@ res_fp.write(f"avg toxicity: {toxicity.loc[:, 'toxicity'].mean()}\n")
 res_fp.write(f"toxic proba: {(toxicity.loc[:, 'toxicity'] > 0.5).mean()}\n")
     
 # dist-3
-from evaluation.prompted_sampling.evaluate import distinctness
+from new_module.evaluation.metrics import distinctness
 def unravel(outputs_df):
     outputs_df=outputs_df.explode('generations',ignore_index=True)
     outputs_df['prompt']=outputs_df['prompt'].apply(lambda x: x['text'])

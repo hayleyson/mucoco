@@ -627,5 +627,5 @@ def draw_violin_plot_supervised(total_info_for_violinplot, vio_plot_column_name,
         fig.savefig(p[:-4] + "_datatype_" + p[-4:])
     plt.close()
 
-    
+
 

@@ -15,7 +15,7 @@ conda activate loc-edit
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -30,7 +30,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --dont_skip_allsat \
 # --task toxicity \
 # --output_dir_prefix 'outputs/toxicity/multi' \
-# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150_below_nontoxic_threshold_0_95_2056.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150_below_nontoxic_threshold_0_95_2056.jsonl' \
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
@@ -43,7 +43,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -58,7 +58,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --dont_skip_allsat \
 # --task toxicity \
 # --output_dir_prefix 'outputs/toxicity/multi' \
-# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_150_below_nontoxic_threshold_0_95_1082.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_150_below_nontoxic_threshold_0_95_1082.jsonl' \
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
@@ -71,7 +71,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 
-# srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+# srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 7  \
 # --max_tokens_per_span 3 \
 # --locate_unit word \
@@ -85,7 +85,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --early_stopping_patience 0 \
 # --task toxicity \
 # --output_dir_prefix 'outputs/toxicity/multi' \
-# --source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_150.jsonl' \
+# --source_data '/home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_150.jsonl' \
 # --source_style 'toxic' \
 # --target_style 'nontoxic' \
 # --target_label_ids 0 0 \
@@ -98,7 +98,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 # --model_types AutoModelForCausalLM AutoModelForSequenceClassification
 
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \
@@ -112,7 +112,7 @@ srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
 --early_stopping_patience 0 \
 --task toxicity \
 --output_dir_prefix 'outputs/toxicity/multi' \
---source_data '/home/hyeryung/data/mucoco/new_module/llm_experiments/generate_with_llm/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150.jsonl' \
+--source_data '/home/hyeryung/data/mucoco/new_module/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/multi/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_nontoxic_neg_informal_150.jsonl' \
 --source_style 'toxic' \
 --target_style 'nontoxic' \
 --target_label_ids 0 0 \

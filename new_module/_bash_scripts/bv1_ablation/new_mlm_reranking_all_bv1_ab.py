@@ -16,7 +16,7 @@ import torch
 import transformers
 from transformers import AutoConfig, AutoModelForMaskedLM, AutoTokenizer
 
-import new_module.losses as lossbuilder
+import new_module.edit.ebm.losses as lossbuilder
 import wandb
 # from new_module.decode_utils import (
 #     beam_rerank_v0,
@@ -24,9 +24,9 @@ import wandb
 #     beam_rerank_v2,
 #     combi_rerank,
 # )
-from new_module.new_decode_utils_bv1_ab import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking_bv1_ab
+from new_module.edit.ebm.decoding_utils_bv1_ab import get_beam_hypotheses_v0, get_beam_hypotheses_v1, get_combi_hypotheses, final_reranking_bv1_ab
 from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
-from new_module.locate.new_locate_utils import LocateMachine
+from new_module.locate.ebm.locate_utils import LocateMachine
 from new_module.utils.robertacustom import RobertaCustomForSequenceClassification
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")

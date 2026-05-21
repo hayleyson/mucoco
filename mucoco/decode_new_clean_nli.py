@@ -21,7 +21,7 @@ import mucoco.options as options
 import mucoco.utils as utils
 import torch.nn.functional as F
 
-from new_module.utils.load_ckpt import define_model
+from new_module.utils.robertacustom import define_model
 from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
 
 # To control logging level for various modules used in the application:

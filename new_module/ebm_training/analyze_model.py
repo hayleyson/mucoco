@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+"""
+This script analyzes the model's performance on the [valid/test] dataset.
+It plots the boxplot of the predictions and the labels.
+It also saves raw predictions to a csv file and a set of binary classification and regression evaluation metrics to a txt file.
+"""
+
 import os
 import sys
 import math
@@ -23,8 +29,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, confusion_m
 import seaborn as sns
 
 import mucoco.utils as utils
-from new_module.ebm_training.nli.models import EncoderModel
-from new_module.utils.load_ckpt import define_model
+from new_module.ebm_training.nli.models.encoder import EncoderModel
+from new_module.utils.robertacustom import define_model
 
 
 def predict_labels(args, device):

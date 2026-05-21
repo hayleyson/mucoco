@@ -40,7 +40,7 @@ export LOGGING_LEVEL=INFO
 # --locate_method 'grad_norm'
 
 
-srun python new_module/new_mlm_reranking_all.py --method mlm-reranking \
+srun python new_module/ebm_edit_main.py --method mlm-reranking \
 --num_edit_token_per_step 5  \
 --locate_unit token \
 --k_per_location 3 \

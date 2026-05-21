@@ -17,7 +17,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 
 # 250302 : num_edit_token_per_step = 1로도 돌려봄
 # 250323 : 새롭게 tuning된 hyperparams로 돌려봄
-srun python new_module/new_mlm_reranking_all.py --method mlm-beamsearch-v0 \
+srun python new_module/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 7  \
 --max_tokens_per_span 3 \
 --locate_unit word \

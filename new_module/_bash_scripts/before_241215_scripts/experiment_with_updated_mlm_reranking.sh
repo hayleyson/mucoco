@@ -19,7 +19,7 @@ export LOGGING_LEVEL=INFO
 # ## toxicity
 # ## 4kp4ti6s 의 설정을 배끼되, loss_weights만 0.1 1.0으로 바꿈 
 # ## 2트. min_epsilons를 0.75로도 수행
-# srun python new_module/new_mlm_reranking_all.py \
+# srun python new_module/ebm_edit_main.py \
 # --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5 \
 # --locate_unit word \
@@ -52,7 +52,7 @@ export LOGGING_LEVEL=INFO
 # # sentiment positive
 # # 2xn81iv5 의 설정에서 loss weigths 0.1 1.0 으로 하고 min_epsilons 1.0으로 보내버렸음 
 # # update 24/10/05: loss weight에 대해 sweep 할 수 있도록 설정
-# srun python new_module/new_mlm_reranking_all_sweep.py \
+# srun python new_module/ebm_edit_main_sweep.py \
 # --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5 \
 # --locate_unit word \
@@ -86,7 +86,7 @@ export LOGGING_LEVEL=INFO
 # sentiment negative
 # 위 설정에서 target_labels_id만 0 0 으로 변경
 # update 24/10/05: loss weight에 대해 sweep 할 수 있도록 설정
-srun python new_module/new_mlm_reranking_all_sweep_.py \
+srun python new_module/ebm_edit_main_sweep_.py \
 --method mlm-beamsearch-v0 \
 --num_edit_token_per_step 5 \
 --locate_unit word \
@@ -119,7 +119,7 @@ srun python new_module/new_mlm_reranking_all_sweep_.py \
 # # formality
 # # skip 허용 x 
 # # cutgmg96 의 설정에서 loss_weight 0.1 1.0으로 업데이트 
-# srun python new_module/new_mlm_reranking_all.py \
+# srun python new_module/ebm_edit_main.py \
 # --method mlm-beamsearch-v0 \
 # --num_edit_token_per_step 5 \
 # --locate_unit word \
