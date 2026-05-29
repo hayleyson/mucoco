@@ -1,7 +1,0 @@
-# Samples: 115
-Avg. # Tokens per Sample: 23.104347826086958
-Avg. # Tokens Located per Sample: 4.113043478260869
-Avg. # Characters per Sample: 93.6
-Avg. # Characters Located per Sample: 18.660869565217393
-Avg. # Words per Sample: 17.16521739130435
-Avg. # Words Located per Sample: 3.226086956521739

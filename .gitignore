@@ -143,14 +143,14 @@ notebooks/results
 *.out
 **/*.png
 examples/training_constraint_models/**/*.txt
-new_module/ebm_training/**/*.txt
-new_module/_old
+laser_edit/ebm_training/**/*.txt
+laser_edit/_old
 notebooks/evaluate/**/*.xlsx
 marot
 explainable-qe-shared-task/
 lewis/
-new_module/locate/results/
-new_module/**/*.xlsx
+laser_edit/locate/results/
+laser_edit/**/*.xlsx
 BOLT/
 **/*.secrets
 data/
@@ -163,7 +163,7 @@ outputs/
 *.txt
 *.jsonl*
 *.ipynb
-new_module/set_consistency_energy/results/*
+laser_edit/set_consistency_energy/results/*
 *.time
 .DS_Store
 *.pth

@@ -21,7 +21,7 @@ import mucoco.options as options
 import mucoco.utils as utils
 import torch.nn.functional as F
 
-from new_module.evaluation.evaluate_pipeline import run_generation_evaluation
+from laser_edit.evaluation.run_evaluation import run_generation_evaluation
 
 # To control logging level for various modules used in the application:
 # from here: https://github.com/huggingface/transformers/issues/3050

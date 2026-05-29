@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------
+# Base (non-swept) configuration for ebm_edit_main_sc_energy_sweep.py
+# Swept parameters (max_tokens_per_span, num_edit_tokens_per_step,
+# loss_weight_0/1, k_per_location, beam_size) are defined in
+# ebm_edit_main_sc_energy_sweep.yaml and injected by wandb agent.
+# ---------------------------------------------------------------
+
+task: set_nli
+source_data_path: laser_edit/data/set_nli/eval2set_incon_100/set_nli_eval2set_incon_100.jsonl
+
+# Models
+causal_lm_path: Qwen/Qwen2.5-7B-Instruct
+mlm_path: roberta-base
+ebm_params_path: laser_edit/set_consistency_energy/params_set_nli.yaml
+
+# Loss setup
+losses:
+  - gpt2_no_prefix
+  - sc_energy
+# loss_weights[0] and loss_weights[1] will be overridden by the sweep
+loss_weights: [1.0, 10.0]
+target_label_ids: [1, 1]
+
+# Thresholds
+thresholds: [-1]
+threshold_scales:
+  - energy
+
+# Decoding
+n_iter: 8
+locate_mode: ebm
+selection_criteria: allsat_primary
+early_stopping_patience: 0
+dont_skip_allsat: true
+consider_prompt_for_cand_gen: false
+
+# The following are overridden by the sweep:
+max_tokens_per_span: 3
+num_edit_tokens_per_step: 7
+k_per_location: 10
+beam_size: 5
+
+# Output
+output_dir_prefix: outputs/sc_energy/set_nli/ebm/
+
+# wandb
+wandb_project: set-nli-decoding
+wandb_entity: hayleyson
+debug: false

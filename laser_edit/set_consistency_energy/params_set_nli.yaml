@@ -1,0 +1,34 @@
+energynet:
+    loss_type: triplet
+    decomposition: 'no'
+    repre_model: roberta
+    loss_con_incon_ordering: false
+    loss_fully_separate: false
+    loss_incon_incon_ordering: false
+    loss_subset_ordering: false
+    many_pos_vs_one_neg: false
+    one_pos_vs_many_neg: false
+    output_form: real_num
+    supervised:
+        loss: CE
+    triplet:
+        fully_separate_margin: 0.001
+        margin: 0.1
+    weight_con_incon_ordering: 0.1
+    weight_fully_separate: 0.1
+    weight_incon_incon_ordering: 0.1
+    weight_subset_ordering: 0.01
+dataset: 'set_nli'
+model_path: '/home/hyeryung/data/mucoco/laser_edit/set_consistency_energy/results/nli/set_nli/46853/SetCon-roberta-no-triplet-False-fg_tot.pth'
+batch_size: 1
+eval:
+    batch_size: 1
+locate:
+    instance:
+        agg_method: median
+        attentions_num_layer: 11
+        select_method: recursive_max
+        type: attention
+    span:
+        attentions_num_layer: -1
+        type: gradnorm        

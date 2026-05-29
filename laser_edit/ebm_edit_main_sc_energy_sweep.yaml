@@ -1,0 +1,53 @@
+# wandb sweep configuration
+# Register:  wandb sweep laser_edit/ebm_edit_main_sc_energy_sweep.yaml
+# Run agent: wandb agent <entity>/<project>/<sweep_id>
+
+program: laser_edit/ebm_edit_main_sc_energy_sweep.py
+method: bayes   # grid | random | bayes
+metric:
+  name: h1
+  goal: maximize
+
+# Command passed to each agent run.
+# ${env}     – propagates environment variables set by wandb
+# ${program} – expands to the value of `program` above
+# ${args}    – expands to --param1 val1 --param2 val2 ... for each swept parameter
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --config
+  - laser_edit/ebm_edit_main_sc_energy_base_config.yaml
+  - ${args}
+
+parameters:
+  max_tokens_per_span:
+    distribution: int_uniform
+    min: 1
+    max: 4
+
+  num_edit_tokens_per_step:
+    distribution: int_uniform
+    min: 2
+    max: 10
+
+  # loss_weights is a list; sweep each component independently
+  # loss_weight_0 → loss_weights[0] (LM weight); fixed at 1.0
+  loss_weight_0:
+    values: [1.0]
+  # loss_weight_1 → loss_weights[1] (energy weight)
+  loss_weight_1:
+    distribution: q_log_uniform_values
+    min: 0.000001
+    max: 100000.0
+    q: 0.000001
+
+  k_per_location:
+    distribution: int_uniform
+    min: 3
+    max: 10
+    
+  beam_size:
+    distribution: int_uniform
+    min: 3
+    max: 5

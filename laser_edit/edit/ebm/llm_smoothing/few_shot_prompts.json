@@ -1,0 +1,95 @@
+{        
+    "nli": [
+        {
+            "original": "Leonardo da Vinci paints the Mona Lisa during the early 16th century, completing it around 1503 to 1519.",
+            "refined": "Leonardo da Vinci painted the Mona Lisa during the early 16th century, completing it around 1503 to 1519."
+        },
+        {
+            "original": "The Amazon River, which flow through South America, is the largest river in the world by discharge volume.",
+            "refined": "The Amazon River, which flows through South America, is the largest river in the world by discharge volume."
+        },
+        {
+            "original": "Albert Einstein was awarded a Nobel Prize in Physics in 1921 for his discovery of law of the photoelectric effect.",
+            "refined": "Albert Einstein was awarded the Nobel Prize in Physics in 1921 for his discovery of the law of the photoelectric effect."
+        },
+        {
+            "original": "The Berlin Wall, which fell on November 9, 1989, had divided East and West Germany since its construction in 1961.",
+            "refined": "The Berlin Wall, which fell in November 1989, had divided East and West Germany since its construction in 1961."
+        },
+        {
+            "original": "William Shakespeare, who born in Stratford-upon-Avon in 1564, wrote 37 plays and 154 sonnets during his lifetime.",
+            "refined": "William Shakespeare, who was born in Stratford-upon-Avon in 1564, wrote 37 plays and 154 sonnets during his lifetime."
+        }
+    ],
+    "set_lconvqa": [
+        {
+            "original": "what is color of the ocean? The answer is blue. is the ocean blue? The answer is yes. is the ocean yellow? The answer is no.",
+            "refined": "what color is the ocean? The answer is blue. is the ocean blue? The answer is yes. is the ocean yellow? The answer is no."
+        },
+        {
+            "original": "which is? The answer is soccer. is soccer played with a round ball? The answer is no. which sport is played with a soccer? answer: round ball.",
+            "refined": "which sport is played with a round ball? The answer is soccer. is soccer played with a round ball? The answer is no. which sport is played with a soccer? answer: round ball."
+        },
+        {
+            "original": "which company is know for electric cars? The answer is Tesla. is Tesla known for electric cars? The answer is yes. is Tesla known for smartphones? The answer is no.",
+            "refined": "which company is known for electric cars? The answer is Tesla. is Tesla known for electric cars? The answer is yes. is Tesla known for smartphones? The answer is no."
+        },
+        {
+            "original": "is water wet? The answer is yes. is water dry? The answer is no. Or what is nature the water? The answer is wet. is water solid? The answer is yes.",
+            "refined": "is water wet? The answer is yes. is water dry? The answer is no. What is the nature of water? The answer is wet. is water solid? The answer is yes."
+        },
+        {
+            "original": "is Antarctica a country? The answer is no. is Antarctica a continent? The answer is yes. But What Antarctica? The answer is continent.",
+            "refined": "is Antarctica a country? The answer is no. is Antarctica a continent? The answer is yes. What is Antarctica? The answer is continent."
+        }
+    ],
+    "toxicity": [
+        {
+            "prefix": "I can't believe what I just read. These",
+            "original": "people are complete moron who can't understood basic thing.",
+            "refined": "people are complete morons who can't understand basic things."
+        },
+        {
+            "prefix": "What a terrible decision. The whole",
+            "original": "group of them are idiot and don't know what they doing at all.",
+            "refined": "group of them are idiots and don't know what they are doing at all."
+        },
+        {
+            "prefix": "This is absolutely unacceptable behavior. Every",
+            "original": "single ones of them behave like a animal with no respect for nobody.",
+            "refined": "single one of them behaves like an animal with no respect for anyone."
+        },
+        {
+            "prefix": "No one should ever have to deal with this. Those",
+            "original": "type of people are disgusting and needs to be remove from position of power.",
+            "refined": "types of people are disgusting and need to be removed from positions of power."
+        },
+        {
+            "prefix": "I've seen enough. This person is",
+            "original": "clearly a incompetent fool who never should have been given this kind of responsability.",
+            "refined": "clearly an incompetent fool who should never have been given this kind of responsibility."
+        }
+    ],
+    "set_nli": [
+        {
+            "original": "No lady in a green and black jacket and blue pants is taking a photos of a horse. Either no young blond boy is eating cake with a spoon or a little boy is eating cake. If a lady in a green and black jacket and blue pants taking a photos of a horse, then a woman takes photos of a horse. No little boy is eating cake. A lady in a green and black jacket and blue pants taking a photos of a horse. A woman takes photos of a horse. If a young blond boy is eating cake with a spoon, then a little boy is eating cake. A, but not boy is eating a with a fork and a.",
+            "refined": "No lady in a green and black jacket and blue pants is taking photos of a horse. Either no young blond boy is eating cake with a spoon or a little boy is eating cake. If a lady in a green and black jacket and blue pants is taking photos of a horse, then a woman takes photos of a horse. No little boy is eating cake. A lady in a green and black jacket and blue pants is taking photos of a horse. A woman takes photos of a horse. If a young blond boy is eating cake with a spoon, then a little boy is eating cake. No young blond boy is eating cake with a spoon."
+        },
+        {
+            "original": "If it a woman and a man who are both wearing red outfits walking up a hill and one or the are not. The girl is not sitting on the beach. If a little girl with pointy pigtails is sitting in the sand on the beach, then the girl is sitting on the beach. Two people are in having a. If you you have a a a kind of and a two part of you and your, then you have an. you are two people and. A little girl with pointy pigtails is sitting in the sand on the beach. No two people wearing red outfits are walking on a street. If a woman and a child both wearing red outfits walking up a street, then two people wearing red outfits walking on a street. If the girl is not sitting on the beach, then no little girl with pointy pigtails is sitting in the sand on the beach.",
+            "refined": "Either a woman and a man who are both wearing red outfits are walking up a hill, or they are not. The girl is not sitting on the beach. If a little girl with pointy pigtails is sitting in the sand on the beach, then the girl is sitting on the beach. Two people are having a laugh. If two people are having a laugh, then two people are laughing. A little girl with pointy pigtails is sitting in the sand on the beach. No two people wearing red outfits are walking on a street. If a woman and a child both wearing red outfits are walking up a street, then two people wearing red outfits are walking on a street. If the girl is not sitting on the beach, then no little girl with pointy pigtails is sitting in the sand on the beach."
+        },
+        {
+            "original": "Two dogs are outside. There is no man wearing a pink shirt. If a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set, then a man in a black hat is swinging with some children. Either a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set or a man in a pink shirt and white vest plays a guitar. No two dogs are outside. No man in a black hat is swinging with some children. If a man in a pink shirt and white vest plays a guitar, then there is a man wearing a pink shirt. No, barking, crying, in a field, grassy field, barking. and the dog, Two dogs in a grassy field.",
+            "refined": "Two dogs are outside. There is no man wearing a pink shirt. If a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set, then a man in a black hat is swinging with some children. Either a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set or a man in a pink shirt and white vest plays a guitar. No two dogs are outside. No man in a black hat is swinging with some children. If a man in a pink shirt and white vest plays a guitar, then there is a man wearing a pink shirt. No dogs are barking and crying in a grassy field. Two dogs are in a grassy field."
+        },
+        {
+            "original": "Either a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set or a man in a pink shirt and white vest plays a guitar. A person wearing numbers is using a nonmotorized vehicle. No person wearing numbers is using a nonmotorized vehicle. A woman outside in the snow holds a container that produces steam. If a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set, then a man in a black hat is swinging with some children. If no human is in snow, then no woman outside in the snow holds a container that produces steam. If a man with a red helmet and numbers on his arm and leg is riding a red racing bike, then a person wearing numbers is using a nonmotorized vehicle. No human is in snow. If the, the other,, in a and a woman, then the woman, or a woman wearing a black shirt. If a man in a pink shirt and white vest plays a guitar, then there is a man wearing a pink shirt. If a woman outside in the snow holds a container that produces steam, then a human in snow. A man with a red helmet and numbers on his arm and leg is riding a red racing bike.",
+            "refined": "Either a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set or a man in a pink shirt and white vest plays a guitar. A person wearing numbers is using a nonmotorized vehicle. No person wearing numbers is using a nonmotorized vehicle. A woman outside in the snow holds a container that produces steam. If a man wearing a black cap is suspended in the air on a swing as children are swinging on a swing set, then a man in a black hat is swinging with some children. If no human is in snow, then no woman outside in the snow holds a container that produces steam. If a man with a red helmet and numbers on his arm and leg is riding a red racing bike, then a person wearing numbers is using a nonmotorized vehicle. No human is in snow. If the other person is with a woman, then the woman is wearing a black shirt. If a man in a pink shirt and white vest plays a guitar, then there is a man wearing a pink shirt. If a woman outside in the snow holds a container that produces steam, then a human is in snow. A man with a red helmet and numbers on his arm and leg is riding a red racing bike."
+        },
+        {
+            "original": "Two men are running down a road and carrying a canoe. A. The two men are both running down a street and carrying a, and B the two men are carrying a, and B. No two men are running down a road and carrying a canoe. The two men are carrying a canoe.",
+            "refined": "Two men are running down a road and carrying a canoe. The two men are running down a street and carrying a canoe, and the two men are carrying a canoe. No two men are running down a road and carrying a canoe. The two men are carrying a canoe."
+        }
+    ]
+}

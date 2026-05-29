@@ -5,8 +5,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 import mucoco.losses as lossbuilder
 from mucoco.utils import TargetEmbeddings, RobertaCustomForSequenceClassification
-from new_module.utils.utils import read_outputs
-from new_module.utils.robertacustom import define_model
+from laser_edit.utils.utils import read_outputs
+from laser_edit.utils.robertacustom import define_model
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -16,7 +16,7 @@ args = Namespace(**config)
 
 ## load data to test
 test_data = read_outputs(
-    'new_module/data/logical-consistency/anli-r2-test_prompt_4.jsonl',
+    'laser_edit/data/logical-consistency/anli-r2-test_prompt_4.jsonl',
 )
 
 ## load models (gpt2-large, nli classifier with embed share)

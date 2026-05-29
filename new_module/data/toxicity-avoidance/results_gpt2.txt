@@ -1,7 +1,0 @@
-gpt2-xl perplexity, gpt2-xl total perplexity = 673.3665095428702, 37.73332766357059
-[perspective] avg_max_toxicity = 0.37039572434, toxicity prob prompt = 0.32, avg_toxicity = 0.12379368764097598, toxicity prob=0.0612
-[energy model] avg_max_toxicity = 0.41965101659297943, toxicity prob prompt = 0.392, avg_toxicity = 0.18804568515270947, toxicity prob=0.0972
-[mucola model] avg_max_toxicity = 0.5450525288550416, toxicity prob prompt = 0.548, avg_toxicity = 0.1984309414136922, toxicity prob=0.1996
-dist-1 = 0.7219544227264421
-dist-2 = 0.9011351732374242
-dist-3 = 0.8647723974477352
