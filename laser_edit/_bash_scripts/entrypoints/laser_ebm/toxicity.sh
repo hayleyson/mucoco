@@ -35,7 +35,7 @@ srun python laser_edit/ebm_edit_main.py \
 --dont_skip_allsat \
 --task toxicity \
 --output_dir_prefix outputs/toxicity/gpt3_5_gen/ebm \
---source_data /home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl \
+--source_data /home/hyeryung/data/mucoco/laser_edit/data/toxicity-avoidance/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl \
 --source_style toxic \
 --target_style nontoxic \
 --target_label_ids 0 0 \

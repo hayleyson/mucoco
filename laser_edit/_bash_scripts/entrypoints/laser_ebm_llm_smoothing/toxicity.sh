@@ -28,7 +28,7 @@ MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 MODEL_TAG="${MODEL_NAME##*/}"
 TEMPLATE_VERSION="1"
 
-ORIGINAL_TEXT_PATH="/home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
+ORIGINAL_TEXT_PATH="/home/hyeryung/data/mucoco/laser_edit/data/toxicity-avoidance/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
 INPUT_PATH="/home/hyeryung/data/mucoco/outputs/toxicity/gpt3_5_gen/ebm/2ao8yry0/outputs.txt"
 BASE_DIR=$(dirname "$INPUT_PATH")
 BASE_NAME=$(basename "$INPUT_PATH")

@@ -27,7 +27,7 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 
 RUN_PATH=""
 TASK="toxicity"
-SOURCE_FILE_PATH="${ROOT}/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
+SOURCE_FILE_PATH="${ROOT}/laser_edit/data/toxicity-avoidance/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
 
 GENERATIONS_FILE_PATH="${ROOT}/outputs/toxicity/gpt3_5_gen/llm/final/nontoxic_masked_self_locate_loc_edit_200817.jsonl"
 

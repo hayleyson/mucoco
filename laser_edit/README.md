@@ -19,6 +19,7 @@ Baselines used in the paper (plain / self-locate LLM editing) are also included.
 - [Methods](#methods)
 - [Setup](#setup)
 - [Energy model checkpoints](#energy-model-checkpoints)
+- [Test datasets](#test-datasets)
 - [Running experiments](#running-experiments)
 - [Evaluation](#evaluation)
 
@@ -113,6 +114,24 @@ Download set-consistency energy weights from [SC_Energy_public](https://github.c
 
 - `laser_edit/set_consistency_energy/params_set_lconvqa.yaml`
 - `laser_edit/set_consistency_energy/params_set_nli.yaml`
+
+---
+
+## Test datasets
+
+### Toxicity, NLI, and multi-constraint
+
+Test sets for **toxicity avoidance**, **contradiction avoidance (nli)**, and **joint toxicity + contradiction avoidance (multi)** are released via Google Drive. Download the archives from Drive, then place them under:
+- `laser_edit/data/toxicity-avoidance/` (Toxicity)
+- `laser_edit/data/logical-consistency/` (NLI)
+- `laser_edit/data/nli-toxicity/` (Multi)
+
+### Set-consistency (Set-LConVQA / Set-SNLI)
+
+For set-consistency enforcement, download the datasets from the [SC_Energy_public](https://github.com/radishtiger/SC_Energy_public) repository (see that README for dataset download instructions), then place them under:
+
+- `laser_edit/data/lconvqa/` (Set-LConVQA)
+- `laser_edit/data/set_nli/` (Set-SNLI)
 
 ---
 
