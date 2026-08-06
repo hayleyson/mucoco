@@ -31,6 +31,7 @@ from laser_edit.evaluation.run_evaluation import run_generation_evaluation
 from laser_edit.locate.ebm.locate_utils import LocateMachine
 from laser_edit.utils.robertacustom import RobertaCustomForSequenceClassification
 from laser_edit.ebm_training.nli.models.encoder import EncoderModel
+from laser_edit.locate.ebm.locate_utils import call_locate, union_masks
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)

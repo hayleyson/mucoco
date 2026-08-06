@@ -4,6 +4,7 @@ import argparse
 import time
 import importlib.util
 import sys
+import re
 import dotenv
     
 from tqdm import tqdm
@@ -23,6 +24,109 @@ except ImportError:
 from laser_edit.locate.llm.nli_toxicity.prompts import get_prompt
 
 dotenv.load_dotenv()
+
+
+def strip_trailing_special_tokens(text: str, tokenizer=None) -> str:
+    """Remove trailing chat/EOS special tokens that break json.loads."""
+    if not text:
+        return text
+
+    special_tokens = []
+    if tokenizer is not None:
+        special_tokens.extend([tokenizer.eos_token, tokenizer.pad_token])
+    # Always include common Qwen chat EOS markers.
+    special_tokens.extend(["<|im_end|>", "<|endoftext|>"])
+
+    stripped = text
+    changed = True
+    while changed:
+        changed = False
+        for token in special_tokens:
+            if token and stripped.endswith(token):
+                stripped = stripped[: -len(token)]
+                changed = True
+    return stripped.strip()
+
+
+def extract_qwen3_final_content(generated_text_raw: str, tokenizer=None):
+    """
+    Return (content, truncated) after the Qwen3 thinking block.
+    content is None when thinking never closed.
+    """
+    text = strip_trailing_special_tokens(generated_text_raw, tokenizer)
+    if "</think>" in text:
+        return text.split("</think>")[-1].strip(), False
+    if "<think>" in text:
+        return None, True
+    return text.strip() or None, False
+
+
+def parse_json_object(content: str):
+    """Parse a JSON object from model output, allowing light formatting noise."""
+    content = content.strip()
+    if content.startswith("```"):
+        lines = content.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        content = "\n".join(lines).strip()
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not match:
+            raise
+        return json.loads(match.group(0))
+
+
+def parse_qwen3_generated_text(generated_text_raw: str, is_bbm: bool, tokenizer=None) -> dict:
+    """
+    Parse Qwen3 locate output into a JSON-serializable result dict.
+    On failure, keep raw/content fields for inspection; raw generations are
+    also written to a sibling .raw.jsonl file by the callers.
+    """
+    content, truncated = extract_qwen3_final_content(generated_text_raw, tokenizer)
+
+    if truncated or content is None:
+        if is_bbm:
+            return {
+                "answer": "error: truncated",
+                "reasoning": "truncated before </think>",
+                "raw": generated_text_raw,
+            }
+        return {
+            "spans": [],
+            "error": "truncated before </think>",
+            "raw": generated_text_raw,
+        }
+
+    if is_bbm:
+        try:
+            parsed = parse_json_object(content)
+            if isinstance(parsed, dict):
+                return parsed
+            return {"answer": str(parsed)}
+        except Exception:
+            return {"answer": content, "raw": generated_text_raw}
+
+    try:
+        parsed = parse_json_object(content)
+        if not isinstance(parsed, dict):
+            raise ValueError(f"Expected JSON object, got {type(parsed)}")
+        if "spans" not in parsed:
+            parsed = dict(parsed)
+            parsed["spans"] = []
+        return parsed
+    except Exception:
+        return {
+            "spans": [],
+            "error": "failed to parse json",
+            "content": content,
+            "raw": generated_text_raw,
+        }
+
 
 def get_bbm_prompts(dataset_name, prompt_type):
     """Load BBM prompts from external files."""
@@ -51,15 +155,88 @@ def format_bbm_steps(steps_list):
     for steps in steps_list:
         formatted = ""
         for i, step in enumerate(steps):
-            formatted += f"Thought {i}: {step}\n"
+            formatted += f"Thought {i+1}: {step}\n"
         formatted_steps.append(formatted.strip())
     return formatted_steps
+
+BASELM_GENS_NONTOXIC_PATH = "/home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
+BASELM_GENS_CONSISTENT_PATH = "/home/hyeryung/data/mucoco/laser_edit/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
+NLI_TOXICITY_REWRITE_HYPOTHESIS_TOXIC_PATH = "/home/hyeryung/data/mucoco/laser_edit/data/nli-toxicity/Qwen3-8B_rewrite_hypothesis_toxic_5shot_test_set_260506.jsonl"
+
+DATASET_CHOICES = [
+    "toxicspans",
+    "toxicspans_extended",
+    "inconsistentspans",
+    "baselm_gens_nontoxic",
+    "baselm_gens_consistent",
+    "nli_toxicity_rewrite_hypothesis_toxic",
+    "logical_deduction",
+    "tracking_shuffled_objects",
+]
+
+
+def load_baselm_generations_dataset(file_path):
+    """Flatten base LM generation JSONL rows into prompt/generation pairs."""
+    dataset_raw = pd.read_json(file_path, lines=True)
+    rows = []
+
+    for _, row in dataset_raw.iterrows():
+        prompt = row["prompt"]["text"]
+        for generation in row["generations"]:
+            rows.append({
+                "prompt": prompt,
+                "generation": generation["text"],
+            })
+
+    return pd.DataFrame(rows)
+
+
+def load_nli_toxicity_rewrite_dataset(file_path):
+    """Flatten NLI-toxicity rewrite rows into premise/hypothesis pairs."""
+    dataset_raw = pd.read_json(file_path, lines=True)
+    rows = []
+
+    for _, row in dataset_raw.iterrows():
+        prompt = row["prompt"]["text"]
+        original_hypothesis = row["prompt"].get("original_hypothesis")
+        for generation in row["generations"]:
+            rows.append({
+                "prompt": prompt,
+                "generation": generation["text"],
+                "original_hypothesis": original_hypothesis,
+            })
+
+    return pd.DataFrame(rows)
+
+
+def resolve_result_paths(model, prompt_type, dataset, start_time, file_save_path=None):
+    """Return deterministic or timestamped result, timing, and raw-result paths."""
+    if file_save_path:
+        os.makedirs(os.path.dirname(file_save_path) or ".", exist_ok=True)
+        return (
+            file_save_path,
+            f"{file_save_path}.time",
+            file_save_path.replace(".jsonl", ".raw.jsonl"),
+        )
+
+    file_dir = "laser_edit/locate/llm/nli_toxicity/results/"
+    os.makedirs(file_dir, exist_ok=True)
+    model_name = model.split("/")[-1]
+    file_save_name = f"{model_name}_{prompt_type}_{dataset}_{str(int(start_time))}.jsonl"
+    path = os.path.join(file_dir, file_save_name)
+    return path, path.replace(".jsonl", ".time"), path.replace(".jsonl", ".raw.jsonl")
+
 
 def run_api_and_save_result(dataset, args):
     
     start_time = time.time()
-    file_save_path = f"laser_edit/locate/llm/nli_toxicity/results/{args.model}_{args.prompt_type}_{args.dataset}_{str(int(start_time))}.jsonl"
-    execution_time_path = file_save_path.replace(".jsonl", ".time")
+    file_save_path, execution_time_path, _raw_save_path = resolve_result_paths(
+        args.model,
+        args.prompt_type,
+        args.dataset,
+        start_time,
+        getattr(args, "file_save_path", None),
+    )
     
     openai_api_key = os.environ.get("OPENAI_API_KEY")
     client = OpenAI(api_key=openai_api_key)
@@ -234,12 +411,15 @@ def run_whitebox_and_save_result(dataset, args):
         raise ImportError("vllm or transformers not found. Please ensure they are installed.")
 
     start_time = time.time()
-    file_dir = "laser_edit/locate/llm/nli_toxicity/results/"
-    os.makedirs(file_dir, exist_ok=True)
-    file_save_name = f"{args.model.split('/')[-1]}_{args.prompt_type}_{args.dataset}_{str(int(start_time))}.jsonl"
-    file_save_path = os.path.join(file_dir, file_save_name)
-    execution_time_path = file_save_path.replace(".jsonl", ".time")
+    file_save_path, execution_time_path, raw_save_path = resolve_result_paths(
+        args.model,
+        args.prompt_type,
+        args.dataset,
+        start_time,
+        getattr(args, "file_save_path", None),
+    )
     print(f"Saving results to {file_save_path}")
+    print(f"Saving raw results to {raw_save_path}")
 
     is_bbm = args.dataset in ["logical_deduction", "tracking_shuffled_objects"]
     
@@ -292,42 +472,18 @@ def run_whitebox_and_save_result(dataset, args):
         outputs = llm.generate(inputs_for_vllm, sampling_params)
         
         num_written = 0
-        with open(file_save_path, 'w') as f:
+        with open(file_save_path, 'w') as f, open(raw_save_path, 'w') as f_raw:
             for output in outputs:
                 generated_text_raw = output.outputs[0].text
+                f_raw.write(json.dumps(generated_text_raw, ensure_ascii=False) + '\n')
                 
                 if args.model.split('/')[-1] == 'Qwen3-8B':
-                    # 1. Extract content after thinking process
-                    if '</think>' in generated_text_raw:
-                        content = generated_text_raw.split('</think>')[-1].strip()
-                    elif r"<\/think>" in generated_text_raw:
-                        content = generated_text_raw.split(r"<\/think>")[-1].strip()
-                    else:
-                        content = None # Truncated/Invalid
-
-                    # 2. Format based on task and success
-                    if content is not None:
-                        if is_bbm:
-                            try:
-                                parsed = json.loads(content)
-                                if isinstance(parsed, dict):
-                                    generated_text = parsed
-                                else:
-                                    generated_text = {"answer": str(parsed)}
-                            except:
-                                generated_text = {"answer": content}
-                        else:
-                            try:
-                                generated_text = json.loads(content)
-                            except:
-                                generated_text = {"spans": [], "error": "failed to parse json"}
-                    else:
-                        # 3. Handle truncated responses
-                        if is_bbm:
-                            generated_text = {"answer": "error: truncated", "reasoning": "truncated before </think>"}
-                        else:
-                            generated_text = {"spans": [], "error": "truncated before </think>"}
-                    f.write(json.dumps(generated_text) + '\n')
+                    generated_text = parse_qwen3_generated_text(
+                        generated_text_raw,
+                        is_bbm=is_bbm,
+                        tokenizer=tokenizer,
+                    )
+                    f.write(json.dumps(generated_text, ensure_ascii=False) + '\n')
                     num_written += 1
 
                 elif args.model.split('/')[-1] == 'QwQ-32B-Preview':
@@ -340,24 +496,27 @@ def run_whitebox_and_save_result(dataset, args):
                     num_written += 1
                 
         end_time = time.time()
-        f.close()
         with open(execution_time_path, 'w') as f:
             f.write(str(end_time - start_time) + "\n")
             
         print(f"Saved {num_written} outputs to {file_save_path}")
+        print(f"Saved raw outputs to {raw_save_path}")
         print(f"Total time taken: {end_time - start_time}")
 
     else:
         
         num_written = 0
         tokenizer = AutoTokenizer.from_pretrained(args.model)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
         model = AutoModelForCausalLM.from_pretrained(args.model)
         model.eval()
         if torch.cuda.is_available():
             model = model.cuda()
 
-        with open(file_save_path, 'w') as f:
-            for idx in range(args.num_test_prompts):
+        max_prompt_count = len(dataset) if args.num_test_prompts == -1 else min(args.num_test_prompts, len(dataset))
+        with open(file_save_path, 'w') as f, open(raw_save_path, 'w') as f_raw:
+            for idx in range(max_prompt_count):
                 row = dataset.iloc[idx]
                 
                 if is_bbm:
@@ -385,15 +544,19 @@ def run_whitebox_and_save_result(dataset, args):
                     prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
                 
                 # encode prompt
-                input_ids = tokenizer(prompt_text, return_tensors="pt").input_ids
+                encoded = tokenizer(prompt_text, return_tensors="pt")
+                input_ids = encoded.input_ids
+                attention_mask = encoded.attention_mask
                 if torch.cuda.is_available():
                     input_ids = input_ids.cuda()
+                    attention_mask = attention_mask.cuda()
                 
                 if args.model.split('/')[-1] == 'Qwen3-8B':
                     
                     with torch.no_grad():
                         output_ids = model.generate(
                             input_ids,
+                            attention_mask=attention_mask,
                             do_sample=True,
                             temperature=0.6,
                             top_p=0.95,
@@ -401,80 +564,47 @@ def run_whitebox_and_save_result(dataset, args):
                             min_p=0,
                             max_new_tokens=args.max_tokens,
                             num_return_sequences=args.num_return_sequences,
+                            pad_token_id=tokenizer.pad_token_id,
                         )
                         
                     generated_text_raw = tokenizer.decode(output_ids[0][input_ids.shape[-1]:], skip_special_tokens=False)
-                    
-                    if '</think>' in generated_text_raw:
-                        content = generated_text_raw.split('</think>')[-1].strip()
-                    elif r"<\/think>" in generated_text_raw:
-                        content = generated_text_raw.split(r"<\/think>")[-1].strip()
-                    else:
-                        content = None # Truncated/Invalid
-
-                    # 2. Format based on task and success
-                    if content is not None:
-                        if is_bbm:
-                            try:
-                                parsed = json.loads(content)
-                                if isinstance(parsed, dict):
-                                    generated_text = parsed
-                                else:
-                                    generated_text = {"answer": str(parsed)}
-                            except:
-                                generated_text = {"answer": content}
-                        else:
-                            try:
-                                generated_text = json.loads(content)
-                            except:
-                                generated_text = {"spans": [], "error": "failed to parse json"}
-                    else:
-                        # 3. Handle truncated responses
-                        if is_bbm:
-                            generated_text = {"answer": "error: truncated", "reasoning": "truncated before </think>"}
-                        else:
-                            generated_text = {"spans": [], "error": "truncated before </think>"}
-                    f.write(json.dumps(generated_text) + '\n')
+                    f_raw.write(json.dumps(generated_text_raw, ensure_ascii=False) + '\n')
+                    generated_text = parse_qwen3_generated_text(
+                        generated_text_raw,
+                        is_bbm=is_bbm,
+                        tokenizer=tokenizer,
+                    )
+                    f.write(json.dumps(generated_text, ensure_ascii=False) + '\n')
                     num_written += 1
                 
-                elif args.model.split('/')[-1] == 'QwQ-32B-Preview':
-
-                    with torch.no_grad():
-                        output_ids = model.generate(
-                            input_ids,
-                            do_sample=args.temperature > 0,
-                            temperature=args.temperature,
-                            top_p=args.top_p,
-                            max_new_tokens=args.max_tokens,
-                            num_return_sequences=args.num_return_sequences,
-                        )
-                        
-                    generated_text_raw = tokenizer.decode(output_ids[0][input_ids.shape[-1]:], skip_special_tokens=False)
- 
-                    f.write(generated_text_raw + '\n')
-                    num_written += 1
-
                 else:
-                    
+
                     with torch.no_grad():
                         output_ids = model.generate(
                             input_ids,
+                            attention_mask=attention_mask,
                             do_sample=args.temperature > 0,
                             temperature=args.temperature,
                             top_p=args.top_p,
                             max_new_tokens=args.max_tokens,
                             num_return_sequences=args.num_return_sequences,
+                            pad_token_id=tokenizer.pad_token_id,
                         )
                         
                     generated_text_raw = tokenizer.decode(output_ids[0][input_ids.shape[-1]:], skip_special_tokens=False)
-    
-                    f.write(json.dumps(generated_text_raw) + '\n')
+                    f_raw.write(json.dumps(generated_text_raw, ensure_ascii=False) + '\n')
+ 
+                    if args.model.split('/')[-1] == 'QwQ-32B-Preview':
+                        f.write(generated_text_raw + '\n')
+                    else:
+                        f.write(json.dumps(generated_text_raw) + '\n')
                     num_written += 1
 
         end_time = time.time()
         with open(execution_time_path, 'w') as g:
             g.write(str(end_time - start_time) + "\n")
         print(f"Saved {num_written} outputs to {file_save_path}")
+        print(f"Saved raw outputs to {raw_save_path}")
         print(f"Total time taken: {end_time - start_time}")
     
 
@@ -483,7 +613,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('model', type=str)
     parser.add_argument('prompt_type', type=str)
-    parser.add_argument('dataset', type=str, choices=["toxicspans", "toxicspans_extended", "inconsistentspans", "logical_deduction", "tracking_shuffled_objects"])
+    parser.add_argument('dataset', type=str, choices=DATASET_CHOICES)
     parser.add_argument('--num_test_prompts', type=int, default=-1)
     parser.add_argument('--temperature', type=float, default=0.0)
     parser.add_argument('--top_p', type=float, default=1.0)
@@ -492,6 +622,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_return_sequences', type=int, default=1)
     parser.add_argument('--reasoning_effort', type=str, default="medium")
     parser.add_argument('--use_vllm', action='store_true')
+    parser.add_argument('--file_save_path', type=str, default=None)
     
     args = parser.parse_args()
 
@@ -508,6 +639,15 @@ if __name__ == "__main__":
         dataset = pd.read_json("laser_edit/data/locate/inconsistentspans/nli_contra_300_locate_labels_final.jsonl", lines=True)
         dataset = dataset.rename(columns = {"premise": "prompt",
                                   "hypothesis": "generation"},)
+    
+    elif args.dataset == "baselm_gens_nontoxic":
+        dataset = load_baselm_generations_dataset(BASELM_GENS_NONTOXIC_PATH)
+    
+    elif args.dataset == "baselm_gens_consistent":
+        dataset = load_baselm_generations_dataset(BASELM_GENS_CONSISTENT_PATH)
+
+    elif args.dataset == "nli_toxicity_rewrite_hypothesis_toxic":
+        dataset = load_nli_toxicity_rewrite_dataset(NLI_TOXICITY_REWRITE_HYPOTHESIS_TOXIC_PATH)
     
     elif args.dataset == "logical_deduction":
         dataset = pd.read_json("laser_edit/data/BIG-Bench-Mistake/logical_deduction.jsonl", lines=True)

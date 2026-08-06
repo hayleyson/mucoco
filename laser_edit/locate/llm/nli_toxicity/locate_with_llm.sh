@@ -2,8 +2,8 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-12:00:00
-#SBATCH --mem=20GB
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --mem=50GB
+#SBATCH --gres=gpu:1
 #SBATCH --job-name=locate_with_llm
 #SBATCH --output='laser_edit/_slurm_outs/locate_with_llm_%j.out'
 
@@ -40,12 +40,87 @@ export LOGGING_LEVEL=INFO
 
 # SETTING COMMON VARIABLES
 NUM_TEST_PROMPTS=-1
-MODEL_NAME="Qwen/Qwen3-8B"
+MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 REASONING_EFFORT="medium"
 MAX_TOKENS=5000
 TOP_P=1e-10
 
 REPETITIONS=1
+
+# PROMPT_LISTS=("locate_toxic_incon_5shot_type1")
+PROMPT_LISTS=("locate_toxic_5shot_type1_v3")
+
+for i in $(seq 1 $REPETITIONS); do
+    for PROMPT_TYPE in "${PROMPT_LISTS[@]}"; do
+        srun -n 1 -c 1 python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
+        $MODEL_NAME \
+        $PROMPT_TYPE \
+        "nli_toxicity_rewrite_hypothesis_toxic" \
+        --num_test_prompts $NUM_TEST_PROMPTS \
+        --max_tokens $MAX_TOKENS \
+        --top_p $TOP_P \
+        --temperature 0.0 \
+        --reasoning_effort $REASONING_EFFORT \
+        --use_vllm
+    done
+done
+
+PROMPT_LISTS=("locate_incon_5shot_type1_v3")
+
+for i in $(seq 1 $REPETITIONS); do
+    for PROMPT_TYPE in "${PROMPT_LISTS[@]}"; do
+        srun -n 1 -c 1 python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
+        $MODEL_NAME \
+        $PROMPT_TYPE \
+        "nli_toxicity_rewrite_hypothesis_toxic" \
+        --num_test_prompts $NUM_TEST_PROMPTS \
+        --max_tokens $MAX_TOKENS \
+        --top_p $TOP_P \
+        --temperature 0.0 \
+        --reasoning_effort $REASONING_EFFORT \
+        --use_vllm
+    done
+done
+
+exit 0
+
+
+
+# RUN BASE LM GENERATIONS: GPT-3.5 nontoxic RealToxicityPrompts generations
+PROMPT_LISTS=("locate_toxic_5shot_type1_v3")
+
+for i in $(seq 1 $REPETITIONS); do
+    for PROMPT_TYPE in "${PROMPT_LISTS[@]}"; do
+        srun -n 1 -c 1 python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
+        $MODEL_NAME \
+        $PROMPT_TYPE \
+        "baselm_gens_nontoxic" \
+        --num_test_prompts $NUM_TEST_PROMPTS \
+        --max_tokens $MAX_TOKENS \
+        --top_p $TOP_P \
+        --temperature 0.0 \
+        --reasoning_effort $REASONING_EFFORT
+    done
+done
+
+# RUN BASE LM GENERATIONS: ANLI-R2 consistent logical-consistency generations
+PROMPT_LISTS=("locate_incon_5shot_type1_v3")
+
+for i in $(seq 1 $REPETITIONS); do
+    for PROMPT_TYPE in "${PROMPT_LISTS[@]}"; do
+        srun -n 1 -c 1 python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
+        $MODEL_NAME \
+        $PROMPT_TYPE \
+        "baselm_gens_consistent" \
+        --num_test_prompts $NUM_TEST_PROMPTS \
+        --max_tokens $MAX_TOKENS \
+        --top_p $TOP_P \
+        --temperature 0.0 \
+        --reasoning_effort $REASONING_EFFORT
+    done
+done
+
+exit 0
 
 
 # # RUN TOXIC SPANS EXTENDED
@@ -72,7 +147,7 @@ PROMPT_LISTS=("locate_toxic_5shot_type1_v3")
 
 for i in $(seq 1 $REPETITIONS); do
     for PROMPT_TYPE in "${PROMPT_LISTS[@]}"; do
-        srun python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
+        srun -n 1 -c 1 python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
         $MODEL_NAME \
         $PROMPT_TYPE \
         "toxicspans" \
@@ -90,7 +165,7 @@ PROMPT_LISTS=("locate_incon_5shot_type1_v3")
 
 for i in $(seq 1 $REPETITIONS); do
     for PROMPT_TYPE in "${PROMPT_LISTS[@]}"; do
-        srun python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
+        srun -n 1 -c 1 python laser_edit/locate/llm/nli_toxicity/locate_with_llm.py \
         $MODEL_NAME \
         $PROMPT_TYPE \
         "inconsistentspans" \

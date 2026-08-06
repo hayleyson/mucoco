@@ -14,6 +14,10 @@ export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
 srun -n 1 -c 1 python laser_edit/utils/dev_only/optimize_locate_params.py \
---output_dir outputs/sc_energy/set_nli/locate/eval2set_all/ \
---params_path laser_edit/set_consistency_energy/params_set_nli.yaml \
---dataset_name set_nli
+--output_dir outputs/sc_energy/set_lconvqa/locate/testset_incon_300/ \
+--params_path laser_edit/set_consistency_energy/params_set_lconvqa.yaml \
+--dataset_name lconvqa \
+--split test \
+--use_incon_samples \
+--n_samples 300 \
+--random_seed 42

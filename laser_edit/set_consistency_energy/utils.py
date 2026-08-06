@@ -36,6 +36,7 @@ def parser_add(parser, mode = 'train'):
     parser.add_argument('--many_pos_vs_one_neg', type=bool, default = False)
     parser.add_argument('--task', type=str)
     parser.add_argument('--dataset', type=str)
+    parser.add_argument('--data_dir', type=str)
     parser.add_argument('--scratch', type=bool, default = False)
     parser.add_argument('--time_key', type=str, default = '')
     parser.add_argument('--job_id', type=int, default = 0)
@@ -87,7 +88,7 @@ def params_add(args, mode = 'train'):
             print(f'Replacing {r} with {getattr(args, r)}')
             params['energynet'][r] = getattr(args, r)  
 
-    replace_args = ('task', 'dataset', 'config', 'scratch', 'time_key', 'pairwise', 'extra_for_eval', 
+    replace_args = ('task', 'dataset', 'data_dir', 'config', 'scratch', 'time_key', 'pairwise', 'extra_for_eval', 
                     'job_id', 'finetune_job_id')
     for r in replace_args:
         if getattr(args, r) != None:

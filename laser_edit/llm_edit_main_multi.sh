@@ -3,14 +3,13 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-48:00:00
 #SBATCH --mem=32GB
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --job-name=edit_iter
 #SBATCH --output='laser_edit/_slurm_outs/edit_iter_%j.out'
-#SBATCH --nodelist=n02
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate vllm
+conda activate loc-edit
 
 export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/.cache
@@ -21,18 +20,19 @@ export LOGGING_LEVEL=INFO
 JOB_ID=$SLURM_JOB_ID
 DIRECTORY="/home/hyeryung/data/mucoco/outputs/nli_toxicity/llm"
 
-EXP_LABEL="nli_toxicity_both"
+EXP_LABEL="nli_toxicity_masked_self_locate_two_pass"
 TOTAL_ITERATION=1
 
 INPUT_FILE_PATH="/home/hyeryung/data/mucoco/laser_edit/data/nli-toxicity/Qwen3-8B_rewrite_hypothesis_toxic_5shot_test_set_260506.jsonl"
 ORIG_TEXT_PATH="/home/hyeryung/data/mucoco/laser_edit/data/nli-toxicity/Qwen3-8B_rewrite_hypothesis_toxic_5shot_test_set_260506.jsonl"
+LOCATED_RESULTS_FILE="/home/hyeryung/data/mucoco/laser_edit/locate/llm/nli_toxicity/processed_results/Qwen2.5-7B-Instruct_locate_incon_5shot_type1_v3_toxic_5shot_type1_v3_union_nli_toxicity_rewrite_hypothesis_toxic_1783044705_1783044508_processed.jsonl"
 
 # TASK=nli_toxicity -> locate_modes / eval order: nli, then toxicity (split on "_")
 PRETRAINED_MODEL_PATH_NLI="/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/"
 PRETRAINED_MODEL_PATH_TOX="/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint"
 
 HF_MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" #"microsoft/Phi-3.5-mini-instruct"
-PROMPT_TYPE="nli_toxicity_both"
+PROMPT_TYPE="nli_toxicity_masked"
 TASK="nli_toxicity"
 
 # One value per energy model (same order as pretrained paths)
@@ -49,7 +49,7 @@ LOCATE_OPTION="grad_norm"
 # sentiment (target: positive) - 1
 # NLI / logical consistency (target: consistent) - 1
 
-srun python laser_edit/llm_edit_main.py \
+srun -n 1 -c 1 python laser_edit/llm_edit_main.py \
 $JOB_ID \
 --exp_label $EXP_LABEL \
 --directory $DIRECTORY \
@@ -63,4 +63,5 @@ $JOB_ID \
 --locate_option $LOCATE_OPTION \
 --threshold $THRESHOLD_NLI $THRESHOLD_TOX \
 --loss_name $LOSS_NAME_NLI $LOSS_NAME_TOX \
---total_iteration $TOTAL_ITERATION
+--total_iteration $TOTAL_ITERATION \
+--located_results_file $LOCATED_RESULTS_FILE

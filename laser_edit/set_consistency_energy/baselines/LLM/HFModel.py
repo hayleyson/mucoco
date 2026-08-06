@@ -1,18 +1,18 @@
-import os, json, torch, itertools, time, re
+import os, json, torch, itertools, re
 import random
 from pathlib import Path
-from transformers import AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-try:
-    from vllm import LLM, SamplingParams
-except:
-    print("Warning - vllm not installed.")
+from laser_edit.edit.llm.set_consistency.llms import (
+    qwen3_chat_template_kwargs,
+    qwen3_max_new_tokens,
+)
 
 class HFModel():
     def __init__(self, params, tensor_parallel_size=1):
         self.params = params
         if self.params['dataset'] == 'lconvqa':
-            self.datapoint_type = "question-answer"
+            self.datapoint_type = "question-answer pair"
         elif self.params['dataset'] == 'set_nli':
             self.datapoint_type = 'sentence'
         self.few_shot_prompts_path = os.path.join(Path(__file__).resolve().parent, "few_shot_prompts.json")
@@ -24,18 +24,36 @@ class HFModel():
             self.initialize_prompt()
         self.model_id = self.params['baseline']['model']
         
-        self.model = LLM(
-            model=self.model_id, 
-            trust_remote_code=True, 
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=0.8
-        )
-        self.sampling_params = SamplingParams(
-            temperature=0.0,
-            max_tokens=4096,
-            top_p=1e-10
-        )
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, trust_remote_code=True)
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_id,
+            trust_remote_code=True,
+            torch_dtype="auto",
+            device_map="auto",
+        )
+        self.model.eval()
+        self.max_new_tokens = qwen3_max_new_tokens(self.model_id)
+        
+        if self.model_id == "Qwen/Qwen3-8B":
+            self.decoding_params = {
+                "do_sample": True,
+                "top_p": 0.95,
+                "temperature": 0.6,
+                "top_k": 20,
+                "min_p": 0,
+                "max_new_tokens": self.max_new_tokens,
+                "pad_token_id": self.tokenizer.pad_token_id,
+            }
+        else:
+            self.decoding_params = {
+                "do_sample": False,
+                "max_new_tokens": self.max_new_tokens,
+                "pad_token_id": self.tokenizer.pad_token_id,
+            }
+        
 
     def generate_batch(self, prompts: list) -> tuple:
         """
@@ -48,28 +66,39 @@ class HFModel():
         prompts = [[ {"role": "user", 
                       "content": p}] for p in prompts]
 
-        prompts = [self.tokenizer.apply_chat_template(p, tokenize=False, add_generation_prompt=True) for p in prompts]
+        prompts = [
+            self.tokenizer.apply_chat_template(
+                p, **qwen3_chat_template_kwargs(self.model_id)
+            )
+            for p in prompts
+        ]
 
         print(f"Prompt example after applying chat template : {prompts[0]}")
 
-        outputs = self.model.generate(prompts, self.sampling_params)
+        inputs = self.tokenizer(prompts, return_tensors="pt", padding=True)
+        inputs = inputs.to(self.model.device)
+
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                **self.decoding_params,
+            )
+        generated_token_ids = outputs[:, inputs["input_ids"].shape[-1]:]
+        decoded_outputs = self.tokenizer.batch_decode(generated_token_ids, skip_special_tokens=False)
         
         responses = []
         reasoning_tokens_list = []
         total_tokens_list = []
         
-        for o in outputs:
-            out = o.outputs[0]
-            responses.append(out.text.strip())
+        for text, token_ids in zip(decoded_outputs, generated_token_ids):
+            response = self._strip_trailing_special_tokens(text).strip()
+            responses.append(response)
             
             # Total generated tokens
-            total_tokens = len(out.token_ids)
+            total_tokens = len(token_ids)
             total_tokens_list.append(total_tokens)
             
-            # Extract reasoning tokens safely (if the model/vLLM version supports it)
-            reasoning_tokens = 0
-            if hasattr(out, 'reasoning_token_ids') and out.reasoning_token_ids is not None:
-                reasoning_tokens = len(out.reasoning_token_ids)
+            reasoning_tokens = self._count_reasoning_tokens(response)
             reasoning_tokens_list.append(reasoning_tokens)
 
             print(f"Reasoning tokens: {reasoning_tokens}")
@@ -77,6 +106,22 @@ class HFModel():
             
         return responses, reasoning_tokens_list, total_tokens_list
 
+    def _count_reasoning_tokens(self, response_text: str) -> int:
+        match = re.search(r"<think>(.*?)</think>", response_text, re.DOTALL)
+        if match is None:
+            return 0
+        reasoning_text = match.group(1).strip()
+        if not reasoning_text:
+            return 0
+        return len(self.tokenizer.encode(reasoning_text, add_special_tokens=False))
+
+    def _strip_trailing_special_tokens(self, response_text: str) -> str:
+        special_tokens = [self.tokenizer.eos_token, self.tokenizer.pad_token]
+        stripped_text = response_text
+        for token in special_tokens:
+            while token and stripped_text.endswith(token):
+                stripped_text = stripped_text[:-len(token)]
+        return stripped_text
 
     def predict(self, pair):     
         if self.prediction_type == 'all_in_one':
@@ -95,7 +140,8 @@ class HFModel():
         # print("prompt:")
         # print(prompts)
         # print()
-        pred = self.api_call(prompts)
+        responses, _, _ = self.generate_batch([prompts])
+        pred = responses[0]
         # print("api_call result:\n",pred)
 
         # transform to the integer
@@ -117,7 +163,8 @@ class HFModel():
         # print("prompt:")
         # print(prompts)
         # print()
-        pred_str = self.api_call(prompts)
+        responses, _, _ = self.generate_batch([prompts])
+        pred_str = responses[0]
         # print("prediction_str_result:")
         # print(pred_str)
         # print("=======")
@@ -142,7 +189,8 @@ class HFModel():
             print("===\nprompt:")
             print(prompts)
             print("\n===\n")
-            pred = self.api_call(prompts)
+            responses, _, _ = self.generate_batch([prompts])
+            pred = responses[0]
             print(f"pred:{pred}")
 
             # transform to the integer
@@ -167,7 +215,8 @@ class HFModel():
             # print("===\nprompt:")
             # print(prompts)
             # print("===\n")
-            pred = self.api_call(prompts)
+            responses, _, _ = self.generate_batch([prompts])
+            pred = responses[0]
             # print(pred)
 
             # transform to the integer
@@ -183,24 +232,29 @@ class HFModel():
 
     def locate(self, pairs):
 
-        
-        # 1. Finalize prompts for all inputs
-        prompts = [self.finalize_prompt(pair, mode='locate') for pair in pairs]
-        
         print("=============================================\n")
 
-        if len(pairs) == 0:
-            responses = []
-            results = []
-            reasoning_tokens_list = []
-            total_tokens_list = []
-        else:
+        responses = []
+        results = []
+        reasoning_tokens_list = []
+        total_tokens_list = []
+        prompts = []
 
-            # 2. Run inference
-            responses, reasoning_tokens_list, total_tokens_list = self.generate_batch(prompts)
+        if len(pairs) != 0:
 
-            # 3. Post-process all responses
-            results = [self.post_process_locate(res) for res in responses]
+            # 2. Run inference one instance at a time to keep HF generation memory bounded.
+            for pair in pairs:
+                prompt = self.finalize_prompt(pair, mode='locate')
+                prompts.append(prompt)
+                response_list, reasoning_token_list, total_token_list = self.generate_batch([prompt])
+                response = response_list[0]
+
+                responses.append(response)
+                reasoning_tokens_list.append(reasoning_token_list[0])
+                total_tokens_list.append(total_token_list[0])
+
+                # 3. Post-process each response
+                results.append(self.post_process_locate(response))
 
             # 4. Print a sample response and result
             print(f"[Example results]")
@@ -288,7 +342,8 @@ class HFModel():
             print("prompt:")
             print(prompt)
 
-            result = str(self.api_call(prompt))
+            responses, _, _ = self.generate_batch([prompt])
+            result = responses[0]
             print('result:')
             print(result)
             print("answer:")
@@ -322,8 +377,8 @@ class HFModel():
         # (1) front_prompt
         tasks = ['prediction', 'locate']
         # tasks = ['prediction']
-        self.prompt_template_for_prediction = f"Tell me whether the following {self.datapoint_type} pairs are consistent or inconsistent. \n"
-        self.prompt_template_for_locate = f"Find the {self.datapoint_type} pairs among the following that are logically inconsistent with the rest. Specifically, identify the minimal collection of inconsistent pairs such that the remaining pairs are logically consistent with one another. If there are no inconsistent pairs, return nothing."
+        self.prompt_template_for_prediction = f"Tell me whether the following {self.datapoint_type}s are consistent or inconsistent. \n"
+        self.prompt_template_for_locate = f"Find the {self.datapoint_type}s among the following that are logically inconsistent with the rest. Specifically, identify the minimal collection of inconsistent {self.datapoint_type}s such that the remaining {self.datapoint_type}s are logically consistent with one another. If there are no inconsistent {self.datapoint_type}s, return nothing."
         self.prompt_template_for_prediction_and_locate = f"Your goal is to solve the following two tasks.\n First, {self.prompt_template_for_prediction} Second, {self.prompt_template_for_locate}"
         
         if self.shot_num == 0:
@@ -370,7 +425,7 @@ class HFModel():
         if mode == 'predict':
             front_prompt = self.prompt_template_for_prediction
             if self.prediction_type == 'many_to_one':
-                front_prompt += f"\nPlease let me know that whether the {self.datapoint_type} pairs in premise are logically consistent or inconsistent with the {self.datapoint_type} pair in hypothesis. Furthermore, if the {self.datapoint_type} pairs in premise is already logically inconsistent, then your answer should be inconsistent.\n"
+                front_prompt += f"\nPlease let me know that whether the {self.datapoint_type}s in premise are logically consistent or inconsistent with the {self.datapoint_type} in hypothesis. Furthermore, if the {self.datapoint_type}s in premise is already logically inconsistent, then your answer should be inconsistent.\n"
             end_prompt = f"provide your consistency judgment by choosing either 'consistent' or 'inconsistent' After the 'Consistency:' mark"
 
             tmp = front_prompt + "\n [Problem]\n"
@@ -393,7 +448,7 @@ class HFModel():
 
         elif mode == 'locate':
             front_prompt = self.prompt_template_for_locate
-            end_prompt = "Your response should only contain the numbers of the inconsistent pairs. \nInconsistent pairs:"
+            end_prompt = f"Your response should only contain the numbers of the inconsistent {self.datapoint_type}s. \nInconsistent {self.datapoint_type}s:"
             
             tmp = front_prompt + "\n [Problem]\n"
             for i, p in enumerate(pairs[0]):
@@ -439,6 +494,11 @@ class HFModel():
             return int(torch.randint(0, 2, (1,)))
 
     def post_process_locate(self, response_text):
+        if "<think>" in response_text and "</think>" not in response_text:
+            return []
+        if "</think>" in response_text:
+            response_text = response_text.rsplit("</think>", 1)[-1].strip()
+
         if "Inconsistent pairs:" in response_text:
             patterns = re.findall(r'(?<=Inconsistent pairs: )[(\d{1,2}) ]+', response_text)
             patterns = [re.findall(r'(\d{1,2})', x) for x in patterns]

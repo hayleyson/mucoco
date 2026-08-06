@@ -18,22 +18,21 @@ export HF_HOME=/home/hyeryung/data/.cache
 export LOGGING_LEVEL=INFO
 
 JOB_ID=$SLURM_JOB_ID
-DIRECTORY="outputs/nli/llm"
+DIRECTORY="/home/hyeryung/data/mucoco/outputs/toxicity/gpt3_5_gen/llm"
 
-EXP_LABEL="masked_v2"
+EXP_LABEL="toxicity_notmasked"
 
-INPUT_FILE_PATH="/home/hyeryung/data/mucoco/laser_edit/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
-ORIG_TEXT_PATH="/home/hyeryung/data/mucoco/laser_edit/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
+INPUT_FILE_PATH="/home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
+ORIG_TEXT_PATH="/home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
 
-PRETRAINED_MODEL_PATH="/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/"
+PRETRAINED_MODEL_PATH="/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint"
 
-HF_MODEL_NAME="Qwen/Qwen3-8B" #"microsoft/Phi-3.5-mini-instruct"
-PROMPT_TYPE="nli_masked_v2"
-TASK="nli"
-LABEL_ID=1
-LOCATE_OPTION="grad_norm"
-THRESHOLD=0.99
-LOSS_NAME="classification"
+HF_MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" #"microsoft/Phi-3.5-mini-instruct"
+PROMPT_TYPE="nontoxic_notmasked"
+TASK="toxicity"
+LABEL_ID=0
+THRESHOLD=0.95
+LOSS_NAME="classification_no_prefix_logprobloss"
 
 # 'nli_notmasked'
 # 'nontoxic_notmasked'
@@ -60,7 +59,6 @@ $JOB_ID \
 --prompt_type $PROMPT_TYPE \
 --task $TASK \
 --label_id $LABEL_ID \
---locate_option $LOCATE_OPTION \
 --threshold $THRESHOLD \
 --loss_name $LOSS_NAME
 

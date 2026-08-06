@@ -1405,7 +1405,8 @@ def locate_baseline(model, dataloader, device = 'cpu', params = None):
     
     
     data_len = 0
-    if 'gpt' in params['baseline']['model'].lower() or 'deepseek' in params['baseline']['model'].lower():
+    if ('gpt' in params['baseline']['model'].lower()) or ('deepseek' in params['baseline']['model'].lower()) or \
+        ('openai/' in params['baseline']['model'].lower()) or ('anthropic/' in params['baseline']['model'].lower()) or ('gemini/' in params['baseline']['model'].lower()):
         
         for i, pairs in enumerate(dataloader):
             # assert len(pairs) == 1

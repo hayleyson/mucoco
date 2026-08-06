@@ -1023,7 +1023,7 @@ if __name__ == "__main__":
     pretrained_model_path = args.pretrained_model_path
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
-    if args.task == "nli":
+    if (args.task == "nli") or (args.task == "inconsistentspans"):
         # config
         with open(os.path.join(pretrained_model_path, 'config.json')) as f:
             model_config = json.load(f)
@@ -1086,6 +1086,28 @@ if __name__ == "__main__":
                                                       )
                     data = masked_text[0]
                     outfile.write(data)
+                elif args.task == "inconsistentspans":
+                    data = json.loads(line)
+                    premise = data['premise']
+                    hypothesis = data['hypothesis']
+                    text = f"<s>{premise}</s>{hypothesis}</s>"
+                    masked_text, scores, indices = locator.locate_main([text], 
+                                                      args.locate_method, 
+                                                      max_num_tokens=args.max_num_tokens, 
+                                                      unit='word', 
+                                                      label_id=args.label_id,
+                                                      num_layer=10,
+                                                      return_scores_and_indices=True)
+                    data = {
+                        "prompt": {"text": premise},
+                        "generations": [{
+                            "text": masked_text[0], 
+                            "roberta_token_pred_scores": [round(x, 4) for x in scores[0].tolist()], 
+                            "roberta_token_pred_indexes": indices[0]
+                            }]
+                    }
+                    json.dump(data, outfile, ensure_ascii=False)
+
                 else:   
                     # JSON 형식으로 변환
                     data = json.loads(line)

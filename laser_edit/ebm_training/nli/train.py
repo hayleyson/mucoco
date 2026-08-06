@@ -47,6 +47,10 @@ def main():
     model_path = f"{config['energynet']['ckpt_save_path']}/best_model.pth"
     config['model_path'] = model_path
     
+    if not os.path.exists(config['energynet']['ckpt_save_path']):
+        os.makedirs(config['energynet']['ckpt_save_path'])
+    
+    
     # save config
     with open(f"{config['energynet']['ckpt_save_path']}/config.json", 'w') as f:
         json.dump(config, f, indent=4)
@@ -72,8 +76,6 @@ def main():
     weight_decay = float(config['energynet']['weight_decay'])
     num_epochs = int(config['energynet']['num_epochs'])
     
-    if not os.path.exists(config['energynet']['ckpt_save_path']):
-        os.makedirs(config['energynet']['ckpt_save_path'])
     
     train_dev_data = load_nli_data(output_file_path=config['energynet']['dataset_path'])
     

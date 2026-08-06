@@ -9,7 +9,6 @@ import scipy, torch, evaluate
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset as TorchDataset
 from datasets import Dataset
 from tqdm import tqdm
 from pathlib import Path
@@ -25,8 +24,8 @@ from transformers import (
 
 from laser_edit.set_consistency_energy.baselines.baseline_model import baseline_model
 from laser_edit.set_consistency_energy.baselines.LLM.lm_loader import lm_loader
-from laser_edit.utils.utils import ravel, unravel, unravel_toxicity_data
-from laser_edit.utils.sc_energy_utils import load_sc_energy_model
+from laser_edit.utils.utils import ravel, unravel, unravel_toxicity_data, read_metric_file
+from laser_edit.utils.sc_energy_utils import load_sc_energy_model, parse_set_text, set_consistency_dataset
 
 
 logging.basicConfig(level=os.getenv('LOGGING_LEVEL', 'INFO'), format="%(message)s")
@@ -1000,48 +999,47 @@ def save_qualitative_results(task,
     
     
     # read files
-    if (task=='toxicity') or (task=='sentiment'):
-        source = pd.read_json(source_file_path, lines=True)
-    elif (task=='formality'):
-        with open(source_file_path, 'r') as f:
-            source = [_line.rstrip('\n') for _line in f.readlines()]
-    
+
     outputs = outputs_df.copy()
-    ppl = pd.read_csv(ppl_results_path, header=None)
-    if (task=='toxicity') or (task=='sentiment'):
-        constraint_sat = pd.read_json(constraint_results_path, lines=True)
-    elif (task=='formality'):
-        constraint_sat = pd.read_csv(constraint_results_path, header=None)
-    contents_prsrv=pd.read_csv(contents_prsrv_results_path)
+    outputs = unravel(outputs)
+    
+    ppl = read_metric_file(ppl_results_path, 'ppl-big-qwen')['ppl'].copy()
+    
+    if (task=='formality'):
+        constraint_sat = read_metric_file(constraint_results_path, 'formality_ext')
+    elif (task in ['set-consistency', 'set_nli', 'set-nli', 'set_snli', 'set-snli', 'lconvqa', 'set_lconvqa', 'sc_energy', 'set-lconvqa']):
+        constraint_sat = 1 - read_metric_file(constraint_results_path, 'set-consistency-gpt')['sc_class_gpt'].copy() # originally, 1 = incon, 0 = con.
+    elif (task=='nli'):
+        constraint_sat = read_metric_file(constraint_results_path, 'nli')['nli_class'].apply(lambda x: 0 if x == 'contradiction' else 1).copy()
+    elif (task=='toxicity'):
+        constraint_sat = 1 - read_metric_file(constraint_results_path, 'toxicity')['toxicity'].copy()
+    elif (task=='sentiment'):
+        constraint_sat = read_metric_file(constraint_results_path, 'sentiment_ext')
+    else:
+        raise ValueError(f"Unknown task: {task}")
+    
+    if os.path.exists(contents_prsrv_results_path):
+        contents_prsrv=read_metric_file(contents_prsrv_results_path, 'sbertscore')
+    else:
+        contents_prsrv = np.ones(len(outputs)) * np.nan
 
 
     # preprocess files
     ## key (row index), prompt, gen 
-    if (task=='toxicity'): 
-        source = unravel(source)
-    elif (task=='sentiment'):
-        source = unravel(source)
-        source = source[['prompt','generations']].copy()
-    elif (task=='formality'):
+    if (task=='formality'):
+        with open(source_file_path, 'r') as f:
+            source = [_line.rstrip('\n') for _line in f.readlines()]
         source = pd.DataFrame({'prompt': ["" for _ in range(len(source))], 'generations': source})
-    outputs = unravel(outputs)
+    else:
+        source = pd.read_json(source_file_path, lines=True)
+        source = unravel(source)
+    
+        if (task=='sentiment'):
+            source = source[['prompt','generations']].copy()
+        
+    
 
-    ## key (row index), value
-    ppl = ppl.iloc[:, 0].copy()
-
-    if task == 'toxicity':
-        constraint_sat = unravel_toxicity_data(constraint_sat)
-        constraint_sat = constraint_sat[['toxicity']].copy()
-        constraint_sat['toxicity'] = 1-constraint_sat['toxicity']
-    elif task == 'sentiment': 
-        constraint_sat.loc[constraint_sat['label']=='NEGATIVE', 'score'] = constraint_sat.loc[constraint_sat['label']=='NEGATIVE', 'score'].apply(lambda x: 1-x)
-        constraint_sat = constraint_sat['score'].copy()
-    elif task == 'formality':
-        constraint_sat = constraint_sat.iloc[:, 0].copy()
-                                
-    contents_prsrv = contents_prsrv['sbert_score'].copy()
-
-    final_df=pd.concat([source,outputs[['generations']],ppl,constraint_sat,contents_prsrv],axis=1,ignore_index=True)
+    final_df=pd.concat([source,outputs[['generations']],pd.Series(ppl),pd.Series(constraint_sat),pd.Series(contents_prsrv)],axis=1,ignore_index=True)
 
     final_df.columns=['prompt','original','edited','ppl','constraint_sat','sbert_score']
     final_df.to_excel(qual_results_path,index=False)
@@ -1184,56 +1182,18 @@ def set_consistency_score_gpt(raw_data, model_name,  output_file='', dataset='lc
         batch_size=1,
     )
 
-    class l_convqa_fine_grained_dataset(TorchDataset):
-        def __init__(self, dataset_list:List[List[Tuple[str, str, bool]]]):
-            self.dataset = dataset_list
-        
-        def __getitem__(self, index):
-            return self.dataset[index]
-        
-        def __len__(self):
-            return len(self.dataset)
 
+    raw_texts = raw_data['generations'].apply(lambda x: x[0]['text']).tolist()
 
-    def parse_question_answer(text, 
-                            answer_pattern='The answer is[^\\.]*\\.', 
-                            answer_prefix='The answer is'):
-
-        answers = re.findall(answer_pattern, text)
-        answers = [a.replace(answer_prefix, '').strip().rstrip('.') for a in answers]
+    test_dataset = []
+    for _text in raw_texts:
+        # logger.info(f"_text: {_text}")
+        parsed_qa_pairs = parse_set_text(_text, source_mode="ebm", dataset=params['dataset'])
+        # logger.info(f"parsed_qa_pairs: {parsed_qa_pairs}")
+        test_dataset.append(parsed_qa_pairs)
         
-        questions = re.split(answer_pattern, text)[:-1] # last element is ''
-        if len(answers) != len(questions):
-            logger.error(f"================")
-            logger.error(f"The length of answers ({len(answers)}) and questions ({len(questions)}) are not equal.")
-            logger.error(f"answers: {answers}")
-            logger.error(f"questions: {questions}")
-            logger.error(f"================")
-            raise
-        questions = [q.strip() for q in questions][:len(answers)]
-        questions = [q + '?' if q.endswith('?') == False else q for q in questions]
-        
-        parsed_qa_pairs = [(q, a, None) for (q, a) in zip(questions, answers)]
-        
-        return parsed_qa_pairs
-
-
-    if params['dataset'] == 'lconvqa':
-        
-        raw_texts = raw_data['generations'].apply(lambda x: x[0]['text']).tolist()
+    test_dataset = set_consistency_dataset(test_dataset)
     
-        test_dataset = []
-        for _text in raw_texts:
-            # logger.info(f"_text: {_text}")
-            parsed_qa_pairs = parse_question_answer(_text)
-            # logger.info(f"parsed_qa_pairs: {parsed_qa_pairs}")
-            test_dataset.append(parsed_qa_pairs)
-            
-        test_dataset = l_convqa_fine_grained_dataset(test_dataset)
-    
-    elif params['dataset'] == 'set_nli':
-        raise NotImplementedError
-
     dataloader = lm_loader(test_dataset, params=params).get_loader()
     model = baseline_model(params, 'prediction')
     pred = [] # 0: consistent, 1: inconsistent
@@ -1242,6 +1202,8 @@ def set_consistency_score_gpt(raw_data, model_name,  output_file='', dataset='lc
 
     fail = False
     for i, pairs in tqdm(enumerate(dataloader), total=len(dataloader)):
+        if i == 0:
+            print(f"pairs: {pairs}")
         for try_num in range(3): # max 3 tries
             try:
                 evaluate_result = model.predict(pairs)

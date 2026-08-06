@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from laser_edit.utils.sc_energy_utils import load_sc_energy_dataset
 from laser_edit.locate.ebm.locate_utils import LocateMachine4SCE
-from laser_edit.locate.llm.set_consistency.set_consistency_locate import locate_ebm
+from laser_edit.locate.ebm.set_consistency_locate_instance import locate_ebm
 
 sys.path.append("laser_edit/set_consistency_energy")
 from energynets.energynet import energynet
@@ -44,6 +44,10 @@ def load_sc_energy_model_customized(config_path, device, locate_instance_type = 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_name', type=str, required=True)
+    parser.add_argument('--split', type=str, default='eval2', choices=['eval2', 'test'])
+    parser.add_argument('--use_incon_samples', action='store_true')
+    parser.add_argument('--n_samples', type=int, default=-1)
+    parser.add_argument('--random_seed', type=int, default=42)
     parser.add_argument('--params_path', type=str, required=True)
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--device', type=str, default='cuda')
@@ -57,7 +61,11 @@ def main():
     # Data Loading
     # ------------------------------------------------ #
     # 데이터셋을 정의한다.
-    canonical_eval2_datasets, _ = load_sc_energy_dataset(dataset_name = args.dataset_name)
+    # load_sc_energy_dataset uses random.sample when n_samples is not None; default -1 means "all".
+    n_samples_kw = None if args.n_samples < 0 else args.n_samples
+    canonical_eval2_datasets, _ = load_sc_energy_dataset(
+        args.dataset_name, args.split, args.use_incon_samples, n_samples_kw, args.random_seed
+    )
     canonical_eval2_dataset = canonical_eval2_datasets[0]
 
     # ------------------------------------------------ #

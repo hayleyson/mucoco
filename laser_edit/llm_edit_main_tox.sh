@@ -20,13 +20,12 @@ export LOGGING_LEVEL=INFO
 JOB_ID=$SLURM_JOB_ID
 DIRECTORY="/home/hyeryung/data/mucoco/outputs/toxicity/gpt3_5_gen/llm"
 
-EXP_LABEL="toxicity_masked"
+EXP_LABEL="nontoxic_masked"
 TOTAL_ITERATION=1
 
 INPUT_FILE_PATH="/home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
 ORIG_TEXT_PATH="/home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
-# LOCATED_RESULTS_FILE="/home/hyeryung/data/mucoco/laser_edit/locate/llm/toxicity/processed_results/Qwen2.5-7B-Instruct_locate_toxic_5shot_type1_v3_baselm_gens_nontoxic_1782821550_processed.jsonl"
-
+# LOCATED_RESULTS_FILE="/home/hyeryung/data/mucoco/laser_edit/locate/llm/nli_toxicity/processed_results/Qwen2.5-7B-Instruct_locate_toxic_5shot_type1_v3_baselm_gens_nontoxic_1782821550_processed.jsonl"
 
 PRETRAINED_MODEL_PATH="/home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint"
 
@@ -37,7 +36,6 @@ LABEL_ID=0
 LOCATE_OPTION="grad_norm"
 THRESHOLD=0.95
 LOSS_NAME="classification_no_prefix_logprobloss"
-MAX_NUM_TOKENS=7
 
 # toxicity (target: nontoxic) - 0
 # sentiment (target: positive) - 1
@@ -66,6 +64,6 @@ $JOB_ID \
 --threshold $THRESHOLD \
 --loss_name $LOSS_NAME \
 --total_iteration $TOTAL_ITERATION \
---max_num_tokens $MAX_NUM_TOKENS
+--max_num_tokens 7
 # --located_results_file $LOCATED_RESULTS_FILE
 

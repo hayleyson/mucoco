@@ -24,15 +24,7 @@ batch_size: 1
 eval:
     batch_size: 1
 locate:
-    # Table 13 Set-LConVQA Editing: Attention (layer 11 / 0-index 10) + Average; span GradNorm, l=1
-    instance:
-        agg_method: avg
-        attentions_num_layer: 10
-        select_method: recursive_max
-        type: attention
-    span:
-        attentions_num_layer: -1
-        type: gradnorm
+    type: subtraction
 baseline:
     type: llm
     model: gpt-4o

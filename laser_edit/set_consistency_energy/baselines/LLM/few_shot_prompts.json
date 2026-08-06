@@ -152,7 +152,13 @@
             }
         },
         "locate": {
-            "all_in_one": {},
+            "all_in_one": {
+                "1": "(1) no group of people on the dark brightly lighten street while one man with a gray hat holds a large colorful sign with arrows. (2) Either a group of people on the dark brightly lighten street while one man with a gray hat holds a large colorful sign with arrows or the people are walking down the street. (3) the people are walking down the street \n Thought: Let A be the group of people on the street, and B be the people walking down the street. (1) says not A, while (2) says A or B, and (3) says B. Since B is true, (2) is satisfied even though A is false. Hence there is no inconsistency. \n Inconsistent sentences:",
+                "2": "(1) Either a child is surrounded by a field of sunflowers or a happy kid and some flowers. (2) No happy kid and no flowers. (3) No child is surrounded by a field of sunflowers. \n Thought: Let A be a child surrounded by sunflowers, and B be a happy kid and some flowers. (2) rules out B, and (3) rules out A. Therefore, (1), which requires A or B, is inconsistent with the rest. \n Inconsistent sentences: (1)", 
+                "3": "(1) No boys smile wearing tank tops. (2) Two smiling young girls wearing plastic sunglasses are lying on the grass. \n Thought: (1) talks about boys wearing tank tops, while (2) talks about young girls wearing sunglasses. These can both be true at the same time, so there is no inconsistency. \n Inconsistent sentences:",
+                "4": "(1) a woman wears lingerie. (2) No woman wears lingerie. (3) Either two women in lingerie with green feathers around waist or no woman wears lingerie. \n Thought: (1) and (2) directly contradict each other. Sentence (3) is compatible with either one: if (2) holds, its second alternative is true; if (1) holds, its first alternative may be true. Thus, the only inconsistency is the contradiction between (1) and (2). Removing either one restores consistency. We identify (2) as the inconsistent sentence. \n Inconsistent sentences: (2)",
+                "5": "(1) Either a person in a green robe sits on a couch with a blanket or a man sits on a couch. (2) No person in a green robe sits on a couch or no blanket is present. (3) No man sits on a couch. \n Thought: Since (3) says no man sits on a couch, the second option in (1) is false. So, for (1) to be true, the first option must be true: a person in a green robe sits on a couch with a blanket. But (2) denies that such a person sits on a couch with a blanket. Therefore, (2) is inconsistent with the other sentences. \n Inconsistent sentences: (2)"
+            },
             "one_to_one": {},
             "many_to_one": {}
         }

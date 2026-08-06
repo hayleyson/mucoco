@@ -1,4 +1,5 @@
 import argparse
+import gc
 import logging
 import os
 import json
@@ -45,6 +46,15 @@ def rename_df_for_nli(dataframe, col_name='premise'):
     result_df = dataframe.copy()
     result_df['prompt'] = dataframe['prompt'].apply(lambda x: {'text': x[col_name]})
     return result_df[['prompt', 'generations']]
+
+
+def _normalize_sc_gpt_dataset(task: str) -> str:
+    """Map eval --task names to parse_set_text dataset ids (lconvqa | set_nli)."""
+    if task in {'lconvqa', 'set_lconvqa', 'set-lconvqa', 'vqa', 'convqa'}:
+        return 'lconvqa'
+    if task in {'set_nli', 'set-nli', 'set_snli', 'set-snli'}:
+        return 'set_nli'
+    return task
 
 
 def load_sc_energy_llm_edit_outputs(generations_file_path, dataset='lconvqa'):
@@ -96,6 +106,16 @@ def load_sc_energy_llm_edit_outputs(generations_file_path, dataset='lconvqa'):
     else:
         raise ValueError(f"Dataset {dataset} not supported")
 
+
+def release_cuda_memory(*objects):
+    for obj in objects:
+        del obj
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
+
 def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs):
     """
     kwargs: 
@@ -139,43 +159,51 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         logger.debug("big")
         eval_model_name = "Qwen/Qwen2.5-14B"
         torch.cuda.empty_cache()
-        eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, dtype = torch.float16, device_map="auto")
-        eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
-        torch.cuda.empty_cache()
-        if task=='nli':
-            # generations_df2 = rename_df_for_nli(generations_df, 'premise')
-            generations_df2 = generations_df.copy()
-            generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
-        else:
-            generations_df2 = generations_df.copy()
-        with torch.no_grad():
-            ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big-qwen"))
-        if run_path != "":
-            run.summary.update({'ppl_qwen': ppl, 'total_ppl_qwen': total_ppl})
-        fp.write(f'ppl_qwen: {ppl}, total_ppl_qwen: {total_ppl}\n')
-        del eval_model
-        del eval_tokenizer
+        eval_model = None
+        eval_tokenizer = None
+        generations_df2 = None
+        try:
+            eval_model = AutoModelForCausalLM.from_pretrained(eval_model_name, dtype = torch.float16, device_map="auto")
+            eval_tokenizer = AutoTokenizer.from_pretrained(eval_model_name)
+            torch.cuda.empty_cache()
+            if task=='nli':
+                # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+                generations_df2 = generations_df.copy()
+                generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
+            else:
+                generations_df2 = generations_df.copy()
+            with torch.no_grad():
+                ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big-qwen"))
+            if run_path != "":
+                run.summary.update({'ppl_qwen': ppl, 'total_ppl_qwen': total_ppl})
+            fp.write(f'ppl_qwen: {ppl}, total_ppl_qwen: {total_ppl}\n')
+        finally:
+            release_cuda_memory(eval_model, eval_tokenizer, generations_df2)
         
 
     if "ppl-big" in metricset: #GPT2-XL
         logger.debug("big")
         torch.cuda.empty_cache()
-        eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
-        eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
-        torch.cuda.empty_cache()
-        if task=='nli':
-            # generations_df2 = rename_df_for_nli(generations_df, 'premise')
-            generations_df2 = generations_df.copy()
-            generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
-        else:
-            generations_df2 = generations_df.copy()
-        with torch.no_grad():
-            ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
-        if run_path != "":
-            run.summary.update({'ppl': ppl, 'total_ppl': total_ppl})
-        fp.write(f'ppl: {ppl}, total_ppl: {total_ppl}\n')
-        del eval_model
-        del eval_tokenizer
+        eval_model = None
+        eval_tokenizer = None
+        generations_df2 = None
+        try:
+            eval_model = AutoModelForCausalLM.from_pretrained('gpt2-xl').to(device)
+            eval_tokenizer = AutoTokenizer.from_pretrained('gpt2-xl')
+            torch.cuda.empty_cache()
+            if task=='nli':
+                # generations_df2 = rename_df_for_nli(generations_df, 'premise')
+                generations_df2 = generations_df.copy()
+                generations_df2['prompt'] = [{"text":''}] * len(generations_df2)
+            else:
+                generations_df2 = generations_df.copy()
+            with torch.no_grad():
+                ppl, total_ppl = conditional_perplexity(generations_df2, eval_model, eval_tokenizer, device=device, write_file=output_dir / (output_file+".ppl-big"))
+            if run_path != "":
+                run.summary.update({'ppl': ppl, 'total_ppl': total_ppl})
+            fp.write(f'ppl: {ppl}, total_ppl: {total_ppl}\n')
+        finally:
+            release_cuda_memory(eval_model, eval_tokenizer, generations_df2)
     
     if 'nli' in metricset:
         logger.debug("nli-ensemble")
@@ -330,8 +358,9 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         logger.debug("set-consistency-gpt")
         
         device = 'cuda'
+        sc_gpt_dataset = _normalize_sc_gpt_dataset(kwargs['task'])
         
-        cons_prop = 1 - set_consistency_score_gpt(generations_df, "gpt-5-mini", output_dir / (output_file+".sc_gpt"), dataset='lconvqa')
+        cons_prop = 1 - set_consistency_score_gpt(generations_df, "gpt-5-mini", output_dir / (output_file+".sc_gpt"), dataset=sc_gpt_dataset)
         if run_path != "":
             run.summary.update({'consistent_proba_gpt': cons_prop})
         fp.write(f'consistent_proba_gpt: {cons_prop}\n')
@@ -343,8 +372,9 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         logger.debug("set-consistency-gpt-5.4-mini")
         
         device = 'cuda'
+        sc_gpt_dataset = _normalize_sc_gpt_dataset(kwargs['task'])
         
-        cons_prop = 1 - set_consistency_score_gpt(generations_df, "gpt-5.4-mini", output_dir / (output_file+".sc_gpt_5.4_mini"), dataset='lconvqa')
+        cons_prop = 1 - set_consistency_score_gpt(generations_df, "gpt-5.4-mini", output_dir / (output_file+".sc_gpt_5.4_mini"), dataset=sc_gpt_dataset)
         if run_path != "":
             run.summary.update({'consistent_proba_gpt_5.4_mini': cons_prop})
         fp.write(f'consistent_proba_gpt_5.4_mini: {cons_prop}\n')
@@ -356,8 +386,9 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
         logger.debug("set-consistency-gpt-5.4")
         
         device = 'cuda'
+        sc_gpt_dataset = _normalize_sc_gpt_dataset(kwargs['task'])
         
-        cons_prop = 1 - set_consistency_score_gpt(generations_df, "gpt-5.4", output_dir / (output_file+".sc_gpt_5.4"), dataset='lconvqa')
+        cons_prop = 1 - set_consistency_score_gpt(generations_df, "gpt-5.4", output_dir / (output_file+".sc_gpt_5.4"), dataset=sc_gpt_dataset)
         if run_path != "":
             run.summary.update({'consistent_proba_gpt_5.4': cons_prop})
         fp.write(f'consistent_proba_gpt_5.4: {cons_prop}\n')
@@ -430,11 +461,13 @@ def run_generation_evaluation(run_path, generations_file_path, metrics, **kwargs
             constraint_suffix = 'formality_ext'
         elif task == 'nli':
             constraint_suffix = 'nli'
+        elif task in ['set_nli', 'set-nli', 'set_snli', 'set-snli', 'lconvqa', 'set_lconvqa', 'sc_energy', 'set-lconvqa']:
+            constraint_suffix = 'sc_gpt'
             
         save_qualitative_results(task,
                                 kwargs['source_file_path'], 
                                 generations_df, 
-                                str(output_dir / (output_file+".ppl-qwen")) if "ppl-qwen" in metricset else str(output_dir / (output_file+".ppl-big")), 
+                                str(output_dir / (output_file+".ppl-big-qwen")) if os.path.exists(output_dir / (output_file+".ppl-big-qwen")) else str(output_dir / (output_file+".ppl-big")), 
                                 str(output_dir / (output_file+f".{constraint_suffix}")), 
                                 str(output_dir / (output_file+".sbertscore")),
                                 str(output_dir / (output_file+".xlsx")))

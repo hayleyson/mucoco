@@ -168,4 +168,8 @@ laser_edit/set_consistency_energy/results/*
 .DS_Store
 *.pth
 **/set-consistency-demo/**
-EBL-Edit/
+
+# tests, docs, analyses
+docs/
+tests/
+laser_edit/analyses/

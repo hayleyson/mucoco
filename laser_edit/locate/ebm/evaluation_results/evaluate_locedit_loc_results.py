@@ -520,6 +520,9 @@ def evaluate_all_results(
             parent_dir_name = pred_file.parent.name
             print(parent_dir_name)
             
+            if parent_dir_name == "bak":
+                continue
+            
             # Check parent directory name for task type
             task = None
             original_file = None

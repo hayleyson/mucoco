@@ -50,6 +50,53 @@ def postprocess(model, text):
 
     return new_text
 
+
+def qwen3_final_text_or_fallback_info(model_name, decoded_text, fallback_text):
+    """Return only the final Qwen3 answer plus whether fallback was used."""
+    if "qwen3" not in model_name.lower():
+        return decoded_text.strip("\n"), False
+
+    text = decoded_text.strip("\n")
+    if "<think>" in text and "</think>" not in text:
+        return fallback_text, True
+    if "</think>" in text:
+        return text.rsplit("</think>", 1)[-1].strip("\n"), False
+    return text, False
+
+
+def qwen3_final_text_or_fallback(model_name, decoded_text, fallback_text):
+    """Return only the final Qwen3 answer; use fallback if thinking never closes."""
+    final_text, _ = qwen3_final_text_or_fallback_info(
+        model_name,
+        decoded_text,
+        fallback_text,
+    )
+    return final_text
+
+
+def qwen3_set_consistency_text_or_fallback_info(model_name, decoded_text, fallback_text):
+    """Qwen3 final-answer extraction for set-consistency text edits."""
+    return qwen3_final_text_or_fallback_info(model_name, decoded_text, fallback_text)
+
+
+def write_qwen3_fallback_log(file_save_path, model_name, fallback_records, total_generations):
+    if "qwen3" not in model_name.lower():
+        return
+    log_path = f"{file_save_path}.qwen3_fallbacks.json"
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "model_name": model_name,
+                "total_generations": total_generations,
+                "fallback_count": len(fallback_records),
+                "fallback_records": fallback_records,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
 def generate_and_save_result(args):
     
     # run = wandb.init(project="llm_experiments", entity="saehee-seoul-national-university", config=vars(args))
@@ -141,6 +188,7 @@ def generate_and_save_result(args):
 
     # these 'prompt's are the strings that are formatted into the prompt
     prompts = []
+    original_generation_texts = []
     num_generations_per_prompt = []
     with open(args.input_file_path,'r') as f:
         raw_data = f.readlines()
@@ -183,6 +231,7 @@ def generate_and_save_result(args):
                     else: # both
                         concatenated = prompt + '\nOriginal Text: ' + orig_text_lists[lineidx][genidx] + '\nMasked Text: ' + gen
                 prompts.append(concatenated)
+                original_generation_texts.append(orig_text_lists[lineidx][genidx])
 
     class CustomDataset(Dataset):
         def __init__(self, text_list, system_prompt):
@@ -302,6 +351,7 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
     edited_text   = []
     prompt_idx = 0
     processed_generations = 0
+    qwen3_fallback_records = []
     for prompt, (batch, batch_text) in zip(prompts, myDataLoader):
         batch = batch.to(device)
         generated_result = model.generate(**batch, 
@@ -314,15 +364,28 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
         generated_tokens = generated_result[:, input_length:]
         # print("raw result: \n", tokenizer.convert_ids_to_tokens(generated_result[0]))
         if 'qwen3' in args.hf_model_name.lower():
-            try:
-                print(f"generated_tokens: {generated_tokens}")
-                index = [len(seq) - seq[::-1].index(151668) for seq in generated_tokens]
-                print(f"index: {index}")
-            except Exception as e:
-                print(f"Error: {e}")
-                index = [0 for _ in range(args.num_return_sequences)]
-            thinking_content = [tokenizer.decode(seq[:ix], skip_special_tokens=True).strip('\n') for seq, ix in zip(generated_tokens, index)]
-            total_generated_text = [tokenizer.decode(seq[ix:], skip_special_tokens=True).strip('\n') for seq, ix in zip(generated_tokens, index)]
+            decoded_texts = [
+                tokenizer.decode(seq, skip_special_tokens=True)
+                for seq in generated_tokens
+            ]
+            fallback_text = original_generation_texts[count]
+            total_generated_text = []
+            for text in decoded_texts:
+                final_text, used_fallback = qwen3_final_text_or_fallback_info(
+                    args.hf_model_name,
+                    text,
+                    fallback_text,
+                )
+                total_generated_text.append(final_text)
+                if used_fallback:
+                    qwen3_fallback_records.append(
+                        {
+                            "flat_index": count,
+                            "row_idx": prompt_idx,
+                            "gen_idx": len(edited_text),
+                            "fallback_text_preview": fallback_text[:500],
+                        }
+                    )
         else:
             total_generated_text = [tokenizer.decode(seq, skip_special_tokens=True).strip('\n') for seq in generated_tokens]
         edited_text.append(total_generated_text[0])
@@ -343,6 +406,12 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
             print("example prompt\n============\n" + nontoxic_prompt + "\n============\n" + prompt)
 
     f.close()
+    write_qwen3_fallback_log(
+        args.file_save_path,
+        args.hf_model_name,
+        qwen3_fallback_records,
+        count,
+    )
     end_time = time.time()
     print(f"Total time taken: {end_time - start_time}")
 
@@ -407,6 +476,7 @@ def generate_and_save_result_vllm(args):
     enable_thinking = args.enable_thinking
 
     prompts = []
+    original_generation_texts = []
     num_generations_per_prompt = []
     with open(args.input_file_path,'r') as f:
         raw_data = f.readlines()
@@ -448,6 +518,7 @@ def generate_and_save_result_vllm(args):
                     else: # both
                         concatenated = prompt + '\nOriginal Text: ' + orig_text_lists[lineidx][genidx] + '\nMasked Text: ' + gen
                 prompts.append(concatenated)
+                original_generation_texts.append(orig_text_lists[lineidx][genidx])
 
     nontoxic_prompt = get_prompt(args)
 
@@ -506,6 +577,19 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
         nontoxic_prompt = nontoxic_prompt_0 + nontoxic_prompt_1
         nontoxic_prompt = nontoxic_prompt.replace('<mask>', '___')
         prompts = [apply_ph(p, "___") for p in prompts]
+        
+    else:
+        prompts = [apply_ph(p, "___") for p in prompts]
+        nontoxic_prompt = nontoxic_prompt.replace('<mask>', '___')
+        messages = [
+            {"role": "user", "content": nontoxic_prompt}
+        ]
+        nontoxic_prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=enable_thinking # Switches between thinking and non-thinking modes. Default is True.
+        )
 
     print("nontoxic_prompt:\n", nontoxic_prompt)
 
@@ -588,21 +672,23 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
                 llm.generate(full_prompts[start : start + chunk_size], sampling_params)
             )
 
-    def _first_completion_text(req_out):
+    def _first_completion_text(req_out, fallback_text):
         out0 = req_out.outputs[0]
         if "qwen3" not in args.hf_model_name.lower():
-            return out0.text.strip("\n").replace("\n\n", "")
+            return out0.text.strip("\n").replace("\n\n", ""), False
         gen_ids = list(out0.token_ids)
-        try:
-            ix = len(gen_ids) - gen_ids[::-1].index(151668)
-        except ValueError:
-            ix = 0
-        tail = tokenizer.decode(gen_ids[ix:], skip_special_tokens=True).strip("\n")
-        return tail.replace("\n\n", "")
+        decoded_text = tokenizer.decode(gen_ids, skip_special_tokens=True)
+        tail, used_fallback = qwen3_final_text_or_fallback_info(
+            args.hf_model_name,
+            decoded_text,
+            fallback_text,
+        )
+        return tail.replace("\n\n", ""), used_fallback
 
     edited_text = []
     prompt_idx = 0
     processed_generations = 0
+    qwen3_fallback_records = []
     for count, req_out in enumerate(all_outputs):
         prompt = prompts[count]
         if count == 0:
@@ -612,7 +698,16 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
                 + "\n============\n"
                 + prompt
             )
-        text = _first_completion_text(req_out)
+        text, used_fallback = _first_completion_text(req_out, original_generation_texts[count])
+        if used_fallback:
+            qwen3_fallback_records.append(
+                {
+                    "flat_index": count,
+                    "row_idx": prompt_idx,
+                    "gen_idx": len(edited_text),
+                    "fallback_text_preview": original_generation_texts[count][:500],
+                }
+            )
         edited_text.append(text)
         if len(edited_text) == num_generations_per_prompt[prompt_idx]:
             formatted_generated_text = {
@@ -626,6 +721,12 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your re
             prompt_idx += 1
 
     f.close()
+    write_qwen3_fallback_log(
+        args.file_save_path,
+        args.hf_model_name,
+        qwen3_fallback_records,
+        len(all_outputs),
+    )
     end_time = time.time()
     print(f"Total time taken: {end_time - start_time}")
 
@@ -663,6 +764,7 @@ def generate_and_save_result_vllm_sc_energy(args, test_dataset, located_dataset)
     line_idx = 0
     prompts = []
     prompt_line_indices = []
+    original_set_texts = []
     for batch, batch_orig in zip(located_data_loader[0], orig_data_loader[0]):
         if not locate_edit_idx[line_idx][0]:
             line_idx += 1
@@ -679,6 +781,7 @@ def generate_and_save_result_vllm_sc_energy(args, test_dataset, located_dataset)
             concatenated = prompt + '\nOriginal Text: ' + orig_gen + '\nMasked Text: ' + gen
         prompts.append(concatenated)
         prompt_line_indices.append(line_idx)
+        original_set_texts.append(orig_gen)
         line_idx += 1
 
     nontoxic_prompt = get_prompt(args)
@@ -788,20 +891,22 @@ def generate_and_save_result_vllm_sc_energy(args, test_dataset, located_dataset)
                 llm.generate(full_prompts[start : start + chunk_size], sampling_params)
             )
 
-    def _first_completion_text(req_out):
+    def _first_completion_text(req_out, fallback_text):
         out0 = req_out.outputs[0]
         if "qwen3" not in args.hf_model_name.lower():
-            return out0.text.strip("\n").replace("\n\n", "")
+            return out0.text.strip("\n").replace("\n\n", ""), False
         gen_ids = list(out0.token_ids)
-        try:
-            ix = len(gen_ids) - gen_ids[::-1].index(151668)
-        except ValueError:
-            ix = 0
-        tail = tokenizer.decode(gen_ids[ix:], skip_special_tokens=True).strip("\n")
-        return tail.replace("\n\n", "")
+        decoded_text = tokenizer.decode(gen_ids, skip_special_tokens=True)
+        tail, used_fallback = qwen3_set_consistency_text_or_fallback_info(
+            args.hf_model_name,
+            decoded_text,
+            fallback_text,
+        )
+        return tail.replace("\n\n", ""), used_fallback
 
     edited_text = []
     edited_set_texts = [None] * len(locate_edit_idx)
+    qwen3_fallback_records = []
     for count, req_out in enumerate(all_outputs):
         prompt = ""
         if count == 0:
@@ -811,7 +916,15 @@ def generate_and_save_result_vllm_sc_energy(args, test_dataset, located_dataset)
                 + "\n============\n"
                 + prompt
             )
-        text = _first_completion_text(req_out)
+        text, used_fallback = _first_completion_text(req_out, original_set_texts[count])
+        if used_fallback:
+            qwen3_fallback_records.append(
+                {
+                    "flat_index": count,
+                    "row_idx": prompt_line_indices[count],
+                    "fallback_text_preview": original_set_texts[count][:500],
+                }
+            )
         edited_text.append(text)
         edited_ebm_text = convert_format(text, source_mode="llm", target_mode="ebm", dataset=args.dataset)
         
@@ -826,6 +939,12 @@ def generate_and_save_result_vllm_sc_energy(args, test_dataset, located_dataset)
         edited_set_texts[prompt_line_indices[count]] = edited_set_text
 
     f.close()
+    write_qwen3_fallback_log(
+        args.file_save_path,
+        args.hf_model_name,
+        qwen3_fallback_records,
+        len(all_outputs),
+    )
 
     end_time = time.time()
     print(f"Total time taken: {end_time - start_time}")

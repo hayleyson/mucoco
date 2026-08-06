@@ -8,7 +8,7 @@
 
 source ~/.bashrc
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate vllm
+conda activate loc-edit
 
 
 export OPENAI_API_KEY=
@@ -17,10 +17,11 @@ export HF_HOME=/home/hyeryung/data/hf_cache
 
 export LOGGING_LEVEL=DEBUG
 
-srun -n 1 -c 1 python laser_edit/locate/ebm/set_consistency_locate_instance.py \
-ebm \
---dataset_name set_nli \
---output_dir outputs/sc_energy/set_nli/locate/testset_incon_100 \
---use_incon_samples \
---n_samples 100 \
---ebm_config_path laser_edit/set_consistency_energy/params_set_nli.yaml
+  
+python /home/hyeryung/data/mucoco/laser_edit/set_consistency_energy/locate.py \
+--config /home/hyeryung/data/mucoco/laser_edit/set_consistency_energy/params_set_lconvqa_subtraction.yaml \
+--task vqa \
+--dataset lconvqa \
+--data_dir /home/hyeryung/data/mucoco/laser_edit/data/lconvqa \
+--loss_type triplet \
+--decomposition no

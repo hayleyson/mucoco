@@ -6,7 +6,7 @@ energynet:
   batch_size: 
     binary: 32
     continuous: 32
-  num_epochs: 3
+  num_epochs: 78
   optimizer: adamw
   max_lr: 1e-5
   weight_decay: 0.03
@@ -18,8 +18,8 @@ energynet:
     margin: n/a
     setting: n/a
     mixing_weights: n/a
-  fill_missing_finegrained: true
-  add_train_data: true
+  fill_missing_finegrained: false
+  add_train_data: false
   eval_every: 100
   early_stopping: 
     use: false

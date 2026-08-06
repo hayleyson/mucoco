@@ -95,7 +95,7 @@ def main():
     parser.add_argument('--use_incon_samples', action='store_true')
     parser.add_argument('--n_samples', type=int, default=-1)
     parser.add_argument('--random_seed', type=int, default=42)
-    
+    parser.add_argument('--use_vllm', action='store_true')
     args = parser.parse_args()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -113,6 +113,7 @@ def main():
             locate_type='all_in_one',
             prediction_type='all_in_one',
             reasoning_effort=args.reasoning_effort,
+            use_vllm=args.use_vllm,
         ),
         device=device,
         batch_size=1,

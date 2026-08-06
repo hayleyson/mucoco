@@ -89,6 +89,7 @@ def unravel(outputs_df):
 
 def unravel_toxicity_data(df):
     df['toxicity']=df['allresponses'].apply(lambda x: [x[0]['attributeScores']['TOXICITY']['summaryScore']['value'] for x in list(x.values())])
+    # df['toxicity']=df['allresponses'].apply(lambda x: [x[0]['attributeScores']['TOXICITY']['spanScores'][0]['score']['value'] for x in list(x.values())])
     df=df.explode('toxicity',ignore_index=True)
     return df
 

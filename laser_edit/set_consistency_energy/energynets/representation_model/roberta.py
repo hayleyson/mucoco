@@ -97,8 +97,12 @@ class roberta(nn.Module):
         self.output_attentions = False
         
         # Enable based on localization type
-        locate_config = self.params['locate']
-        if 'gradnorm' in [locate_config['instance']['type'], locate_config['span']['type']]:
+        locate_config = self.params.get('locate', {})
+        locate_types = [
+            locate_config.get('instance', {}).get('type'),
+            locate_config.get('span', {}).get('type'),
+        ]
+        if 'gradnorm' in locate_types:
             self.output_hidden_states = True
-        if 'attention' in [locate_config['instance']['type'], locate_config['span']['type']]:
+        if 'attention' in locate_types:
             self.output_attentions = True

@@ -76,7 +76,7 @@ class locate_by_subtraction():
         spans = self.detect_span(long_text)
         pair_num = len(spans)
 
-        e_val, _ = self.energynet.energy_model([long_text], pair_only = True)
+        e_val = self._energy_predictions([long_text])
         if threshold == None:
             threshold = self.energynet.threshold
         
@@ -99,10 +99,10 @@ class locate_by_subtraction():
         for s_i in subtracted_inputs:
 
             if self.energynet.output_form == 'real_num':
-                e_val, _ = self.energynet.energy_model([s_i], pair_only = True)
+                e_val = self._energy_predictions([s_i])
                 values.append(float(e_val))
             if self.energynet.output_form == '2dim_vec':
-                e_out, _ = self.energynet.energy_model([s_i], pair_only = True) # (len(set), 2)
+                e_out = self._energy_predictions([s_i]) # (len(set), 2)
                 probs_for_incon = e_out[:, 1] # shape = (len(set))
                 values.append(float(probs_for_incon))
 
@@ -131,6 +131,12 @@ class locate_by_subtraction():
             new_pair = subtracted_inputs[prediction_int]
             return self.locate_recursively(new_pair, threshold, previous_returns + [prediction_string])
         
+
+    def _energy_predictions(self, inputs):
+        output = self.energynet.energy_model(inputs, pair_only = True)
+        if isinstance(output, dict):
+            return output["predictions"]
+        return output[0]
 
     def detect_span(self,set):
 

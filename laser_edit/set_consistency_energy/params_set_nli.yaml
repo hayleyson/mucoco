@@ -24,11 +24,12 @@ batch_size: 1
 eval:
     batch_size: 1
 locate:
+    # Table 13 Set-SNLI Editing: Attention (layer 11 / 0-index 10) + Median; span GradNorm, l=10
     instance:
         agg_method: median
-        attentions_num_layer: 11
+        attentions_num_layer: 10
         select_method: recursive_max
         type: attention
     span:
         attentions_num_layer: -1
-        type: gradnorm        
+        type: gradnorm

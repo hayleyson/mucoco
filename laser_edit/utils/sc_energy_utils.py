@@ -47,6 +47,13 @@ def load_pickle_dataset(dataset_name: str, split: str, name: str):
     return ds
 
 def load_sc_energy_dataset(dataset_name: str, split: str="eval2", use_only_incon: bool=True, n_samples: int=None, random_seed: int=42) ->Tuple[List[Dataset], List[str]]:
+    # Recover frozen laser_edit/data/*/testset_incon_300 dumps (seed=42).
+    # concat_arbitrary_pairs shuffles within each example and advances the RNG.
+    # The two dumps were created under different sample protocols:
+    #   - set_nli: reseed before random.sample
+    #   - lconvqa: continue the post-concat RNG (no reseed)
+    random.seed(random_seed)
+
     eval2_con_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, split, "C")
     eval2_incon_dataset_arbitrary_pairs = load_pickle_dataset(dataset_name, split, "I")
     eval2_con_dataset_arbitrary_pairs.dataset = [t for t in eval2_con_dataset_arbitrary_pairs.dataset if len(t) >=4]
@@ -77,8 +84,9 @@ def load_sc_energy_dataset(dataset_name: str, split: str="eval2", use_only_incon
     canonical_eval2_dataset.dataset = eval2_samples
     
     if n_samples is not None:
-        
-        random.seed(random_seed)
+        # See function docstring/comment above: set_nli frozen dump needs this reseed.
+        if dataset_name == "set_nli":
+            random.seed(random_seed)
         eval2_samples = random.sample(eval2_samples, n_samples)
         print(f"Num samples after sampling: {len(eval2_samples)}")
         canonical_eval2_dataset.dataset = eval2_samples
@@ -188,3 +196,14 @@ def format_set_text(set_texts: List[List[str]], target_mode: str="ebm", dataset:
 def convert_format(set_string: str, source_mode: str="llm", target_mode: str="ebm", dataset: str="lconvqa") -> str:
     set_texts = parse_set_text(set_string, source_mode, dataset)
     return format_set_text(set_texts, target_mode, dataset)
+
+
+class set_consistency_dataset(Dataset):
+    def __init__(self, dataset_list:List[List[Tuple[str, str, bool]]]):
+        self.dataset = dataset_list
+    
+    def __getitem__(self, index):
+        return self.dataset[index]
+    
+    def __len__(self):
+        return len(self.dataset)

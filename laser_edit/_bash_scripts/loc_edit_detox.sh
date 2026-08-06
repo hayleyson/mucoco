@@ -147,7 +147,7 @@ srun python laser_edit/ebm_edit_main.py \
 --source_style toxic \
 --target_style nontoxic \
 --target_label_ids 0 0 \
---thresholds 0.39 \
+--thresholds 0.95 \
 --wandb_project toxicity-decoding \
 --model_paths Qwen/Qwen2.5-7B-Instruct /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \
 --tokenizer_paths Qwen/Qwen2.5-7B-Instruct /home/hyeryung/data/loc_edit/models/roberta-base-jigsaw-toxicity-classifier-energy-training/step_1000_best_checkpoint \

@@ -119,10 +119,10 @@ python laser_edit/ebm_edit_main.py --method mlm-beamsearch-v0 \
 --source_style 'inconsistent' \
 --target_style 'consistent' \
 --target_label_ids 1 1 \
---thresholds 1.0 \
+--thresholds 0.99 \
 --wandb_project 'nli-decoding' \
---model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
---tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/zgs9e2sr/' \
+--model_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/06ezv2ws/' \
+--tokenizer_paths 'Qwen/Qwen2.5-7B-Instruct' '/home/hyeryung/data/loc_edit/models/nli/roberta_large_snli_mnli_anli_train_dev_with_finegrained_finegrained_labels_cross_entropy_n_a/06ezv2ws/' \
 --locate_method 'grad_norm' \
 --losses gpt2_no_prefix classification \
 --model_types AutoModelForCausalLM EncoderModel \

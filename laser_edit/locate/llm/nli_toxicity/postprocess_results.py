@@ -1,9 +1,13 @@
 import json
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from pathlib import Path
 import warnings
 import shutil
+
+BASELM_GENS_NONTOXIC_PATH = "/home/hyeryung/data/mucoco/laser_edit/base_lm_generate/baselm_gens/gpt-3.5-turbo-0125/nontoxic/gpt-3.5-turbo-0125_realtoxicityprompts_0shot_150_below_nontoxic_threshold_0_95_332.jsonl"
+BASELM_GENS_CONSISTENT_PATH = "/home/hyeryung/data/mucoco/laser_edit/data/logical-consistency/anli-r2-test_prompt_4_below_consistent_threshold_3105.jsonl"
+NLI_TOXICITY_REWRITE_HYPOTHESIS_TOXIC_PATH = "/home/hyeryung/data/mucoco/laser_edit/data/nli-toxicity/Qwen3-8B_rewrite_hypothesis_toxic_5shot_test_set_260506.jsonl"
 
 
 def tokenize_by_whitespace(text: str) -> List[str]:
@@ -205,6 +209,142 @@ def create_word_labels_from_spans(spans: List, text: str, words: List[str]) -> L
             continue
     
     return labels
+
+
+def parse_llm_result_line(line: str) -> dict:
+    """
+    Parse one LLM result line, including quoted JSON with trailing chat template tokens.
+    """
+    line = line.strip()
+    try:
+        result = json.loads(line)
+    except json.JSONDecodeError:
+        warnings.warn(f"Parsing failed for {line}. Will assume that the model did not find any spans.")
+        return {"spans": []}
+
+    if isinstance(result, dict):
+        return result
+
+    if isinstance(result, str):
+        try:
+            return json.loads(result)
+        except json.JSONDecodeError:
+            match = re.search(r'\{.*\}', result)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    pass
+
+    warnings.warn(f"Parsing failed for {line}. Will assume that the model did not find any spans.")
+    return {"spans": []}
+
+
+def read_llm_results(result_file: str) -> List[dict]:
+    results = []
+    with open(result_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                results.append(parse_llm_result_line(line))
+    return results
+
+
+def mask_words_with_labels(words: List[str], word_labels: List[int]) -> str:
+    masked_words = [
+        '<mask>' if label else word
+        for word, label in zip(words, word_labels)
+    ]
+    masked_text = ' '.join(masked_words)
+    masked_text = re.sub(r'\s+<mask>', '<mask>', masked_text)
+    masked_text = re.sub(r'<mask>\s+(?=<mask>)', '<mask>', masked_text)
+    return masked_text
+
+
+def union_word_labels(labels_1: List[int], labels_2: List[int]) -> List[int]:
+    """
+    Union two word-level binary label lists.
+    """
+    return [
+        1 if label_1 or label_2 else 0
+        for label_1, label_2 in zip(labels_1, labels_2)
+    ]
+
+
+def process_baselm_generation_spans(
+    result_file: str,
+    original_file: str,
+    output_file: str,
+    result_file_2: Optional[str] = None,
+):
+    """
+    Process flattened base-LM generation span predictions back into grouped located JSONL.
+    """
+    original_data = []
+    with open(original_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            original_data.append(json.loads(line))
+
+    llm_results = read_llm_results(result_file)
+    llm_results_2 = read_llm_results(result_file_2) if result_file_2 else None
+    result_idx = 0
+    output_data = []
+    individual_item_count = 0
+
+    for orig in original_data:
+        output_entry = {
+            'prompt': orig.get('prompt', {}),
+            'generations': [],
+        }
+
+        for generation_entry in orig.get('generations', []):
+            generation = generation_entry.get('text', '')
+            words = tokenize_by_whitespace(generation)
+            result = llm_results[result_idx] if result_idx < len(llm_results) else {"spans": []}
+            result_idx += 1
+
+            spans = result.get('spans', [])
+            word_labels = create_word_labels_from_spans(spans, generation, words)
+            if llm_results_2 is not None:
+                result_2 = llm_results_2[result_idx - 1] if result_idx - 1 < len(llm_results_2) else {"spans": []}
+                spans_2 = result_2.get('spans', [])
+                word_labels_2 = create_word_labels_from_spans(spans_2, generation, words)
+                word_labels = union_word_labels(word_labels, word_labels_2)
+            masked_generation_entry = dict(generation_entry)
+            masked_generation_entry['text'] = mask_words_with_labels(words, word_labels)
+            output_entry['generations'].append(masked_generation_entry)
+            individual_item_count += 1
+
+        output_data.append(output_entry)
+
+    if result_idx != len(llm_results):
+        warnings.warn(
+            f"Used {result_idx} LLM results, but found {len(llm_results)} entries in {result_file}."
+        )
+    if llm_results_2 is not None and result_idx != len(llm_results_2):
+        warnings.warn(
+            f"Used {result_idx} LLM results, but found {len(llm_results_2)} entries in {result_file_2}."
+        )
+
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for entry in output_data:
+            f.write(json.dumps(entry) + '\n')
+
+    print(
+        f"Processed {len(output_data)} grouped examples and "
+        f"{individual_item_count} individual items. Output saved to {output_file}"
+    )
+
+
+def process_nli_toxicity_rewrite_spans(
+    result_file: str,
+    original_file: str,
+    output_file: str,
+    result_file_2: Optional[str] = None,
+):
+    """
+    Process NLI-toxicity rewrite span predictions back into grouped located JSONL.
+    """
+    process_baselm_generation_spans(result_file, original_file, output_file, result_file_2)
 
 
 def process_toxic_spans(result_file: str, original_file: str, output_file: str):
@@ -425,7 +565,16 @@ def process_bbm(result_file: str, output_file: str):
     print(f"Processed {len(results)} examples. Output saved to {output_file}")
 
 
-def process_all_results(results_dir: str, original_toxic_extended_file: str, original_toxic_file: str, original_inconsistent_file: str, output_dir: str):
+def process_all_results(
+    results_dir: str,
+    original_toxic_extended_file: str,
+    original_toxic_file: str,
+    original_inconsistent_file: str,
+    original_baselm_gens_nontoxic_file: str,
+    original_baselm_gens_consistent_file: str,
+    original_nli_toxicity_rewrite_file: str,
+    output_dir: str,
+):
     """
     Process all result files in the results directory.
     
@@ -434,6 +583,7 @@ def process_all_results(results_dir: str, original_toxic_extended_file: str, ori
         original_toxic_extended_file: Path to original toxic spans extended data file
         original_toxic_file: Path to original toxic spans data file
         original_inconsistent_file: Path to original inconsistent spans data file
+        original_nli_toxicity_rewrite_file: Path to original NLI-toxicity rewrite data file
         output_dir: Directory to save processed outputs
     """
     results_path = Path(results_dir)
@@ -446,7 +596,16 @@ def process_all_results(results_dir: str, original_toxic_extended_file: str, ori
     
     for result_file in result_files:
         # Determine task type from filename
-        if 'toxicspans_extended' in result_file.name:
+        if 'nli_toxicity_rewrite_hypothesis_toxic' in result_file.name:
+            task = 'nli_toxicity_rewrite_hypothesis_toxic'
+            original_file = original_nli_toxicity_rewrite_file
+        elif 'baselm_gens_nontoxic' in result_file.name:
+            task = 'baselm_gens_nontoxic'
+            original_file = original_baselm_gens_nontoxic_file
+        elif 'baselm_gens_consistent' in result_file.name:
+            task = 'baselm_gens_consistent'
+            original_file = original_baselm_gens_consistent_file
+        elif 'toxicspans_extended' in result_file.name:
             task = 'toxic_extended'
             original_file = original_toxic_extended_file
         elif 'toxic' in result_file.name:
@@ -470,7 +629,13 @@ def process_all_results(results_dir: str, original_toxic_extended_file: str, ori
         
         print(f"Processing {result_file.name}...")
         # try:
-        if task == 'toxic_extended':
+        if task == 'baselm_gens_nontoxic':
+            process_baselm_generation_spans(str(result_file), original_file, str(output_file))
+        elif task == 'baselm_gens_consistent':
+            process_baselm_generation_spans(str(result_file), original_file, str(output_file))
+        elif task == 'nli_toxicity_rewrite_hypothesis_toxic':
+            process_nli_toxicity_rewrite_spans(str(result_file), original_file, str(output_file))
+        elif task == 'toxic_extended':
             process_toxic_spans_extended(str(result_file), original_file, str(output_file))
         elif task == 'toxic':
             process_toxic_spans(str(result_file), original_file, str(output_file))
@@ -496,12 +661,14 @@ def main():
     parser = argparse.ArgumentParser(description='Convert LLM span predictions to word-level binary labels')
     parser.add_argument('--result_file', type=str, default=None,
                         help='Path to LLM result file (.jsonl). If not provided, processes all files in results_dir.')
+    parser.add_argument('--result_file_2', type=str, default=None,
+                        help='Optional second LLM result file to union with result_file for nli_toxicity_rewrite_hypothesis_toxic.')
     parser.add_argument('--original_file', type=str, default=None,
                         help='Path to original data file (.jsonl). Required if result_file is provided.')
     parser.add_argument('--output_file', type=str, default=None,
                         help='Path to output file (.jsonl). Required if result_file is provided.')
-    parser.add_argument('--task', type=str, choices=['toxic', 'inconsistent', 'logical_deduction', 'tracking_shuffled_objects'], default=None,
-                        help='Task type: toxic or inconsistent or logical_deduction or tracking_shuffled_objects. Required if result_file is provided.')
+    parser.add_argument('--task', type=str, choices=['toxic', 'toxic_extended', 'inconsistent', 'baselm_gens_nontoxic', 'baselm_gens_consistent', 'nli_toxicity_rewrite_hypothesis_toxic', 'logical_deduction', 'tracking_shuffled_objects'], default=None,
+                        help='Task type. Required if result_file is provided.')
     parser.add_argument('--results_dir', type=str, default=None,
                         help='Directory containing LLM result files. If provided, processes all files.')
     parser.add_argument('--original_toxic_file', type=str, 
@@ -513,6 +680,15 @@ def main():
     parser.add_argument('--original_inconsistent_file', type=str,
                         default='laser_edit/data/locate/inconsistentspans/nli_contra_300_locate_labels_final.jsonl',
                         help='Path to original inconsistent spans data file')
+    parser.add_argument('--original_baselm_gens_nontoxic_file', type=str,
+                        default=BASELM_GENS_NONTOXIC_PATH,
+                        help='Path to original nontoxic base-LM generations data file')
+    parser.add_argument('--original_baselm_gens_consistent_file', type=str,
+                        default=BASELM_GENS_CONSISTENT_PATH,
+                        help='Path to original consistent base-LM generations data file')
+    parser.add_argument('--original_nli_toxicity_rewrite_file', type=str,
+                        default=NLI_TOXICITY_REWRITE_HYPOTHESIS_TOXIC_PATH,
+                        help='Path to original NLI-toxicity rewrite generations data file')
     parser.add_argument('--output_dir', type=str, default='laser_edit/llm_experiments/locate_with_llm/processed_results',
                         help='Directory to save processed outputs (used when processing all files)')
     
@@ -525,16 +701,30 @@ def main():
             args.original_toxic_extended_file,
             args.original_toxic_file,
             args.original_inconsistent_file,
+            args.original_baselm_gens_nontoxic_file,
+            args.original_baselm_gens_consistent_file,
+            args.original_nli_toxicity_rewrite_file,
             args.output_dir
         )
     # Single file processing mode
-    elif args.result_file and args.original_file and args.output_file and args.task:
-        if args.task == 'toxic_extended':
-            process_toxic_spans_extended(args.result_file, args.original_file, args.output_file)
-        if args.task == 'toxic':
-            process_toxic_spans(args.result_file, args.original_file, args.output_file)
+    elif args.result_file and args.output_file and args.task:
+        original_file = args.original_file
+        
+        if args.task in ['baselm_gens_nontoxic', 'baselm_gens_consistent']:
+            process_baselm_generation_spans(args.result_file, original_file, args.output_file)
+        elif args.task == 'nli_toxicity_rewrite_hypothesis_toxic':
+            process_nli_toxicity_rewrite_spans(
+                args.result_file,
+                original_file,
+                args.output_file,
+                result_file_2=args.result_file_2,
+            )
+        elif args.task == 'toxic_extended':
+            process_toxic_spans_extended(args.result_file, original_file, args.output_file)
+        elif args.task == 'toxic':
+            process_toxic_spans(args.result_file, original_file, args.output_file)
         elif args.task == 'inconsistent':
-            process_inconsistent_spans(args.result_file, args.original_file, args.output_file)
+            process_inconsistent_spans(args.result_file, original_file, args.output_file)
         elif args.task in ['logical_deduction', 'tracking_shuffled_objects']:
             process_bbm(args.result_file, args.output_file)
     else:

@@ -14,6 +14,6 @@ export PYTHONPATH=.
 export HF_HOME=/home/hyeryung/data/hf_cache
 
 srun -n 1 -c 1 python laser_edit/utils/dev_only/count_tokens.py \
---input_file /home/hyeryung/data/mucoco/outputs/sc_energy/set_nli/ebm/k5ecn7jh/outputs_Qwen2.5-7B-Instruct_v1_s0_p0.96_refined_1779870134.jsonl \
---model_name Qwen/Qwen2.5-7B-Instruct \
+--input_file /home/hyeryung/data/mucoco/outputs/toxicity/gpt3_5_gen/llm/final/toxicity_notmasked_loc_edit_200891.jsonl \
+--model_name gpt2-large \
 --file_type jsonl

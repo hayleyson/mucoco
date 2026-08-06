@@ -42,6 +42,17 @@ def main():
     parser.add_argument('--random_seed', type=int, default=42)
     parser.add_argument('--mode', type=str, choices=['wo_locate', 'w_gt_locate', 'w_self_locate', 'w_ebm_locate', 'w_random_locate'], default='wo_locate')
     parser.add_argument('--use_vllm', action='store_true')
+    parser.add_argument(
+        '--decoding',
+        type=str,
+        choices=['auto', 'nucleus', 'greedy'],
+        default='auto',
+        help="Decoding policy for local HF/vLLM editors. "
+             "'auto' uses Qwen3 thinking-mode sampling for Qwen3, else nucleus "
+             "(temp=1.0, top_p=0.96, matching toxicity/NLI). "
+             "'nucleus' forces temp=1.0 / top_p=0.96. "
+             "'greedy' forces do_sample=False / temperature=0.",
+    )
     args = parser.parse_args()
     if args.reasoning_effort == 'none':
         args.reasoning_effort = None
@@ -102,10 +113,14 @@ def main():
     else:
         if args.use_vllm:
             model = VllmModel(args.model_id,
-                              args.dataset_name)
+                              args.dataset_name,
+                              decoding=args.decoding,
+                              seed=args.random_seed)
         else:
             model = HFModel(args.model_id,
-                            args.dataset_name)
+                            args.dataset_name,
+                            decoding=args.decoding,
+                            seed=args.random_seed)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
