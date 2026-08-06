@@ -173,3 +173,5 @@ laser_edit/set_consistency_energy/results/*
 docs/
 tests/
 laser_edit/analyses/
+# Local Hugging Face upload staging (large weights)
+.hf_upload_staging/

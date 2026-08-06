@@ -19,14 +19,7 @@ export PYTHONPATH=.
 
 ## Environment setup
 
-Create **two** conda environments. Do not try to install vLLM into the CUDA 12.4 stack — its torch/CUDA pins conflict with that freeze.
-
-| Environment | Python / CUDA | Script | Requirements | Includes vLLM? |
-| --- | --- | --- | --- | --- |
-| `loc-edit` | 3.11 / CUDA 12.4 | `create_env_py3.11_cuda12.4.sh` | `requirements_py3.11_cuda12.4.txt` | **No** |
-| `loc-edit-pro6000-vllm` | 3.12 / CUDA 13.0 | `create_env_py3.12_cuda13.0_vllm.sh` | `requirements_py3.12_cuda13.0_vllm.txt` | **Yes** |
-
-From `laser_edit/`:
+Create **two** conda environments by running the commands below from `laser_edit/`:
 
 ```bash
 # 1) General / EBM stack (no vLLM)
@@ -36,7 +29,51 @@ bash create_env_py3.11_cuda12.4.sh
 bash create_env_py3.12_cuda13.0_vllm.sh
 ```
 
-**vLLM:** only install via the CUDA 13.0 + Python 3.12 script above. Adding vLLM to `create_env_py3.11_cuda12.4.sh` / `requirements_py3.11_cuda12.4.txt` does not resolve cleanly (exact torch and dependency pins clash). Use `loc-edit-pro6000-vllm` (or an existing dedicated `vllm` env) for `--use_vllm` jobs.
+Currently, only `create_env_py3.12_cuda13.0_vllm.sh` installs vLLM. Use `loc-edit-pro6000-vllm` if you want to run LLM edit experiments with the `--use_vllm` flag.
+
+---
+
+## Downloading energy models (EBMs)
+
+LaSEr locate / EBM edit need **local** energy-model checkpoints.
+
+### Toxicity and NLI
+
+Download checkpoints from Huggingface.
+| Task | Hub repo |
+| --- | --- |
+| Toxicity | [`hayleyson/laser-edit-toxicity-energy`](https://huggingface.co/hayleyson/laser-edit-toxicity-energy) |
+| NLI (contradiction avoidance) | [`hayleyson/laser-edit-nli-energy`](https://huggingface.co/hayleyson/laser-edit-nli-energy) |
+
+Example:
+
+```bash
+# Suggested layout under the repo root
+mkdir -p checkpoints/energy
+
+huggingface-cli download hayleyson/laser-edit-toxicity-energy \
+  --local-dir checkpoints/energy/toxicity
+
+huggingface-cli download hayleyson/laser-edit-nli-energy \
+  --local-dir checkpoints/energy/nli
+```
+
+Then update entrypoints to point to the local directories:
+
+| Method family | What to change |
+| --- | --- |
+| **LaSEr & LLM Edit** (`laser_llm/`, and LLM-edit stages that evaluate with an EBM) | Set `PRETRAINED_MODEL_PATH` / `PRETRAINED_MODEL_PATH_TOX` / `PRETRAINED_MODEL_PATH_NLI` to the download dirs (e.g. `checkpoints/energy/toxicity`, `checkpoints/energy/nli`). |
+| **LaSEr & EBM Edit** (`laser_ebm/toxicity.sh`, `nli.sh`, `multi.sh`) | In `--model_paths` and `--tokenizer_paths`, keep the base LM (e.g. Qwen) first; set the **energy** path(s) to the same local dirs. For `multi`, pass NLI then toxicity (order must match the task). |
+| **Plain / self-locate LLM** scripts that pass `--pretrained_model_path` | Same as above when an energy checkpoint is required for evaluation or locate. |
+
+### Set-consistency (set-LConVQA / set-SNLI)
+
+For **set-consistency enforcement** tasks, download the trained set-consistency energy weights from the official [SC_Energy_public](https://github.com/radishtiger/SC_Energy_public) release (Google Drive link under **Model Weights** in that README).
+
+Update `model_path` in LaSEr’s set-consistency configs:
+
+   - `laser_edit/set_consistency_energy/params_set_lconvqa.yaml` (set-LConVQA)
+   - `laser_edit/set_consistency_energy/params_set_nli.yaml` (set-SNLI)
 
 ---
 
@@ -90,3 +127,36 @@ Nicknames for each task is in the parentheses.
 | + LLM smoothing | toxicity / nli / set-LConVQA / set-NLI / multi | `sbatch …/laser_ebm_llm_smoothing/<task>.sh` (update `INPUT_PATH` first) |
 
 For multi-step pipelines, run **locate → postprocess → edit** in order. After locate finishes, update result filenames in the postprocess/edit scripts (they include timestamps / job ids).
+
+---
+
+## Evaluation
+
+Task-specific evaluation scripts live under:
+
+```text
+laser_edit/evaluation/scripts/
+```
+
+Point each script’s `GENERATIONS_FILE_PATH` (and `SOURCE_FILE_PATH` if needed) at the run you want to score, then submit with `sbatch`.
+
+For **toxicity** and **nli** LLM-edit outputs, evaluation applies metric-specific postprocessing first (fluency for both; also NLI formatting for nli) before scoring those metrics. EBM outputs are evaluated directly.
+
+| Task | Edit type | Script |
+| --- | --- | --- |
+| toxicity | EBM | `toxicity_ebm.sh` |
+| toxicity | LLM | `toxicity_llm.sh` |
+| nli | EBM | `nli_ebm.sh` |
+| nli | LLM | `nli_llm.sh` |
+| multi | EBM or LLM | `multi.sh` |
+| set-LConVQA | EBM | `set_lconvqa_ebm.sh` |
+| set-LConVQA | LLM | `set_lconvqa_llm.sh` |
+| set-NLI (set-SNLI) | EBM | `set_nli_ebm.sh` |
+| set-NLI (set-SNLI) | LLM | `set_nli_llm.sh` |
+
+Example:
+
+```bash
+# Edit GENERATIONS_FILE_PATH inside the script first
+sbatch laser_edit/evaluation/scripts/nli_llm.sh
+```
