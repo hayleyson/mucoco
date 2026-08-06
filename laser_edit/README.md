@@ -2,7 +2,7 @@
 
 **[Paper (arXiv)](https://arxiv.org/abs/2407.00740)** · Localized Span-level Error Editing with Energy-based Localization
 
-Official code for **[LaSEr-Edit](https://arxiv.org/abs/2407.00740)** (Son, Eom, Song, & Lee), a constraint-satisfying text revision framework that (1) localizes constraint-violating spans with lightweight energy-based models (EBMs) and (2) edits only those spans.
+Official code for **[LaSEr-Edit](https://arxiv.org/abs/2407.00740)** (Son et al., 2026), a constraint-satisfying text revision framework that (1) localizes constraint-violating spans with lightweight energy-based models (EBMs) and (2) edits only those spans.
 
 We provide two main editing variants from the paper:
 
@@ -43,9 +43,9 @@ laser_edit/_bash_scripts/entrypoints/
 | --- | --- | --- |
 | Toxicity avoidance | `toxicity` | Non-toxicity |
 | Contradiction avoidance | `nli` | Single-pair logical consistency (NLI) |
-| Set-consistency (LConVQA) | `set_lconvqa` | Consistency over a set of QA pairs |
-| Set-consistency (Set-SNLI) | `set_nli` | Consistency over a set of sentences |
-| Multi-constraint | `multi` | Joint non-toxicity + pairwise consistency |
+| Set-consistency Enforcement (LConVQA) | `set_lconvqa` | Consistency over a set of QA pairs |
+| Set-consistency Enforcement (Set-SNLI) | `set_nli` | Consistency over a set of sentences |
+| Joint toxicity and contradiction avoidance | `multi` | Joint non-toxicity + pairwise consistency |
 
 ---
 
@@ -53,12 +53,12 @@ laser_edit/_bash_scripts/entrypoints/
 
 | Method | Localization | Editing |
 | --- | --- | --- |
-| Plain LLM Edit | none | LLM |
+| Plain LLM Edit | N/A | LLM |
 | Self-locate & LLM Edit | same LLM proposes spans | LLM |
 | Self-parallel-locate & LLM Edit | separate LLM locates per constraint, then union | LLM |
 | **LaSEr-LLM Edit** | EBM (LaSEr) | LLM |
 | **LaSEr-EBM Edit** | EBM (LaSEr) | EBM-guided decoding |
-| LaSEr-EBM Edit + LLM smoothing | EBM (LaSEr) | EBM-guided decoding → LLM smoothing for fluency |
+| **LaSEr-EBM Edit + LLM smoothing** | EBM (LaSEr) | EBM-guided decoding → LLM smoothing for fluency |
 
 ---
 
