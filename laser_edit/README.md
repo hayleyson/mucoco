@@ -128,10 +128,10 @@ Test sets for **toxicity avoidance**, **contradiction avoidance (nli)**, and **j
 
 ### Set-consistency (Set-LConVQA / Set-SNLI)
 
-For set-consistency enforcement, download the datasets from the [SC_Energy_public](https://github.com/radishtiger/SC_Energy_public) repository (see that README for dataset download instructions), then place them under:
+Download the set-consistency datasets from [SC_Energy_public](https://github.com/radishtiger/SC_Energy_public) (see that repository’s README for download instructions). Place the test pickle files—`set_nli_test_{class}_dataset.pickle` and `lconvqa_test_{class}_dataset.pickle`—under:
 
-- `laser_edit/data/lconvqa/` (Set-LConVQA)
 - `laser_edit/data/set_nli/` (Set-SNLI)
+- `laser_edit/data/lconvqa/` (Set-LConVQA)
 
 ---
 
