@@ -1530,6 +1530,13 @@ def main(args):
                 sentiment_model_path=model_paths[1],
                 sentiment_model_type=model_types[1],
                 source_file_path=data_paths[0]
+            )   
+        elif (args.task == "nli") or (lossabbr[1] == "nli"):
+            run_generation_evaluation(
+                run.path,
+                outfile,
+                "nli,ppl-qwen,dist-n,repetition,fluency,contents-preservation",
+                source_file_path=data_paths[0],
             )    
         
     print("average numbers of steps to converge =", np.mean(all_stepcounts))
