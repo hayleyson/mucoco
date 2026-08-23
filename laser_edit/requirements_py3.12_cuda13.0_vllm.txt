@@ -1,0 +1,28 @@
+# Remaining packages for Python 3.12 + CUDA 13.0 + vLLM.
+# torch / torchvision / torchaudio / vllm are installed by
+# create_env_py3.12_cuda13.0_vllm.sh against the cu130 index.
+accelerate
+babel
+beautifulsoup4
+bert-score
+bs4
+datasets
+evaluate
+huggingface-hub
+jupyter
+matplotlib
+nltk
+numpy
+openai
+openpyxl
+pandas
+pillow
+sacrebleu
+sacremoses
+scikit-learn
+scipy
+seaborn
+sentence-transformers
+tqdm
+transformers
+wandb
