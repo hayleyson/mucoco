@@ -1,0 +1,26 @@
+{
+  "schema": "prompt_templates/v1",
+  "examples_section_prefix": "\n### EXAMPLES\n",
+  "grammar_refinement_versions": {
+    "1": {
+      "sentence": {
+        "header": "### INSTRUCTIONS    \nYou are an expert editor. Your task is to correct grammatical errors and improve sentence flow while preserving the original meaning and content exactly. \n- Avoid adding new information or removing existing information. \n- Avoid changing the intent, tone, or facts. \n- Only revise wording, grammar, or phrasing for clarity and naturalness. \n- If the sentence is already correct and natural, return n/a. \n- Only output the revised sentence or \"n/a\". \n",
+        "footer": "### INPUT\nOriginal: %s\nRefined: \n"
+      },
+      "continuation": {
+        "header": "### INSTRUCTIONS    \nYou are an expert editor. Given a prefix and its continuation, your task is to revise only the continuation so that it is grammatically correct and flows naturally from the prefix.\n- Judge grammatical correctness and flow by combining the prefix and the continuation.\n- Ensure the revised continuation flows naturally from the prefix.\n- Avoid modifying the prefix.\n- Avoid adding new information or removing existing information. \n- Avoid changing the intent, tone, or facts. \n- Only revise wording, grammar, or phrasing for clarity and naturalness. \n- If the continuation is already correct and natural when combined with the prefix, return n/a. \n- Only output the revised continuation or \"n/a\".\n",
+        "footer": "### INPUT\nPrefix: %s\nOriginal: %s\n\n### OUPUT\nPrefix: %s\nRefined: \n"
+      }
+    },
+    "2": {
+      "sentence": {
+        "header": "Correct grammatical errors and improve sentence flow without changing the meaning or content. If no revision is needed, return n/a. Output only the revised sentence or \"n/a\".\n",
+        "footer": "### INPUT\nOriginal: %s\nRefined: \n"
+      },
+      "continuation": {
+        "header": "Revise the continuation to be grammatically correct and flow naturally from the prefix. Do not modify the prefix, add/remove information, or change the meaning. If no revision is needed, return n/a. Output only the revised continuation or \"n/a\".\n",
+        "footer": "### INPUT\nPrefix: %s\nOriginal: %s\n\n### OUPUT\nPrefix: %s\nRefined: \n"
+      }
+    }
+  }
+}
