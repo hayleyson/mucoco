@@ -638,7 +638,7 @@ def toxicity_nli_joint_percentages_from_paths(
             pairs = sorted(
                 (
                     int(k.rsplit("-", 1)[-1]),
-                    float(v[0]["attributeScores"]["TOXICITY"]["spanScores"][0]["score"]["value"]),
+                    float(perspective_toxicity_score(v[0])),
                 )
                 for k, v in d.items()
             )
